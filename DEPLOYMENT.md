@@ -43,6 +43,7 @@ Use the same new password as `DB_PASSWORD` in the LalahariHealth backend `.env` 
 Run these commands after SSHing into the server. Replace the Git URL with the repository URL. If the source is uploaded with SFTP instead, upload it to `/srv/lalaharihealth`, then set its ownership with `sudo chown -R lalahari:lalahari /srv/lalaharihealth` and start at the virtual-environment command.
 
 ```bash
+sudo install -d -o lalahari -g lalahari -m 0755 /srv/lalaharihealth
 sudo -u lalahari -H git clone <YOUR_GIT_REPOSITORY_URL> /srv/lalaharihealth
 sudo -iu lalahari
 cd /srv/lalaharihealth/backend
@@ -62,6 +63,8 @@ Set a real random `SECRET_KEY` in `.env`; this command prints one:
 ```bash
 python3.12 -c "import secrets; print(secrets.token_urlsafe(64))"
 ```
+
+Set the printed value as `SECRET_KEY` in `.env`. The supplied production template also sets HSTS to one year. Keep HSTS enabled only after both domains have valid HTTPS certificates; it is safe to leave the setting at `0` until the Nginx and Certbot steps below are complete.
 
 Build the frontend only after creating its production environment file, because `NEXT_PUBLIC_API_BASE_URL` is embedded during the Next.js build:
 
