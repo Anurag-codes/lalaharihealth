@@ -1,0 +1,5 @@
+To run:
+cd "c:\Users\Anurag\startup wala startup\lalaharihealth\frontend"
+cmd /c "npm run dev"
+cd "c:\Users\Anurag\startup wala startup\lalaharihealth\backend"
+.\venv\Scripts\python.exe manage.py runserver

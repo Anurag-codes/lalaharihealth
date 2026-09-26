@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --ink: #1f2937;
+  --primary: #00a7a7;
+  --primary-dark: #00807f;
+  --primary-darker: #005f5f;
+  --primary-light: #e6f7f7;
+  --primary-soft: #f0fbfb;
+  --accent-warm: #ff8a3d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-ink: var(--ink);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-darker: var(--primary-darker);
+  --color-primary-light: var(--primary-light);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent-warm: var(--accent-warm);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-poppins);
+  --font-devanagari: var(--font-noto-devanagari);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Elderly-friendly text scaling, toggled by TextSizeControl and persisted in localStorage. */
+html[data-text-size="lg"] {
+  font-size: 112.5%;
+}
+
+html[data-text-size="xl"] {
+  font-size: 125%;
+}
+
+body {
+  background: var(--background);
+  color: var(--ink);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 167, 167, 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba(0, 167, 167, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 167, 167, 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
