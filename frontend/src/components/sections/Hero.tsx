@@ -33,8 +33,10 @@ export function Hero() {
           </h1>
 
           <div className="mt-6 max-w-xl space-y-4 text-base leading-relaxed text-ink/70 sm:text-lg">
+            <p className="text-primary">
+              Get cheapest specialist consultations from home and save time, money and visits to doctors and hospitals.
+            </p>
             <p>
-              <span className="text-primary">Get cheapest specialist consultations from home and save time, money and visits to doctors and hospitals.</span> 
               Tell the LalahariHealth app what&apos;s troubling you and get your first
               symptom-based guidance free. Understand your next steps before making costly
               decisions.
@@ -42,8 +44,8 @@ export function Hero() {
             <p>
               Our aim is to help you understand the care you may need—not push unnecessary tests or
               treatment for profit. Avoiding unnecessary care may help prevent avoidable costs.
-              <span className="text-primary">Telephonic consultation is also available.</span>
             </p>
+            <p className="text-primary">Telephonic consultation is also available.</p>
             <p className="font-devanagari text-base leading-relaxed text-primary-darker sm:text-lg">
               घर बैठे विशेषज्ञ परामर्श पाएं और समय, पैसा और डॉक्टरों और अस्पतालों के दौरे बचाएं।  
               सेहत की परेशानी या इलाज के खर्च की चिंता? ऐप पर अपनी तकलीफ़ बताइए और पहली सलाह
