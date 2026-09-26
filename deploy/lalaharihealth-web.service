@@ -8,8 +8,8 @@ Group=www-data
 WorkingDirectory=/srv/lalaharihealth/frontend
 Environment=NODE_ENV=production
 Environment=HOSTNAME=127.0.0.1
-Environment=PORT=3001
-ExecStart=/bin/bash -lc 'source /srv/lalahari/.nvm/nvm.sh && nvm use 20 >/dev/null && exec npm start -- --hostname 127.0.0.1 --port 3001'
+Environment=PORT=3101
+ExecStart=/bin/bash -lc 'source /srv/lalahari/.nvm/nvm.sh && nvm use 20 >/dev/null && exec npm start -- --hostname 127.0.0.1 --port 3101'
 Restart=always
 RestartSec=5
 PrivateTmp=true

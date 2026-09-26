@@ -1,6 +1,6 @@
 # LalahariHealth deployment
 
-These instructions deploy the Next.js site at `lalaharihealth.com` and the Django API at `api.lalaharihealth.com` alongside existing Nginx sites. They use independent systemd services, an API Unix socket, and frontend port `127.0.0.1:3001`; they do not edit or restart existing application services.
+These instructions deploy the Next.js site at `lalaharihealth.com` and the Django API at `api.lalaharihealth.com` alongside existing Nginx sites. They use independent systemd services, an API Unix socket, and frontend port `127.0.0.1:3101`; they do not edit or restart existing application services.
 
 The application runs under its own `lalahari` system user in `/srv/lalaharihealth`. This deliberately avoids altering the users, services, Node.js versions, or directories of existing sites.
 
@@ -58,6 +58,8 @@ python manage.py collectstatic --noinput
 python manage.py check --deploy
 ```
 
+Swagger documentation is available after deployment at `https://api.lalaharihealth.com/api/v1/health/swagger-documentation/`. The OpenAPI schema is available at `https://api.lalaharihealth.com/api/v1/schema/`.
+
 Set a real random `SECRET_KEY` in `.env`; this command prints one:
 
 ```bash
@@ -70,6 +72,8 @@ Build the frontend only after creating its production environment file, because 
 
 ```bash
 cd /srv/lalaharihealth/frontend
+source /srv/lalahari/.nvm/nvm.sh
+nvm use 20
 cp ../deploy/frontend.env.production.example .env.production
 npm ci
 npm run build
@@ -86,7 +90,8 @@ sudo cp /srv/lalaharihealth/deploy/lalaharihealth-web.service /etc/systemd/syste
 sudo systemctl daemon-reload
 sudo systemctl enable --now lalaharihealth-api lalaharihealth-web
 sudo systemctl status lalaharihealth-api lalaharihealth-web --no-pager
-curl --fail http://127.0.0.1:3001/
+sudo ss -ltnp '( sport = :3101 )'
+curl --fail http://127.0.0.1:3101/
 ```
 
 ## Nginx and HTTPS
@@ -112,6 +117,8 @@ curl --fail https://api.lalaharihealth.com/api/v1/health/
 curl -I https://lalaharihealth.com/
 ```
 
+If a certificate was accidentally deployed to another site's Nginx block, remove the LalahariHealth-specific block from that site and replace `/etc/nginx/sites-available/lalaharihealth` with `deploy/nginx-lalaharihealth-https.conf`. The dedicated configuration uses the existing certificate files and must be validated with `sudo nginx -t` before reloading Nginx.
+
 ## Later releases
 
 Back up PostgreSQL before each migration. The production database is separate from all other app databases.
@@ -128,9 +135,23 @@ python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py collectstatic --noinput
 cd ../frontend
+source /srv/lalahari/.nvm/nvm.sh
+nvm use 20
 npm ci
 npm run build
 exit
 sudo systemctl restart lalaharihealth-api lalaharihealth-web
 sudo systemctl status lalaharihealth-api lalaharihealth-web --no-pager
+```
+
+When deploying the Swagger addition to an already-running server, install the updated backend requirements, collect its self-hosted Swagger assets, and restart the API service:
+
+```bash
+sudo -iu lalahari
+cd /srv/lalaharihealth/backend
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python manage.py collectstatic --noinput
+exit
+sudo systemctl restart lalaharihealth-api
 ```
