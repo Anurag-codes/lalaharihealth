@@ -29,28 +29,31 @@ export function Hero() {
 
           <h1 className="mt-6 font-heading text-4xl font-extrabold leading-[1.1] tracking-tight text-ink sm:text-5xl lg:text-[3.4rem]">
             Worried about your health or the cost of treatment?{" "}
-            <span className="text-primary">Start with a free consultation.</span>
+            <span className="text-primary">Free home consultations to all.</span>
           </h1>
 
           <div className="mt-6 max-w-xl space-y-4 text-base leading-relaxed text-ink/70 sm:text-lg">
             <p>
+              <span className="text-primary">Get cheapest specialist consultations from home and save time, money and visits to doctors and hospitals.</span> 
               Tell the LalahariHealth app what&apos;s troubling you and get your first
               symptom-based guidance free. Understand your next steps before making costly
               decisions.
             </p>
-            <p className="font-devanagari text-lg leading-relaxed text-primary-darker sm:text-xl">
+            <p>
+              Our aim is to help you understand the care you may need—not push unnecessary tests or
+              treatment for profit. Avoiding unnecessary care may help prevent avoidable costs.
+              <span className="text-primary">Telephonic consultation is also available.</span>
+            </p>
+            <p className="font-devanagari text-base leading-relaxed text-primary-darker sm:text-lg">
+              घर बैठे विशेषज्ञ परामर्श पाएं और समय, पैसा और डॉक्टरों और अस्पतालों के दौरे बचाएं।  
               सेहत की परेशानी या इलाज के खर्च की चिंता? ऐप पर अपनी तकलीफ़ बताइए और पहली सलाह
               मुफ़्त पाइए।
             </p>
-            <p>
-              Get guidance from home and save travel time. Our aim is to help you understand the
-              care you may need—not push unnecessary tests or treatment for profit. Avoiding
-              unnecessary care may help prevent avoidable costs.
-            </p>
             <p className="font-devanagari text-base leading-relaxed text-primary-darker sm:text-lg">
-              घर बैठे मार्गदर्शन पाएं और आने-जाने का समय बचाएं। हमारा उद्देश्य ज़रूरत के अनुसार
+              हमारा उद्देश्य ज़रूरत के अनुसार
               देखभाल समझने में मदद करना है—मुनाफ़े के लिए गैर-ज़रूरी जाँच या इलाज बढ़ावा देना नहीं।
               इससे बेवजह के खर्च से बचने में मदद मिल सकती है।
+              <span className="text-primary">टेलीफोनिक परामर्श भी उपलब्ध है।</span>
             </p>
           </div>
 
