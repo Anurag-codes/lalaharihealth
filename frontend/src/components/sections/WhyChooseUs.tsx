@@ -11,7 +11,7 @@ const FEATURES = [
   {
     icon: Wallet,
     title: "Clear, upfront pricing",
-    text: "Your first app consultation is free. Human-assisted consultation through our team is ₹100.",
+    text: "Your app consultation is totally free. No hidden charges. Human-assisted consultation through our team is ₹100.",
   },
   {
     icon: Sparkles,

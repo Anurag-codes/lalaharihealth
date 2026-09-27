@@ -17,14 +17,13 @@ export function SimpleExplainer() {
         </h2>
 
         <p className="mt-4 text-lg leading-relaxed text-ink/80 sm:text-xl">
-          Describe your health problem in our app and get initial symptom-based guidance free
-          on your first consultation. Prefer help from a person? Our team can arrange a
-          human-assisted consultation for ₹100.
+          Describe your health problem in our app and get initial symptom-based consultation free. Prefer help from a person? Our team can arrange a
+          human-assisted consultation for ₹200.
         </p>
 
         <p className="font-devanagari mt-3 text-base leading-relaxed text-ink/60 sm:text-lg">
           आसान भाषा में: ऐप पर अपनी तकलीफ़ बताइए और पहली सलाह मुफ़्त पाइए। किसी व्यक्ति से मदद
-          चाहिए? हमारी टीम ₹100 में सलाह की व्यवस्था करेगी।
+          चाहिए? हमारी टीम ₹200 में सलाह की व्यवस्था करेगी।
         </p>
 
         <p className="mt-6 text-base font-semibold text-ink sm:text-lg">
@@ -38,7 +37,7 @@ export function SimpleExplainer() {
           </BookConsultationButton>
           <p className="text-sm text-ink/60">
             Choose free app guidance when it launches, or request a human-assisted consultation
-            for ₹100.
+            for ₹200.
           </p>
         </div>
       </Container>

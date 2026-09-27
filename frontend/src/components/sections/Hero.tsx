@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { SiteImage } from "@/components/ui/SiteImage";
+import { FlashingBadge } from "../ui/FlashingBadge";
 
 const TRUST_BADGES = [
   { icon: BadgeCheck, label: "Verified Doctors" },
@@ -37,8 +38,8 @@ export function Hero() {
               Get cheapest specialist consultations from home and save travel time, wait time, money, visits to doctors and hospitals and avoid unnecessary tests and treatments.
             </p>
             <p>
-              Tell the LalahariHealth app what&apos;s troubling you and get your first
-              symptom-based guidance free. Understand your next steps before making costly
+              Tell the LalahariHealth app what&apos;s troubling you and get your
+              symptom-based guidance free of charge. Understand your next steps before making costly
               decisions.
             </p>
             <p>
@@ -48,7 +49,7 @@ export function Hero() {
             <p className="text-primary">Telephonic consultation is also available.</p>
             <p className="font-devanagari text-base leading-relaxed text-primary-darker sm:text-lg">
               घर बैठे विशेषज्ञ परामर्श पाएं और समय, पैसा और डॉक्टरों और अस्पतालों के दौरे बचाएं।  
-              सेहत की परेशानी या इलाज के खर्च की चिंता? ऐप पर अपनी तकलीफ़ बताइए और पहली सलाह
+              सेहत की परेशानी या इलाज के खर्च की चिंता? ऐप पर अपनी तकलीफ़ बताइए और सलाह
               मुफ़्त पाइए।
             </p>
             <p className="font-devanagari text-base leading-relaxed text-primary-darker sm:text-lg">
@@ -60,8 +61,14 @@ export function Hero() {
           </div>
 
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-            <BookConsultationButton size="lg">Get Your First Consultation Free</BookConsultationButton>
-            <Button href="#how-it-works" variant="outline" size="lg">
+            <FlashingBadge className="sm:hidden">Limited Time Offer</FlashingBadge>
+            <div className="relative">
+              <FlashingBadge className="absolute -top-4 left-1/2 hidden -translate-x-1/2 sm:inline-flex">
+                Limited Time Offer
+              </FlashingBadge>
+              <BookConsultationButton>Get Your Free Consultation</BookConsultationButton>
+            </div>
+            <Button href="#how-it-works" variant="outline">
               <PlayCircle className="h-5 w-5" />
               Watch How It Works
             </Button>
@@ -95,7 +102,7 @@ export function Hero() {
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             className="absolute -left-4 top-8 hidden rounded-2xl bg-white p-4 shadow-xl sm:block"
           >
-            <p className="text-xs font-medium text-ink/50">First app consultation</p>
+            <p className="text-xs font-medium text-ink/50">Free app consultation</p>
             <p className="font-heading text-xl font-bold text-primary">Free</p>
           </motion.div>
 

@@ -88,7 +88,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           </button>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5" style={{ marginTop: "40px" }}>
           <section aria-labelledby="free-app-title" className="rounded-2xl border-2 border-primary bg-primary-light p-5 sm:p-6">
             <div className="flex items-start gap-4">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
@@ -96,12 +96,11 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               </span>
               <div>
                 <h3 id="free-app-title" className="font-heading text-lg font-bold text-ink sm:text-xl">
-                  Get your first free consultation on the app
+                  Get your free consultation on the app
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/70">
-                  Describe your symptoms in the app and receive your first app-generated guidance
-                  free. The app is launching soon; this is not a doctor diagnosis or a substitute
-                  for urgent medical care.
+                  Describe your symptoms in the app and receive your app-generated consultation
+                  free. The app is launching soon.
                 </p>
               </div>
             </div>

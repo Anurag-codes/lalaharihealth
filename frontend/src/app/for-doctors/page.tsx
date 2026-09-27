@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
-import { BadgeCheck, CalendarClock, IndianRupee, Rocket, ShieldCheck, Users, Zap } from "lucide-react";
+import {
+  BadgeCheck,
+  CalendarClock,
+  IndianRupee,
+  Rocket,
+  ShieldCheck,
+  Users,
+  Zap,
+} from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Button } from "@/components/ui/Button";
 import { SiteImage } from "@/components/ui/SiteImage";
 import { DoctorOnboardingForm } from "@/components/sections/DoctorOnboardingForm";
+import { RegistrationTabs } from "@/components/sections/RegistrationTabs";
+import { FlashingBadge } from "@/components/ui/FlashingBadge";
 
 export const metadata: Metadata = {
   title: "For Doctors | LalahariHealth",
@@ -62,18 +72,28 @@ export default function ForDoctorsPage() {
           <div>
             <Eyebrow>Launching in 2 months</Eyebrow>
             <h1 className="mt-5 font-heading text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
-              Bring your expertise online. <span className="text-primary">Register free today.</span>
+              Bring your expertise online.{" "}
+              <span className="text-primary">Register free today.</span>
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-ink/60 sm:text-lg">
-              LalahariHealth is onboarding Allopathic, Homeopathic, Ayurvedic, Unani and Home
-              Remedy doctors ahead of our launch. Registration is free until then — and every
-              doctor who signs up now becomes a <strong className="text-ink">Priority Doctor</strong>{" "}
-              at launch, guaranteed.
+              LalahariHealth is onboarding Allopathic, Homeopathic, Ayurvedic,
+              Unani and Home Remedy doctors ahead of our launch. Registration is
+              free until then — and every doctor who signs up now becomes a{" "}
+              <strong className="text-ink">Priority Doctor</strong> at launch,
+              guaranteed.
             </p>
             <div className="mt-8">
-              <Button href="#apply" size="lg">
-                Register Now — It&apos;s Free
-              </Button>
+              <FlashingBadge className="sm:hidden">
+                Limited Time Offer
+              </FlashingBadge>
+              <div className="relative">
+                <FlashingBadge className="absolute -top-4 left-1/4 hidden -translate-x-1/2 sm:inline-flex">
+                  Limited Time Offer
+                </FlashingBadge>
+                <Button href="#apply" size="lg">
+                  Register Now — It&apos;s Free
+                </Button>
+              </div>
             </div>
           </div>
           <SiteImage
@@ -93,12 +113,19 @@ export default function ForDoctorsPage() {
           </div>
           <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
             {LAUNCH_PERKS.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="rounded-2xl bg-white/10 p-6 text-center backdrop-blur-sm">
+              <div
+                key={title}
+                className="rounded-2xl bg-white/10 p-6 text-center backdrop-blur-sm"
+              >
                 <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 text-white">
                   <Icon className="h-6 w-6" />
                 </span>
-                <h3 className="mt-4 font-heading text-base font-semibold text-white">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/80">{text}</p>
+                <h3 className="mt-4 font-heading text-base font-semibold text-white">
+                  {title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/80">
+                  {text}
+                </p>
               </div>
             ))}
           </div>
@@ -114,12 +141,19 @@ export default function ForDoctorsPage() {
           </div>
           <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {BENEFITS.map(({ icon: Icon, title, text }) => (
-              <div key={title} className="rounded-2xl border border-black/5 bg-white p-6">
+              <div
+                key={title}
+                className="rounded-2xl border border-black/5 bg-white p-6"
+              >
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-light text-primary-darker">
                   <Icon className="h-6 w-6" />
                 </span>
-                <h3 className="mt-5 font-heading text-lg font-semibold text-ink">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink/60">{text}</p>
+                <h3 className="mt-5 font-heading text-lg font-semibold text-ink">
+                  {title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink/60">
+                  {text}
+                </p>
               </div>
             ))}
           </div>
@@ -129,20 +163,20 @@ export default function ForDoctorsPage() {
       <section id="apply" className="scroll-mt-20 py-20">
         <Container className="max-w-2xl">
           <div className="text-center">
-            <Eyebrow>Doctor registration</Eyebrow>
+            <Eyebrow>Doctor/Hospital registration</Eyebrow>
             <h2 className="mt-5 font-heading text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-              Reserve your Priority Doctor status
+              Reserve your Priority Doctor/Hospital status
             </h2>
             <p className="mt-4 text-sm leading-relaxed text-ink/60 sm:text-base">
-              Takes about 2 minutes. Document upload is optional — you can add it later.
+              Takes about 2 minutes. Document upload is optional — you can add
+              it later.
             </p>
           </div>
           <div className="mt-10">
-            <DoctorOnboardingForm />
+            <RegistrationTabs />
           </div>
         </Container>
       </section>
     </>
   );
 }
-

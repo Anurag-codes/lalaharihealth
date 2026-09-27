@@ -9,7 +9,7 @@ import { API_BASE_URL } from "@/lib/api";
 
 const PLANS = [
   {
-    name: "First app consultation",
+    name: "App consultation",
     price: "FREE",
     text: "Describe your symptoms in the app and receive initial symptom-based guidance.",
   },

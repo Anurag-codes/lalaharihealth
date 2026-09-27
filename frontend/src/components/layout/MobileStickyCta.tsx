@@ -12,7 +12,7 @@ export function MobileStickyCta() {
         <Phone className="h-5 w-5" />
       </a>
       <BookConsultationButton className="flex-1">
-        First App Consultation Free
+        Free App Consultation
       </BookConsultationButton>
     </div>
   );

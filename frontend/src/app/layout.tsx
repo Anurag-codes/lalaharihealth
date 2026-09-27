@@ -28,7 +28,8 @@ const notoDevanagari = Noto_Sans_Devanagari({
 export const metadata: Metadata = {
   title: "LalahariHealth | Consult Doctors, Compare Treatments, Save Money",
   description:
-    "Get your first app-based symptom guidance free. Compare Allopathic, Homeopathic, Ayurvedic, Unani and home-care options, with human-assisted consultation available for ₹100.",
+    // "Get your app-based symptom consultation free. Compare Allopathic, Homeopathic, Ayurvedic, Unani and home-care options, with human-assisted consultation available for ₹200.",
+    "Get your app-based symptom consultation free. Compare Allopathic and Natural(home-care) options, with human-assisted consultation available for ₹200.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

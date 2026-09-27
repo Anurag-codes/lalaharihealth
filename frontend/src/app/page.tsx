@@ -13,6 +13,7 @@ import { DoctorsShowcase } from "@/components/sections/DoctorsShowcase";
 import { BookConsultation } from "@/components/sections/BookConsultation";
 import { FAQ } from "@/components/sections/FAQ";
 import { FinalCta } from "@/components/sections/FinalCta";
+import { RegistrationTabs } from "@/components/sections/RegistrationTabs";
 
 export default function Home() {
   return (

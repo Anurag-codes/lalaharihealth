@@ -7,8 +7,8 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 
 const FAQS = [
   {
-    q: "Is the first app consultation really free?",
-    a: "Yes. Your first app consultation provides initial symptom-based guidance at no cost. This is not a doctor diagnosis and does not replace urgent medical care. If you request a human-assisted consultation through our team, the fee is ₹100.",
+    q: "Is the app consultation really free?",
+    a: "Yes. Your app consultation provides initial symptom-based guidance at no cost. This is not a doctor diagnosis and does not replace urgent medical care. If you request a human-assisted consultation through our team, the fee is ₹100.",
   },
   {
     q: "How are your doctors verified?",

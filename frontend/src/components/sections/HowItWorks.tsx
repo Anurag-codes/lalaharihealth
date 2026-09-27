@@ -11,8 +11,8 @@ const STEPS = [
   },
   {
     icon: MessagesSquare,
-    title: "Get your first app guidance free",
-    text: "Describe your symptoms in the app to receive initial guidance. Want personal help? An executive can arrange a human-assisted consultation for ₹100.",
+    title: "Get your app guidance free",
+    text: "Describe your symptoms in the app to receive initial guidance. Want personal help? An executive can arrange a human-assisted consultation for ₹200.",
   },
   {
     icon: ScanSearch,

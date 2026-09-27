@@ -73,13 +73,17 @@ export function DoctorsShowcase() {
               </div>
               <div className="px-5 pb-5">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-heading text-base font-semibold text-ink">{doctor.name}</h3>
+                  <h3 className="font-heading text-base font-semibold text-ink">
+                    {doctor.name}
+                  </h3>
                   <span className="flex items-center gap-1 text-xs font-bold text-primary-darker">
                     <Star className="h-3.5 w-3.5" fill="currentColor" />
                     {doctor.rating}
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-ink/60">{doctor.specialization}</p>
+                <p className="mt-1 text-sm text-ink/60">
+                  {doctor.specialization}
+                </p>
                 <p className="text-xs text-ink/45">{doctor.experience}</p>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {doctor.systems.map((system) => (
@@ -92,8 +96,12 @@ export function DoctorsShowcase() {
                   ))}
                 </div>
                 <div className="mt-4 flex items-center justify-between">
-                  <span className="font-heading text-lg font-bold text-ink">{doctor.fee}</span>
-                  <BookConsultationButton size="sm">Book</BookConsultationButton>
+                  <span className="font-heading text-lg font-bold text-ink">
+                    {doctor.fee}
+                  </span>
+                  <BookConsultationButton size="sm">
+                    Book
+                  </BookConsultationButton>
                 </div>
               </div>
             </div>
@@ -102,13 +110,14 @@ export function DoctorsShowcase() {
 
         <div className="mt-12 flex flex-col items-center gap-3 rounded-2xl bg-primary-light px-6 py-8 text-center">
           <h3 className="font-heading text-lg font-semibold text-primary-darker sm:text-xl">
-            Are you a doctor?
+            Are you a doctor or a hospital/clinic/lab?
           </h3>
           <p className="max-w-md text-sm text-primary-darker/80">
-            Join LalahariHealth and consult patients online, on your own schedule.
+            Join LalahariHealth and consult patients online, on your own
+            schedule.
           </p>
           <Button href="/for-doctors" variant="secondary">
-            Join as a Doctor
+            Join Now and get Priority Badge on our app
           </Button>
         </div>
       </Container>

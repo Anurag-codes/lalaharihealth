@@ -27,8 +27,8 @@ export function HomeRemedyBanner() {
           </h2>
           <p className="mt-5 max-w-lg text-base leading-relaxed text-white/85 sm:text-lg">
             Not every problem needs a pharmacy trip. Describe your symptoms in the app and get
-            initial home-care guidance free on your first consultation. For a human-assisted
-            consultation, our executive can help for ₹100.
+            initial home-care consultation free. For a human-assisted
+            consultation, our executive can help for ₹200.
           </p>
 
           <ul className="mt-7 space-y-3">
@@ -42,7 +42,7 @@ export function HomeRemedyBanner() {
 
           <div className="mt-8">
             <BookConsultationButton variant="white" size="lg">
-              Get Your First App Consultation Free
+              Get Your App Consultation Free
             </BookConsultationButton>
           </div>
         </div>

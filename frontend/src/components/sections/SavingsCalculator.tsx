@@ -25,8 +25,8 @@ const CONCERNS: Concern[] = [
       { icon: Car, label: "Travel + waiting time", amount: 300 },
     ],
     appItems: [
-      { icon: Smartphone, label: "First app consultation", amount: 0 },
-      { icon: Wallet, label: "Home-care essentials", amount: 100 },
+      { icon: Smartphone, label: "Free app consultation", amount: 0 },
+      { icon: Wallet, label: "Home-care essentials", amount: 200 },
     ],
   },
   {
@@ -38,8 +38,8 @@ const CONCERNS: Concern[] = [
       { icon: Car, label: "Travel + waiting time", amount: 300 },
     ],
     appItems: [
-      { icon: Smartphone, label: "First app consultation", amount: 0 },
-      { icon: Wallet, label: "Home-care essentials", amount: 150 },
+      { icon: Smartphone, label: "Free app consultation", amount: 0 },
+      { icon: Wallet, label: "Home-care essentials", amount: 200 },
     ],
   },
   {
@@ -51,8 +51,8 @@ const CONCERNS: Concern[] = [
       { icon: Car, label: "Travel + waiting time", amount: 300 },
     ],
     appItems: [
-      { icon: Smartphone, label: "First app consultation", amount: 0 },
-      { icon: Wallet, label: "Home-care essentials", amount: 100 },
+      { icon: Smartphone, label: "Free app consultation", amount: 0 },
+      { icon: Wallet, label: "Home-care essentials", amount: 200 },
     ],
   },
   {
@@ -64,8 +64,8 @@ const CONCERNS: Concern[] = [
       { icon: Car, label: "Travel + waiting time", amount: 300 },
     ],
     appItems: [
-      { icon: Smartphone, label: "First app consultation", amount: 0 },
-      { icon: Wallet, label: "Home-care essentials", amount: 100 },
+      { icon: Smartphone, label: "Free app consultation", amount: 0 },
+      { icon: Wallet, label: "Home-care essentials", amount: 200 },
     ],
   },
   {
@@ -77,8 +77,8 @@ const CONCERNS: Concern[] = [
       { icon: Car, label: "Travel + waiting time", amount: 300 },
     ],
     appItems: [
-      { icon: Smartphone, label: "First app consultation", amount: 0 },
-      { icon: Wallet, label: "Home-care essentials", amount: 150 },
+      { icon: Smartphone, label: "Free app consultation", amount: 0 },
+      { icon: Wallet, label: "Home-care essentials", amount: 200 },
     ],
   },
 ];
