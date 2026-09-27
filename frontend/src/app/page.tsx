@@ -18,7 +18,7 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <SavingsCalculator />
+      {/* <SavingsCalculator /> */}
       <TrustStats />
       <ProblemSolution />
       <HowItWorks />
