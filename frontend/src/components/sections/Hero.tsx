@@ -28,8 +28,8 @@ export function Hero() {
           <Eyebrow>Trusted by 50,000+ patients across India</Eyebrow>
 
           <h1 className="mt-6 font-heading text-4xl font-extrabold leading-[1.1] tracking-tight text-ink sm:text-5xl lg:text-[3.4rem]">
-            Worried about your health or the cost of treatment?{" "}
-            <span className="text-primary">Free home consultations to all.</span>
+            Don&apos;t sell your property or take heavy loans for treatment.{" "}
+            <span className="text-primary">Free home consultations and cheapest treatment to all.</span>
           </h1>
 
           <div className="mt-6 max-w-xl space-y-4 text-base leading-relaxed text-ink/70 sm:text-lg">
