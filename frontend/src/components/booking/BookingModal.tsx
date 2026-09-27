@@ -69,12 +69,12 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               Choose how you&apos;d like to get help
             </h2>
             <p className="mt-2 text-sm text-ink/70 sm:text-base">
-              Start with free app guidance, or ask our team to arrange a personal consultation.
-              Get guidance from home and save travel time. Our aim is to help you understand the
+              Start with free app consultation, or ask our team to arrange a personal consultation.
+              Get specialist consultations from home and save time, money, visits to doctors. Our aim is to help you understand the
               care you may need—not push unnecessary tests or treatment for profit.
             </p>
             <p className="font-devanagari mt-2 text-sm leading-relaxed text-primary-darker sm:text-base">
-              घर बैठे मार्गदर्शन पाएं और आने-जाने का समय बचाएं। हमारा उद्देश्य ज़रूरत के अनुसार
+              घर बैठे विशेषज्ञ परामर्श पाएं और समय, पैसा और डॉक्टरों और अस्पतालों के दौरे बचाएं। हमारा उद्देश्य ज़रूरत के अनुसार
               देखभाल समझने में मदद करना है—मुनाफ़े के लिए गैर-ज़रूरी जाँच या इलाज बढ़ावा देना नहीं।
             </p>
           </div>

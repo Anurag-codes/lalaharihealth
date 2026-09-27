@@ -34,7 +34,7 @@ export function Hero() {
 
           <div className="mt-6 max-w-xl space-y-4 text-base leading-relaxed text-ink/70 sm:text-lg">
             <p className="text-primary">
-              Get cheapest specialist consultations from home and save time, money and visits to doctors and hospitals.
+              Get cheapest specialist consultations from home and save travel time, wait time, money, visits to doctors and hospitals and avoid unnecessary tests and treatments.
             </p>
             <p>
               Tell the LalahariHealth app what&apos;s troubling you and get your first

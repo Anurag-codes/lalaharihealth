@@ -1,10 +1,10 @@
 import { Container } from "@/components/ui/Container";
 
 const STATS = [
-  { value: "500+", label: "Verified Doctors" },
-  { value: "50,000+", label: "Consultations Done" },
+  { value: "10+", label: "Verified Doctors" },
+  { value: "1,000+", label: "Consultations Done" },
   { value: "5", label: "Treatment Systems Compared" },
-  { value: "₹2Cr+", label: "Saved for Patients" },
+  { value: "₹1L+", label: "Saved for Patients" },
 ];
 
 export function TrustStats() {
