@@ -70,7 +70,7 @@ export default function ForDoctorsPage() {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(0,167,167,0.12),transparent_45%)]" />
         <Container className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div>
-            <Eyebrow>Free registration for first 20 doctors, hospitals, clinics, labs, etc. Get abandoned business from our website.</Eyebrow>
+            <Eyebrow>Golden opportunity for doctors, hospitals, clinics, labs, etc. to earn through online consultation. Free for first 100 registrations. Get abandoned business from our website.</Eyebrow>
             <Eyebrow>Launching in Dec 2026</Eyebrow>
             <h1 className="mt-5 font-heading text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
               Bring your expertise online.{" "}
@@ -80,7 +80,7 @@ export default function ForDoctorsPage() {
               LalahariHealth is an app providing health consultations to people at affordable rates. 
               As of now we are onboarding Allopathic, Naturopathy(Home Remedy) doctors and Institutions.
               Ayurvedic, Unani and Homeopathy doctors are also welcome. Registration is
-              free for first 20 registrations — and every doctor who signs up now becomes a{" "}
+              free for first 100 registrations — and every doctor who signs up now becomes a{" "}
               <strong className="text-ink">Priority Doctor</strong> at launch,
               guaranteed.
             </p>
