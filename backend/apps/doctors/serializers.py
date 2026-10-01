@@ -15,7 +15,7 @@ class DoctorApplicationSubmissionSerializer(serializers.Serializer):
     """Request body for the public doctor application endpoint."""
 
     full_name = serializers.CharField(max_length=150)
-    email = serializers.EmailField()
+    email = serializers.EmailField(required=False, allow_blank=True)
     phone_number = serializers.CharField(max_length=15)
     qualification = serializers.CharField(max_length=255)
     experience_years = serializers.IntegerField(min_value=0)

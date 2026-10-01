@@ -14,10 +14,10 @@ import { FlashingBadge } from "../ui/FlashingBadge";
 
 const TREATMENT_OPTIONS = [
   { value: "allopathy", label: "Allopathic" },
-  { value: "homeopathy", label: "Homeopathic" },
-  { value: "ayurveda", label: "Ayurvedic" },
-  { value: "unani", label: "Unani" },
-  { value: "home_remedy", label: "Home Remedy" },
+  // { value: "homeopathy", label: "Homeopathic" },
+  // { value: "ayurveda", label: "Ayurvedic" },
+  // { value: "unani", label: "Unani" },
+  { value: "home_remedy", label: "Naturopathy/Home Remedy" },
 ];
 
 const MAX_FILES = 5;
@@ -107,7 +107,7 @@ export function DoctorOnboardingForm() {
       <div className="flex items-start gap-3 rounded-2xl bg-primary-light px-4 py-3">
         <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary-darker" />
         <p className="text-sm font-medium text-primary-darker">
-          Launching in 2 months — registration is 100% free till then, and every
+          Launching in 2 months — registration is 100% free for first 100 registrations, and every
           doctor who signs up now keeps{" "}
           <span className="font-bold">Priority Doctor</span> status at launch.
         </p>
@@ -146,19 +146,18 @@ export function DoctorOnboardingForm() {
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div>
+        {/* <div>
           <label htmlFor="email" className="text-sm font-medium text-ink/70">
-            Email
+            Email <span className="text-ink/40">(optional)</span>
           </label>
           <input
             id="email"
             name="email"
             type="email"
-            required
             placeholder="you@example.com"
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-        </div>
+        </div> */}
         <div>
           <label
             htmlFor="phone_number"
@@ -209,7 +208,7 @@ export function DoctorOnboardingForm() {
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div className="sm:col-span-2">
+        <div >
           <label htmlFor="city" className="text-sm font-medium text-ink/70">
             City (optional)
           </label>

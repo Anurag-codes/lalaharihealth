@@ -73,7 +73,7 @@ class DoctorApplication(models.Model):
         REJECTED = 'rejected', 'Rejected'
 
     full_name = models.CharField(max_length=150)
-    email = models.EmailField()
+    email = models.EmailField(blank=True)
     phone_number = models.CharField(max_length=15)
     qualification = models.CharField(max_length=255, help_text='e.g. MBBS, BAMS, MD (Ayurveda)')
     experience_years = models.PositiveSmallIntegerField()

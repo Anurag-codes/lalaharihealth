@@ -70,14 +70,14 @@ export default function ForDoctorsPage() {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(0,167,167,0.12),transparent_45%)]" />
         <Container className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div>
-            <Eyebrow>Golden opportunity for doctors, hospitals, clinics, labs, etc. to earn through online consultation. Free for first 100 registrations. Get abandoned business from our website.</Eyebrow>
+            <Eyebrow>Golden opportunity for doctors, hospitals, clinics, labs and to earn through online consultation(Free for first 100 registrations).</Eyebrow>
             <Eyebrow>Launching in Dec 2026</Eyebrow>
             <h1 className="mt-5 font-heading text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
-              Bring your expertise online.{" "}
+              {/* Bring your expertise online.{" "} */}
               <span className="text-primary">Register free today.</span>
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-ink/60 sm:text-lg">
-              LalahariHealth is an app providing health consultations to people at affordable rates. 
+              <b>LalahariHealth is an app providing health consultations to people at affordable rates.</b> 
               As of now we are onboarding Allopathic, Naturopathy(Home Remedy) doctors and Institutions.
               Ayurvedic, Unani and Homeopathy doctors are also welcome. Registration is
               free for first 100 registrations — and every doctor who signs up now becomes a{" "}
@@ -86,11 +86,11 @@ export default function ForDoctorsPage() {
             </p>
             <div className="mt-8">
               <div className="relative">
-                <FlashingBadge className="absolute -top-4 left-1/4 hidden -translate-x-1/2 sm:inline-flex">
+                <FlashingBadge className="absolute -top-4 left-1/8 hidden -translate-x-1/2 sm:inline-flex">
                   Limited Time Offer
                 </FlashingBadge>
                 <Button href="#apply" size="lg">
-                  Register Now — It&apos;s Free
+                  Register Now
                 </Button>
               </div>
             </div>

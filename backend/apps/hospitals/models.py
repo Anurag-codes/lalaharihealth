@@ -55,7 +55,7 @@ class HospitalApplication(models.Model):
 
     facility_name = models.CharField(max_length=200)
     contact_person_name = models.CharField(max_length=150)
-    email = models.EmailField()
+    email = models.EmailField(blank=True)
     phone_number = models.CharField(max_length=15)
     city = models.CharField(max_length=100)
     address = models.TextField(blank=True)

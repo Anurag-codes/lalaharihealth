@@ -24,7 +24,7 @@ export function RegistrationTabs() {
           }
         >
           <Stethoscope className="h-4 w-4" />
-          I&apos;m a Doctor
+          I&apos;m a Doctor/Specialist
         </button>
         <button
           type="button"
@@ -37,7 +37,7 @@ export function RegistrationTabs() {
           }
         >
           <Building2 className="h-4 w-4" />
-          I&apos;m a Hospital/Clinic
+          I&apos;m a Hospital/Clinic/Lab
         </button>
       </div>
 
