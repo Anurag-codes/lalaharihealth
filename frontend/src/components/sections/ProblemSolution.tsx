@@ -10,8 +10,8 @@ const PAIN_POINTS = [
   },
   {
     icon: IndianRupee,
-    title: "Scared of the bill",
-    text: "Worried a small problem will turn into lakhs of rupees in tests, medicines and hospital stays.",
+    title: "A bill you didn't expect",
+    text: "Tests, medicines and hospital care can add up. It can be hard to understand a written estimate or what each item is for.",
   },
   {
     icon: ShieldQuestion,
@@ -35,8 +35,8 @@ export function ProblemSolution() {
             Sounds familiar?
           </h2>
           <p className="mt-4 text-base leading-relaxed text-ink/60 sm:text-lg">
-            Every day, thousands of people either ignore symptoms until it&apos;s serious, or
-            rush into expensive treatment they didn&apos;t need to.
+            Health decisions can feel confusing when symptoms, possible tests and costs arrive all
+            at once. Get help understanding the questions to ask before a planned next step.
           </p>
         </div>
 

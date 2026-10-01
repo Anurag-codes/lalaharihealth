@@ -4,7 +4,7 @@ import { TrustStats } from "@/components/sections/TrustStats";
 import { ProblemSolution } from "@/components/sections/ProblemSolution";
 import { HowItWorks } from "@/components/sections/HowItWorks";
 import { TreatmentComparison } from "@/components/sections/TreatmentComparison";
-import { SavingsCalculator } from "@/components/sections/SavingsCalculator";
+import { MedicalCostAwareness } from "@/components/sections/MedicalCostAwareness";
 import { HomeRemedyBanner } from "@/components/sections/HomeRemedyBanner";
 import { HospitalSupport } from "@/components/sections/HospitalSupport";
 import { WhyChooseUs } from "@/components/sections/WhyChooseUs";
@@ -13,13 +13,14 @@ import { DoctorsShowcase } from "@/components/sections/DoctorsShowcase";
 import { BookConsultation } from "@/components/sections/BookConsultation";
 import { FAQ } from "@/components/sections/FAQ";
 import { FinalCta } from "@/components/sections/FinalCta";
-import { RegistrationTabs } from "@/components/sections/RegistrationTabs";
+import { HomeOfferPopup } from "@/components/sections/HomeOfferPopup";
 
 export default function Home() {
   return (
     <>
+      <HomeOfferPopup />
       <Hero />
-      {/* <SavingsCalculator /> */}
+      <MedicalCostAwareness />
       <TrustStats />
       <ProblemSolution />
       <HowItWorks />

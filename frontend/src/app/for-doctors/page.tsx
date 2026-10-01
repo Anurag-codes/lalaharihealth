@@ -12,9 +12,9 @@ import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Button } from "@/components/ui/Button";
 import { SiteImage } from "@/components/ui/SiteImage";
-import { DoctorOnboardingForm } from "@/components/sections/DoctorOnboardingForm";
 import { RegistrationTabs } from "@/components/sections/RegistrationTabs";
 import { FlashingBadge } from "@/components/ui/FlashingBadge";
+import { RegistrationOfferPopup } from "@/components/sections/RegistrationOfferPopup";
 
 export const metadata: Metadata = {
   title: "For Doctors | LalahariHealth",
@@ -66,6 +66,7 @@ const LAUNCH_PERKS = [
 export default function ForDoctorsPage() {
   return (
     <>
+      <RegistrationOfferPopup />
       <section className="relative overflow-hidden pt-16 pb-20 sm:pt-20">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(0,167,167,0.12),transparent_45%)]" />
         <Container className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">

@@ -29,34 +29,33 @@ export function Hero() {
           <Eyebrow>Trusted by 50,000+ patients across India</Eyebrow>
 
           <h1 className="mt-6 font-heading text-4xl font-extrabold leading-[1.1] tracking-tight text-ink sm:text-5xl lg:text-[3.4rem]">
-            Don&apos;t sell your property or take heavy loans for treatment.{" "}
-            <span className="text-primary">Free home consultations and cheapest treatment to all.</span>
+            Tests, procedures and hospital bills can add up fast.{" "}
+            <span className="text-primary">Ask us before you spend your savings.</span>
           </h1>
 
           <div className="mt-6 max-w-xl space-y-4 text-base leading-relaxed text-ink/70 sm:text-lg">
             <p className="text-primary">
-              Get cheapest specialist consultations from home and save travel time, wait time, money, visits to doctors and hospitals and avoid unnecessary tests and treatments.
+              Get your first symptom-based app consultation free, or consult a specialist from
+              home for ₹200. Save travel and waiting time while you understand your next steps.
             </p>
             <p>
-              Tell the LalahariHealth app what&apos;s troubling you and get your
-              symptom-based guidance free of charge. Understand your next steps before making costly
-              decisions.
+              Before a planned test or procedure, ask why it is recommended, what it may cost, its
+              benefits, risks and possible side effects. A second opinion may help you decide.
             </p>
             <p>
               Our aim is to help you understand the care you may need—not push unnecessary tests or
               treatment for profit. Avoiding unnecessary care may help prevent avoidable costs.
+              App guidance is not a diagnosis. Do not delay emergency care or skip tests or
+              treatment recommended by your clinician.
             </p>
             <p className="text-primary">Telephonic consultation is also available.</p>
             <p className="font-devanagari text-base leading-relaxed text-primary-darker sm:text-lg">
-              घर बैठे विशेषज्ञ परामर्श पाएं और समय, पैसा और डॉक्टरों और अस्पतालों के दौरे बचाएं।  
-              सेहत की परेशानी या इलाज के खर्च की चिंता? ऐप पर अपनी तकलीफ़ बताइए और सलाह
-              मुफ़्त पाइए।
+              जाँच, इलाज और अस्पताल के बिल तेज़ी से बढ़ सकते हैं। अपनी बचत खर्च करने से पहले हमसे
+              सलाह लें। ऐप पर पहली सलाह मुफ़्त पाएं या घर बैठे ₹200 में विशेषज्ञ से परामर्श लें।
             </p>
-            <p className="font-devanagari text-base leading-relaxed text-primary-darker sm:text-lg">
-              हमारा उद्देश्य ज़रूरत के अनुसार
-              देखभाल समझने में मदद करना है—मुनाफ़े के लिए गैर-ज़रूरी जाँच या इलाज बढ़ावा देना नहीं।
-              इससे बेवजह के खर्च से बचने में मदद मिल सकती है।
-              <span className="text-primary">टेलीफोनिक परामर्श भी उपलब्ध है।</span>
+            <p className="font-devanagari text-sm leading-relaxed text-ink/65 sm:text-base">
+              किसी नियोजित जाँच या प्रक्रिया से पहले उसका कारण, खर्च, लाभ, जोखिम और संभावित दुष्प्रभाव
+              पूछें। ज़रूरी इलाज में देरी न करें।
             </p>
           </div>
 

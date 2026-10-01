@@ -34,12 +34,13 @@ export function HospitalSupport() {
         <div>
           <Eyebrow>When allopathic care is really needed</Eyebrow>
           <h2 className="mt-5 font-heading text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-            If it truly needs a hospital, we&apos;ll find you the best — and cheapest — one.
+            Need hospital care? Compare options and understand the costs, we&apos;ll find you the best — and cheapest — one.
           </h2>
           <p className="mt-4 text-base leading-relaxed text-ink/60 sm:text-lg">
-            Sometimes allopathic treatment genuinely is the right call. When that happens, our
-            doctors don&apos;t just tell you to go to a hospital — we help you choose the right
-            one and connect you to partner hospitals offering better rates.
+            When a clinician recommends hospital care, we can help you explore relevant facilities,
+            review estimates and ask about partner hospital rates where available. For a planned,
+            non-emergency procedure, discuss its benefits, risks and alternatives with your doctor;
+            never delay emergency care for a comparison or second opinion.
           </p>
 
           <div className="mt-8 space-y-6">
