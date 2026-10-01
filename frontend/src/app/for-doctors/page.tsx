@@ -31,7 +31,7 @@ const BENEFITS = [
   {
     icon: IndianRupee,
     title: "Transparent earnings",
-    text: "Set your own consultation fee and get paid out reliably, with no hidden platform cuts.",
+    text: "Set your own consultation fee and get paid out reliably, with 20% platform fees.",
   },
   {
     icon: CalendarClock,
@@ -49,7 +49,7 @@ const LAUNCH_PERKS = [
   {
     icon: Zap,
     title: "Free registration",
-    text: "No fee to register before launch — completely free for the next 2 months.",
+    text: "No fee to register for first 100 registrations.",
   },
   {
     icon: ShieldCheck,
@@ -79,10 +79,8 @@ export default function ForDoctorsPage() {
             <p className="mt-5 max-w-lg text-base leading-relaxed text-ink/60 sm:text-lg">
               <b>LalahariHealth is an app providing health consultations to people at affordable rates.</b> 
               As of now we are onboarding Allopathic, Naturopathy(Home Remedy) doctors and Institutions.
-              Ayurvedic, Unani and Homeopathy doctors are also welcome. Registration is
-              free for first 100 registrations — and every doctor who signs up now becomes a{" "}
-              <strong className="text-ink">Priority Doctor</strong> at launch,
-              guaranteed.
+              Ayurvedic, Unani and Homeopathy doctors are also welcome. 
+              <strong className="text-ink">First 100 registrations free.</strong>
             </p>
             <div className="mt-8">
               <div className="relative">

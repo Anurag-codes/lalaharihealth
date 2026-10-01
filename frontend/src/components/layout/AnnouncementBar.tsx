@@ -12,7 +12,7 @@ export function AnnouncementBar() {
     <div className="relative flex items-center justify-center gap-3 bg-ink px-4 py-2.5 text-center text-white">
       <Rocket className="h-4 w-4 shrink-0 text-primary" />
       <p className="text-xs font-medium sm:text-sm">
-        App launching soon: get your app consultation free. Human-assisted consultation: ₹100.
+        App launching soon: get your app consultation free. Human-assisted consultation: ₹200.
       </p>
       <button
         type="button"

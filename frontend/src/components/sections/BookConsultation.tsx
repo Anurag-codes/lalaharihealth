@@ -15,7 +15,7 @@ const PLANS = [
   },
   {
     name: "Human-assisted consultation",
-    price: "₹100",
+    price: "₹200",
     text: "Speak with our executive to get help arranging a personal consultation.",
     highlight: true,
   },
@@ -63,7 +63,7 @@ export function BookConsultation() {
           </h2>
           <p className="mt-4 text-base leading-relaxed text-ink/60">
             Start with free app-generated symptom guidance. If you prefer personal help from our
-            team, a human-assisted consultation is ₹100; the executive will explain and confirm
+            team, a human-assisted consultation is ₹200; the executive will explain and confirm
             the details before you proceed.
           </p>
 
@@ -92,7 +92,7 @@ export function BookConsultation() {
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-lg shadow-black/[0.03] sm:p-8">
           <h3 className="font-heading text-xl font-bold text-ink">Request a consultation callback</h3>
           <p className="mt-1 text-sm text-ink/60">
-            Human-assisted consultation is ₹100. Share your details and our executive will call
+            Human-assisted consultation is ₹200. Share your details and our executive will call
             to explain the service and confirm your appointment.
           </p>
 

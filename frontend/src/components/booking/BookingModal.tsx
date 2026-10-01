@@ -39,7 +39,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           name: formData.get("name"),
           phone_number: formData.get("phone_number"),
           message:
-            "Callback requested for a human-assisted consultation (₹100). Executive to explain the fee and confirm the appointment.",
+            "Callback requested for a human-assisted consultation (₹200). Executive to explain the fee and confirm the appointment.",
         }),
       });
       if (!response.ok) throw new Error("Request failed");
@@ -143,7 +143,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   Talk to our executive and get your appointment fixed
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/70">
-                  Human-assisted consultation costs <strong className="text-ink">₹100</strong>.
+                  Human-assisted consultation costs <strong className="text-ink">₹200</strong>.
                   Our executive will explain the next steps and confirm the appointment and payment.
                 </p>
               </div>
@@ -154,7 +154,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-4 text-base font-bold text-white shadow-lg shadow-primary/25 hover:bg-primary-dark"
             >
               <Phone className="h-5 w-5" />
-              Call our executive — ₹100 consultation
+              Call our executive — ₹200 consultation
             </a>
 
             <div className="my-4 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-ink/40">
@@ -167,7 +167,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               <div className="flex flex-col items-center gap-2 rounded-2xl bg-primary-light px-4 py-6 text-center">
                 <CheckCircle2 className="h-9 w-9 text-primary-darker" />
                 <p className="text-sm font-semibold text-ink">
-                  Callback requested. Our executive will explain the ₹100 consultation and confirm
+                  Callback requested. Our executive will explain the ₹200 consultation and confirm
                   your appointment.
                 </p>
               </div>
@@ -205,7 +205,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                       <Loader2 className="h-5 w-5 animate-spin" /> Sending...
                     </>
                   ) : (
-                    "Request a Callback — ₹100 consultation"
+                    "Request a Callback — ₹200 consultation"
                   )}
                 </button>
               </form>

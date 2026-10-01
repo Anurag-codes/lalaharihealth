@@ -8,7 +8,7 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 const FAQS = [
   {
     q: "Is the app consultation really free?",
-    a: "Yes. Your app consultation provides initial symptom-based guidance at no cost. This is not a doctor diagnosis and does not replace urgent medical care. If you request a human-assisted consultation through our team, the fee is ₹100.",
+    a: "Yes. Your app consultation provides initial symptom-based guidance at no cost. This is not a doctor diagnosis and does not replace urgent medical care. If you request a human-assisted consultation through our team, the fee is ₹200.",
   },
   {
     q: "How are your doctors verified?",
@@ -16,7 +16,7 @@ const FAQS = [
   },
   {
     q: "Is home remedy advice actually safe?",
-    a: "The app can offer initial symptom-based home-care guidance. It is not a doctor diagnosis. If symptoms are severe, worsening, or urgent, seek medical care; you can also request a human-assisted consultation for ₹100.",
+    a: "The app can offer initial symptom-based home-care guidance. It is not a doctor diagnosis. If symptoms are severe, worsening, or urgent, seek medical care; you can also request a human-assisted consultation for ₹200.",
   },
   {
     q: "What if my condition needs surgery or hospitalisation?",
