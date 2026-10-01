@@ -70,22 +70,21 @@ export default function ForDoctorsPage() {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(0,167,167,0.12),transparent_45%)]" />
         <Container className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div>
-            <Eyebrow>Launching in 2 months</Eyebrow>
+            <Eyebrow>Free registration for first 20 doctors, hospitals, clinics, labs, etc. Get abandoned business from our website.</Eyebrow>
+            <Eyebrow>Launching in Dec 2026</Eyebrow>
             <h1 className="mt-5 font-heading text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
               Bring your expertise online.{" "}
               <span className="text-primary">Register free today.</span>
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-ink/60 sm:text-lg">
-              LalahariHealth is onboarding Allopathic, Homeopathic, Ayurvedic,
-              Unani and Home Remedy doctors ahead of our launch. Registration is
-              free until then — and every doctor who signs up now becomes a{" "}
+              LalahariHealth is an app providing health consultations to people at affordable rates. 
+              As of now we are onboarding Allopathic, Naturopathy(Home Remedy) doctors and Institutions.
+              Ayurvedic, Unani and Homeopathy doctors are also welcome. Registration is
+              free for first 20 registrations — and every doctor who signs up now becomes a{" "}
               <strong className="text-ink">Priority Doctor</strong> at launch,
               guaranteed.
             </p>
             <div className="mt-8">
-              <FlashingBadge className="sm:hidden">
-                Limited Time Offer
-              </FlashingBadge>
               <div className="relative">
                 <FlashingBadge className="absolute -top-4 left-1/4 hidden -translate-x-1/2 sm:inline-flex">
                   Limited Time Offer
