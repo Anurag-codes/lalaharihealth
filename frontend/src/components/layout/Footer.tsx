@@ -99,7 +99,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col items-center gap-4 border-t border-black/5 pt-6 text-xs text-ink/50 sm:flex-row sm:justify-between">
-          <p>© {new Date().getFullYear()} LalahariHealth. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} LalahariHealth. All rights reserved with Algolog Systems Private Limited.</p>
           <p className="text-center sm:text-right">
             Not a replacement for emergency care. In a medical emergency, call your local
             emergency number immediately.

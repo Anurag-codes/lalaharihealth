@@ -91,6 +91,38 @@ export function RegistrationOfferPopup() {
             priority placement when the app launches.
           </p>
 
+          <div className="mt-5 rounded-2xl border border-black/5 bg-white p-4 sm:p-5">
+            <h2 className="font-heading text-3xl font-extrabold leading-tight text-primary-darker sm:text-4xl">
+              Potential to earn in Thousands and Lakhs*
+            </h2>
+            <p className="mt-1 text-sm text-ink/60">
+              General doctors charge a fixed ₹200. Specialists choose ₹200–₹2,000. Doctors receive
+              75% of the fee after the 25% platform fee.
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-primary-soft p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">
+                  General doctor · 5 completed consults/day
+                </p>
+                <p className="mt-1 font-heading text-2xl font-extrabold text-primary-darker">₹15,000/month</p>
+                <p className="text-xs text-ink/50">₹150 payout × 5/day × 20 days</p>
+              </div>
+              <div className="rounded-xl bg-primary-soft p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">
+                  Specialist at ₹2,000 · 5 completed consults/day
+                </p>
+                <p className="mt-1 font-heading text-2xl font-extrabold text-primary-darker">₹1.5 lakh/month</p>
+                <p className="text-xs text-ink/50">₹1,500 payout × 5/day × 20 days</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-ink/45">
+              *Illustrative payout estimates, not guaranteed income. They assume every consultation
+              is completed and paid; actual booking volume may differ, and a higher fee may affect
+              demand. Taxes, refunds or other adjustments may affect payouts. Transfers are within
+              48 hours after completion and payment confirmation.
+            </p>
+          </div>
+
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <a
               href="#apply"

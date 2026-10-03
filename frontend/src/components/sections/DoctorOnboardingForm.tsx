@@ -26,6 +26,8 @@ type Status = "idle" | "submitting" | "success" | "error";
 
 export function DoctorOnboardingForm() {
   const [systems, setSystems] = useState<string[]>([]);
+  const [consultationCategory, setConsultationCategory] = useState("");
+  const [consultationFee, setConsultationFee] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -107,10 +109,17 @@ export function DoctorOnboardingForm() {
       <div className="flex items-start gap-3 rounded-2xl bg-primary-light px-4 py-3">
         <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary-darker" />
         <p className="text-sm font-medium text-primary-darker">
-          Launching in 2 months — registration is 100% free for first 100 registrations, and every
+          Launching soon — registration is 100% free for first 100 registrations, and every
           doctor who signs up now keeps{" "}
           <span className="font-bold">Priority Doctor</span> status at launch.
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-black/5 bg-white p-4 text-sm leading-relaxed text-ink/70">
+        <strong className="text-ink">Consultation pricing:</strong> General Physician / General
+        Doctor visits are fixed at ₹200. Specialists choose a fee from ₹200 to ₹2,000. The
+        platform fee is 25%, and the remaining 75% is transferred within 48 hours after a
+        completed consultation and confirmed payment.
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -208,6 +217,71 @@ export function DoctorOnboardingForm() {
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
+        <div className="sm:col-span-2">
+          <label htmlFor="consultation_category" className="text-sm font-medium text-ink/70">
+            Consultation category
+          </label>
+          <select
+            id="consultation_category"
+            name="consultation_category"
+            required
+            value={consultationCategory}
+            onChange={(event) => {
+              setConsultationCategory(event.target.value);
+              setConsultationFee(event.target.value === "general" ? "200" : "");
+            }}
+            className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">Choose general doctor or specialist</option>
+            <option value="general">General Physician / General Doctor — fixed ₹200</option>
+            <option value="specialist">Specialist — choose your consultation fee</option>
+          </select>
+        </div>
+        {consultationCategory === "general" ? (
+          <>
+            <input type="hidden" name="consultation_fee" value="200" />
+            <div className="sm:col-span-2 rounded-xl bg-primary-soft p-4 text-sm text-ink/70">
+              General Physician / General Doctor consultation fee is fixed at{" "}
+              <strong className="text-primary-darker">₹200</strong>. Your payout after the 25%
+              platform fee is <strong className="text-primary-darker">₹150</strong> per completed,
+              paid consultation.
+            </div>
+          </>
+        ) : consultationCategory === "specialist" ? (
+          <>
+            <div className="sm:col-span-2">
+              <label htmlFor="consultation_fee" className="text-sm font-medium text-ink/70">
+                What consultation fee makes you happy?
+              </label>
+              <select
+                id="consultation_fee"
+                name="consultation_fee"
+                required
+                value={consultationFee}
+                onChange={(event) => setConsultationFee(event.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">Choose a fee</option>
+                {Array.from({ length: 19 }, (_, index) => (index + 2) * 100).map((fee) => (
+                  <option key={fee} value={fee}>
+                    ₹{fee}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:col-span-2 rounded-xl bg-primary-soft p-4 text-sm leading-relaxed text-ink/70">
+              {consultationFee ? (
+                <>
+                  From ₹{consultationFee}, the 25% platform fee is ₹
+                  {Number(consultationFee) * 0.25}; your payout is ₹
+                  {Number(consultationFee) * 0.75} per completed, paid consultation.
+                </>
+              ) : (
+                <>A lower fee may feel more accessible to patients and may encourage bookings; a higher fee may mean fewer bookings. Choose a fair sweet spot for your expertise and patients. Booking volume is not guaranteed.</>
+              )}
+            </div>
+          </>
+        ) : null}
         <div >
           <label htmlFor="city" className="text-sm font-medium text-ink/70">
             City (optional)

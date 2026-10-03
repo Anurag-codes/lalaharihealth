@@ -20,6 +20,8 @@ class DoctorApplicationSubmissionSerializer(serializers.Serializer):
     qualification = serializers.CharField(max_length=255)
     experience_years = serializers.IntegerField(min_value=0)
     specialization = serializers.CharField(max_length=150)
+    consultation_category = serializers.ChoiceField(choices=DoctorApplication.ConsultationCategory.choices)
+    consultation_fee = serializers.IntegerField(min_value=200, max_value=2000)
     treatment_systems = serializers.ListField(
         child=serializers.ChoiceField(choices=TreatmentSystem.choices),
         allow_empty=False,
@@ -51,6 +53,8 @@ class DoctorApplicationSerializer(serializers.ModelSerializer):
             'qualification',
             'experience_years',
             'specialization',
+            'consultation_category',
+            'consultation_fee',
             'treatment_systems',
             'city',
             'message',
@@ -60,3 +64,19 @@ class DoctorApplicationSerializer(serializers.ModelSerializer):
             'documents',
         ]
         read_only_fields = ['id', 'is_priority', 'status', 'created_at', 'documents']
+
+    def validate(self, attrs):
+        category = attrs.get('consultation_category')
+        fee = attrs.get('consultation_fee')
+
+        if category == DoctorApplication.ConsultationCategory.GENERAL and fee != 200:
+            raise serializers.ValidationError({
+                'consultation_fee': 'General Physician / General Doctor consultations are fixed at ₹200.'
+            })
+
+        if category == DoctorApplication.ConsultationCategory.SPECIALIST and (fee < 200 or fee > 2000 or fee % 100):
+            raise serializers.ValidationError({
+                'consultation_fee': 'Specialist consultation fees must be between ₹200 and ₹2,000 in ₹100 steps.'
+            })
+
+        return attrs

@@ -31,7 +31,7 @@ const BENEFITS = [
   {
     icon: IndianRupee,
     title: "Transparent earnings",
-    text: "Set your own consultation fee and get paid out reliably, with 20% platform fees.",
+    text: "General consultations are fixed at ₹200; specialists select ₹200–₹2,000. You receive 75% of each completed, paid consultation, transferred within 48 hours.",
   },
   {
     icon: CalendarClock,
@@ -127,6 +127,40 @@ export default function ForDoctorsPage() {
               </div>
             ))}
           </div>
+        </Container>
+      </section>
+
+      <section className="py-16 sm:py-20">
+        <Container className="max-w-4xl">
+          <div className="text-center">
+            <Eyebrow>Clear consultation payout</Eyebrow>
+            <h2 className="mt-4 font-heading text-2xl font-bold text-ink sm:text-3xl">
+              Know your share before you join
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink/60 sm:text-base">
+              General Physician / General Doctor consultations are fixed at ₹200. Specialists
+              choose a fee between ₹200 and ₹2,000. The platform fee is 25%; the doctor receives
+              the remaining 75%, transferred within 48 hours after a completed consultation and
+              confirmed payment.
+            </p>
+          </div>
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[
+              { label: "General consultation", amount: "₹200" },
+              { label: "General doctor receives", amount: "₹150" },
+              { label: "Specialist sets a fee", amount: "₹200–₹2,000" },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl border border-black/5 bg-white p-5 text-center">
+                <p className="text-sm font-medium text-ink/60">{item.label}</p>
+                <p className="mt-2 font-heading text-2xl font-bold text-primary-darker">{item.amount}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-5 text-center text-xs leading-relaxed text-ink/45">
+            Payout examples are illustrative, not guaranteed. Actual earnings depend on completed
+            consultations and confirmed payments; taxes, refunds and other applicable adjustments
+            may affect final payouts.
+          </p>
         </Container>
       </section>
 

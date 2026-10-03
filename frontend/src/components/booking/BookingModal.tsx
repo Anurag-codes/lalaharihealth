@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Phone, Smartphone, X } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api";
 
@@ -8,6 +8,8 @@ type Status = "idle" | "submitting" | "success" | "error";
 
 export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [status, setStatus] = useState<Status>("idle");
+  const [audioAutoplayBlocked, setAudioAutoplayBlocked] = useState(false);
+  const appVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -90,6 +92,38 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
         <div className="space-y-5" style={{ marginTop: "40px" }}>
           <section aria-labelledby="free-app-title" className="rounded-2xl border-2 border-primary bg-primary-light p-5 sm:p-6">
+            <div className="relative mb-5 overflow-hidden rounded-xl bg-ink">
+              <video
+                ref={appVideoRef}
+                className="aspect-video w-full object-contain"
+                src="/videos/generated_video.mp4"
+                autoPlay
+                controls
+                playsInline
+                preload="auto"
+                aria-label="LalahariHealth app consultation introduction"
+                onCanPlay={(event) => {
+                  event.currentTarget.play().catch(() => setAudioAutoplayBlocked(true));
+                }}
+                onPlay={() => setAudioAutoplayBlocked(false)}
+              />
+              {audioAutoplayBlocked && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink/75 p-4 text-center">
+                  <p className="text-sm font-medium text-white">
+                    Tap to start the video with sound.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      appVideoRef.current?.play().catch(() => setAudioAutoplayBlocked(true));
+                    }}
+                    className="min-h-11 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-dark"
+                  >
+                    Play with sound
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="flex items-start gap-4">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
                 <Smartphone className="h-6 w-6" />

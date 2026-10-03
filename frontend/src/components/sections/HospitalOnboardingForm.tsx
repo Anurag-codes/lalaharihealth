@@ -86,7 +86,7 @@ export function HospitalOnboardingForm() {
       <div className="flex items-start gap-3 rounded-2xl bg-primary-light px-4 py-3">
         <Building2 className="mt-0.5 h-5 w-5 shrink-0 text-primary-darker" />
         <p className="text-sm font-medium text-primary-darker">
-          Launching in 2 months — registration is 100% free for first 100 registrations, and every
+          Launching soon — registration is 100% free for first 100 registrations, and every
           hospital/clinic that signs up now keeps{" "}
           <span className="font-bold">Priority Partner</span> status and gets
           referred patients first at launch.

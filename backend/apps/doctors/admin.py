@@ -26,6 +26,8 @@ class DoctorApplicationAdmin(admin.ModelAdmin):
     list_display = (
         'full_name',
         'specialization',
+        'consultation_category',
+        'consultation_fee',
         'experience_years',
         'phone_number',
         'email',

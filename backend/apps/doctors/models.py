@@ -72,12 +72,22 @@ class DoctorApplication(models.Model):
         APPROVED = 'approved', 'Approved'
         REJECTED = 'rejected', 'Rejected'
 
+    class ConsultationCategory(models.TextChoices):
+        GENERAL = 'general', 'General Physician / General Doctor'
+        SPECIALIST = 'specialist', 'Specialist'
+
     full_name = models.CharField(max_length=150)
     email = models.EmailField(blank=True)
     phone_number = models.CharField(max_length=15)
     qualification = models.CharField(max_length=255, help_text='e.g. MBBS, BAMS, MD (Ayurveda)')
     experience_years = models.PositiveSmallIntegerField()
     specialization = models.CharField(max_length=150)
+    consultation_category = models.CharField(
+        max_length=12,
+        choices=ConsultationCategory.choices,
+        default=ConsultationCategory.GENERAL,
+    )
+    consultation_fee = models.PositiveSmallIntegerField(default=200, help_text='Consultation fee in INR')
     treatment_systems = models.JSONField(default=list, help_text='Selected TreatmentSystem values')
     city = models.CharField(max_length=100, blank=True)
     message = models.TextField(blank=True)
