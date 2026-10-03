@@ -3,21 +3,22 @@
 import { useEffect, useState } from "react";
 import { Building2, Clock3, Phone, Smartphone, Wallet, X } from "lucide-react";
 import { FlashingBadge } from "@/components/ui/FlashingBadge";
+import { useCloseAfterBottomScroll } from "@/hooks/useCloseAfterBottomScroll";
 
 const POPUP_DISMISSED_EVENT = "lalahari:home-offer-dismissed";
 
 export function HomeOfferPopup() {
 	const [isOpen, setIsOpen] = useState(false);
+	const closePopup = () => {
+		setIsOpen(false);
+		window.dispatchEvent(new Event(POPUP_DISMISSED_EVENT));
+	};
+	const scrollDismissHandlers = useCloseAfterBottomScroll(closePopup);
 
 	useEffect(() => {
 		const timer = window.setTimeout(() => setIsOpen(true), 2000);
 		return () => window.clearTimeout(timer);
 	}, []);
-
-	const closePopup = () => {
-		setIsOpen(false);
-		window.dispatchEvent(new Event(POPUP_DISMISSED_EVENT));
-	};
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -40,6 +41,7 @@ export function HomeOfferPopup() {
 	return (
 		<div
 			className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-ink/65 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+			{...scrollDismissHandlers}
 			onClick={(event) => {
 				if (event.target === event.currentTarget) closePopup();
 			}}
@@ -152,6 +154,9 @@ export function HomeOfferPopup() {
 							))}
 						</div>
 					</div>
+					<p className="mt-5 text-center text-xs text-ink/45">
+						At the end, scroll down twice to close this offer.
+					</p>
 				</div>
 			</section>
 		</div>

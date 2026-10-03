@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Phone, Smartphone, X } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api";
+import { useCloseAfterBottomScroll } from "@/hooks/useCloseAfterBottomScroll";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
@@ -10,6 +11,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const [status, setStatus] = useState<Status>("idle");
   const [audioAutoplayBlocked, setAudioAutoplayBlocked] = useState(false);
   const appVideoRef = useRef<HTMLVideoElement>(null);
+  const scrollDismissHandlers = useCloseAfterBottomScroll(onClose);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -61,7 +63,10 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="my-auto max-h-[calc(100dvh-1rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-2xl bg-white p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:p-8">
+      <div
+        className="my-auto max-h-[calc(100dvh-1rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-2xl bg-white p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:p-8"
+        {...scrollDismissHandlers}
+      >
         <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 border-b border-black/5 bg-white px-4 pb-4 pt-3 sm:-mx-8 sm:-mt-8 sm:px-8 sm:pt-5">
           <div>
             <h2
@@ -246,6 +251,9 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             )}
           </section>
         </div>
+        <p className="mt-5 text-center text-xs text-ink/45">
+          At the end, scroll down twice to close this window.
+        </p>
       </div>
     </div>
   );

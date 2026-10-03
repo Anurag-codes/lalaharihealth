@@ -13,7 +13,7 @@ import { DoctorsShowcase } from "@/components/sections/DoctorsShowcase";
 import { BookConsultation } from "@/components/sections/BookConsultation";
 import { FAQ } from "@/components/sections/FAQ";
 import { FinalCta } from "@/components/sections/FinalCta";
-import { HomeOfferPopup } from "@/components/sections/HomeOfferPopup";
+import { HomeOfferPopup } from "../components/sections/HomeOfferPopup";
 import { HomeCallVideo } from "@/components/sections/HomeCallVideo";
 
 export default function Home() {
