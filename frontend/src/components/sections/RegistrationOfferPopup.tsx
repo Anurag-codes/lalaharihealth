@@ -6,9 +6,14 @@ import { Building2, Stethoscope, X } from "lucide-react";
 import { FlashingBadge } from "@/components/ui/FlashingBadge";
 import { useCloseAfterBottomScroll } from "@/hooks/useCloseAfterBottomScroll";
 
+const POPUP_DISMISSED_EVENT = "lalahari:registration-offer-dismissed";
+
 export function RegistrationOfferPopup() {
   const [isOpen, setIsOpen] = useState(false);
-  const closePopup = () => setIsOpen(false);
+  const closePopup = () => {
+    setIsOpen(false);
+    window.dispatchEvent(new Event(POPUP_DISMISSED_EVENT));
+  };
   const scrollDismissHandlers = useCloseAfterBottomScroll(closePopup);
 
   useEffect(() => {

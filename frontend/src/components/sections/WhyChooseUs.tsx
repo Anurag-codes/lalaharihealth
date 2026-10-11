@@ -16,7 +16,7 @@ const FEATURES = [
   {
     icon: Sparkles,
     title: "Every treatment system, compared",
-    text: "Allopathic, Homeopathic, Ayurvedic, Unani and Home Remedy — laid out honestly, side by side.",
+    text: "Allopathic, Homeopathic and Home Remedy — laid out honestly, side by side.",
   },
   {
     icon: ShieldCheck,

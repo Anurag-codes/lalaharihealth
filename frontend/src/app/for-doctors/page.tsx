@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+"use client";
+
 import {
   BadgeCheck,
   CalendarClock,
@@ -8,19 +9,15 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Button } from "@/components/ui/Button";
-import { SiteImage } from "@/components/ui/SiteImage";
 import { RegistrationTabs } from "@/components/sections/RegistrationTabs";
 import { FlashingBadge } from "@/components/ui/FlashingBadge";
 import { RegistrationOfferPopup } from "@/components/sections/RegistrationOfferPopup";
 
-export const metadata: Metadata = {
-  title: "For Doctors | LalahariHealth",
-  description:
-    "Join LalahariHealth as a consulting doctor. Register free before launch and lock in Priority Doctor status.",
-};
+const POPUP_DISMISSED_EVENT = "lalahari:registration-offer-dismissed";
 
 const BENEFITS = [
   {
@@ -64,6 +61,43 @@ const LAUNCH_PERKS = [
 ];
 
 export default function ForDoctorsPage() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPopupDismissed, setIsPopupDismissed] = useState(false);
+
+  useEffect(() => {
+    const handlePopupDismissed = () => {
+      setIsPopupDismissed(true);
+
+      const video = videoRef.current;
+      if (!video) return;
+
+      requestAnimationFrame(() => {
+        video.muted = false;
+        video.volume = 1;
+        video.currentTime = 0;
+        video.play().catch(() => undefined);
+      });
+    };
+
+    window.addEventListener(POPUP_DISMISSED_EVENT, handlePopupDismissed);
+    return () => window.removeEventListener(POPUP_DISMISSED_EVENT, handlePopupDismissed);
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!isPopupDismissed) {
+      video.pause();
+      video.muted = true;
+      video.currentTime = 0;
+      return;
+    }
+
+    video.muted = false;
+    video.volume = 1;
+  }, [isPopupDismissed]);
+
   return (
     <>
       <RegistrationOfferPopup />
@@ -80,25 +114,37 @@ export default function ForDoctorsPage() {
             <p className="mt-5 max-w-lg text-base leading-relaxed text-ink/60 sm:text-lg">
               <b>LalahariHealth is an app providing health consultations to people at affordable rates.</b> 
               As of now we are onboarding Allopathic, Naturopathy(Home Remedy) doctors and Institutions.
-              Ayurvedic, Unani and Homeopathy doctors are also welcome. 
+              {/* Ayurvedic, Unani and Homeopathy doctors are also welcome.  */}
               <strong className="text-ink">First 20 registrations free.</strong>
             </p>
             <div className="mt-8">
               <div className="relative">
-                <FlashingBadge className="absolute -top-4 left-1/8 hidden -translate-x-1/2 sm:inline-flex">
+                <FlashingBadge className="absolute -top-4 left-1/4 hidden -translate-x-1/4 sm:inline-flex">
                   Limited Time Offer
                 </FlashingBadge>
-                <Button href="#apply" size="lg">
+                <Button
+                  href="#apply"
+                  size="lg"
+                  className="w-full max-w-[22rem] px-10 text-lg font-bold sm:max-w-[24rem] sm:px-12 sm:text-xl"
+                >
                   Register Now
                 </Button>
               </div>
             </div>
           </div>
-          <SiteImage
-            src="/imge_8_9_10.png"
-            alt="A doctor consulting patients online from a clinic"
-            aspect="aspect-[4/3]"
-          />
+          <div className="overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.10)]">
+            <video
+              ref={videoRef}
+              src="/videos/doctor_onboarding.mp4"
+              loop
+              playsInline
+              controls
+              muted={!isPopupDismissed}
+              preload="metadata"
+              className="aspect-[4/3] w-full object-cover"
+              aria-label="Doctor onboarding overview video"
+            />
+          </div>
         </Container>
       </section>
 

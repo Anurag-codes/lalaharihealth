@@ -17,7 +17,7 @@ const STEPS = [
   {
     icon: ScanSearch,
     title: "Compare every treatment option",
-    text: "See Allopathic, Homeopathic, Ayurvedic, Unani and Home Remedy options side-by-side with honest cost estimates.",
+    text: "See Allopathic, Homeopathic and Home Remedy options side-by-side with honest cost estimates.",
   },
   {
     icon: Sparkles,

@@ -46,7 +46,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-ink/60">
-              Expert doctor consultations that compare Allopathic, Homeopathic, Ayurvedic, Unani
+              Expert doctor consultations that compare Allopathic, Homeopathic
               and Home Remedy options — so you only spend on treatment you actually need.
             </p>
             <div className="mt-5 flex items-center gap-3">
