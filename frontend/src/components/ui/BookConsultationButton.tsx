@@ -5,7 +5,7 @@ import { useBookingModal } from "@/components/booking/BookingModalContext";
 
 export function BookConsultationButton({
   variant = "primary",
-  size = "md",
+  size = "lg",
   className,
   children = "Book Consultation",
   onBeforeOpen,

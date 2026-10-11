@@ -19,20 +19,42 @@ const TRUST_BADGES = [
 
 export function Hero() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const mobileVideoRef = useRef<HTMLVideoElement>(null);
   const [isPopupDismissed, setIsPopupDismissed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  const startVideo = (video: HTMLVideoElement | null) => {
+    if (!video) return;
+
+    video.muted = false;
+    video.volume = 1;
+    video.currentTime = 0;
+    video.play().catch(() => undefined);
+  };
+
+  const pauseVideo = (video: HTMLVideoElement | null) => {
+    if (!video) return;
+
+    video.pause();
+    video.muted = true;
+    video.currentTime = 0;
+  };
+
+  useEffect(() => {
+    const updateViewport = () => setIsMobile(window.innerWidth < 1024);
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
 
   useEffect(() => {
     const handlePopupDismissed = () => {
       setIsPopupDismissed(true);
 
-      const video = videoRef.current;
-      if (!video) return;
-
       requestAnimationFrame(() => {
-        video.muted = false;
-        video.volume = 1;
-        video.currentTime = 0;
-        video.play().catch(() => undefined);
+        startVideo(videoRef.current);
+        startVideo(mobileVideoRef.current);
       });
     };
 
@@ -41,18 +63,14 @@ export function Hero() {
   }, []);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
     if (!isPopupDismissed) {
-      video.pause();
-      video.muted = true;
-      video.currentTime = 0;
+      pauseVideo(videoRef.current);
+      pauseVideo(mobileVideoRef.current);
       return;
     }
 
-    video.muted = false;
-    video.volume = 1;
+    startVideo(videoRef.current);
+    startVideo(mobileVideoRef.current);
   }, [isPopupDismissed]);
 
   return (
@@ -80,14 +98,16 @@ export function Hero() {
             ))}
           </div>
           <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-            <FlashingBadge className="sm:hidden">Limited Time Offer</FlashingBadge>
-            <div className="relative">
+            {/* <FlashingBadge className="sm:hidden">Limited Time Offer</FlashingBadge> */}
+            <div className="relative w-full sm:w-auto">
               <FlashingBadge className="absolute -top-4 left-1/2 hidden -translate-x-1/2 sm:inline-flex">
                 Limited Time Offer
               </FlashingBadge>
-              <BookConsultationButton>Get Your Free Consultation</BookConsultationButton>
+              <BookConsultationButton className="w-full sm:w-auto">
+                Get Your Free Consultation
+              </BookConsultationButton>
             </div>
-            <Button href="#how-it-works" variant="outline">
+            <Button href="#how-it-works" variant="outline" className="w-full sm:w-auto">
               <PlayCircle className="h-5 w-5" />
               Watch How It Works
             </Button>
@@ -98,6 +118,21 @@ export function Hero() {
               Get your first symptom-based app consultation free, or consult a specialist from
               home for ₹200. Save travel and waiting time while you understand your next steps.
             </p>
+            {isMobile && (
+              <div className="mt-2 overflow-hidden rounded-[1.5rem] border border-black/5 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
+                <video
+                  ref={mobileVideoRef}
+                  src="/videos/sale_video.mp4"
+                  loop
+                  playsInline
+                  controls
+                  muted={!isPopupDismissed}
+                  preload="metadata"
+                  className="aspect-[4/5] w-full object-cover"
+                  aria-label="LalahariHealth doctor consultation overview video"
+                />
+              </div>
+            )}
             <p>
               Before a planned test or procedure, ask why it is recommended, what it may cost, its
               benefits, risks and possible side effects. A second opinion may help you decide.
@@ -137,7 +172,7 @@ export function Hero() {
           transition={{ duration: 0.7, delay: 0.15 }}
           className="relative"
         >
-          <div className="overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.10)]">
+          <div className="hidden overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.10)] lg:block">
             <video
               ref={videoRef}
               src="/videos/sale_video.mp4"

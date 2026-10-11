@@ -123,11 +123,11 @@ export function HomeOfferPopup() {
 
 					<div className="mt-6 space-y-4">
 						<a
-							href="#medical-cost-awareness"
+							href="#sale_video"
 							onClick={closePopup}
 							className="inline-flex min-h-14 w-full items-center justify-center rounded-full bg-primary px-6 py-4 text-center text-base font-bold text-white shadow-lg shadow-primary/25 transition-colors hover:bg-primary-dark sm:text-lg"
 						>
-							Watch the patient story and read sources
+							Watch our purpose
 						</a>
 
 						<div>
