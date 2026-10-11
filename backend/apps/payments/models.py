@@ -27,6 +27,8 @@ class Payment(models.Model):
     method = models.CharField(max_length=15, choices=Method.choices, default=Method.UPI)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     transaction_id = models.CharField(max_length=100, unique=True, blank=True, null=True)
+    gateway_order_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    currency = models.CharField(max_length=3, default='INR')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

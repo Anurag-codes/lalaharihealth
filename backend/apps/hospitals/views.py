@@ -14,6 +14,7 @@ class HospitalApplicationCreateView(APIView):
     """Public, unauthenticated endpoint for the pre-launch hospital/clinic interest form."""
 
     permission_classes = [AllowAny]
+    serializer_class = HospitalApplicationSerializer
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):

@@ -15,6 +15,7 @@ import { FAQ } from "@/components/sections/FAQ";
 import { FinalCta } from "@/components/sections/FinalCta";
 import { HomeOfferPopup } from "../components/sections/HomeOfferPopup";
 import { HomeCallVideo } from "@/components/sections/HomeCallVideo";
+import { HealthcareVideoStories } from "@/components/sections/HealthcareVideoStories";
 
 export default function Home() {
   return (
@@ -22,8 +23,9 @@ export default function Home() {
       <HomeOfferPopup />
       <HomeCallVideo />
       <Hero />
-      <MedicalCostAwareness />
       <TrustStats />
+      <HealthcareVideoStories />
+      <MedicalCostAwareness />
       <ProblemSolution />
       <HowItWorks />
       <TreatmentComparison />

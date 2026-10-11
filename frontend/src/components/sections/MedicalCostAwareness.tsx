@@ -1,4 +1,5 @@
-import { AlertTriangle, ArrowUpRight, CircleHelp, FileText, PlayCircle } from "lucide-react";
+import Image from "next/image";
+import { AlertTriangle, ArrowUpRight, CircleHelp, PlayCircle } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
@@ -8,6 +9,8 @@ const VIDEO_FILE = "patient-treatment-cost-story.mp4";
 const NEWS_SLOTS = [
   {
     id: "medical-debt",
+    image: "/healthcare-financial-burden.png",
+    imageAlt: "Illustration of a family reviewing medical bills and household expenses at home",
     headline:
       "Half the world lacks access to essential health services; health expenses push people into poverty",
     publisher: "World Health Organization and World Bank",
@@ -18,6 +21,8 @@ const NEWS_SLOTS = [
   },
   {
     id: "hospital-revenue-debate",
+    image: "/healthcare-incentives-discussion.png",
+    imageAlt: "Illustration of a doctor and patient discussing a medical estimate",
     headline: "The unethical revenue targets that India’s corporate hospitals set their doctors",
     publisher: "The BMJ",
     publishedAt: "3 Sep 2015 · Feature and reader responses",
@@ -27,6 +32,8 @@ const NEWS_SLOTS = [
   },
   {
     id: "private-healthcare-opinion",
+    image: "/private-healthcare-affordability.png",
+    imageAlt: "Illustration of a family reviewing medical paperwork outside a hospital",
     headline: "Harsh Mander: The plunder and loot by private healthcare in India",
     publisher: "Scroll.in · Harsh Mander",
     publishedAt: "25 Jun 2025 · Opinion essay",
@@ -125,22 +132,37 @@ export function MedicalCostAwareness() {
 
           <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
             {NEWS_SLOTS.map((slot) => (
-              <div key={slot.id} className="rounded-xl border border-dashed border-primary/30 p-5">
-                <FileText className="h-5 w-5 text-primary-darker" />
-                <h4 className="mt-3 font-semibold leading-snug text-ink">{slot.headline}</h4>
-                <p className="mt-2 text-xs font-medium text-ink/50">
-                  {slot.publisher} · {slot.publishedAt}
-                </p>
-                <p className="mt-3 text-sm leading-relaxed text-ink/65">{slot.summary}</p>
-                <a
-                  href={slot.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-primary-darker underline underline-offset-2"
-                >
-                  Read original source <ArrowUpRight className="h-4 w-4" />
-                </a>
-              </div>
+              <a
+                key={slot.id}
+                href={slot.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Read ${slot.headline} on ${slot.publisher} (opens in a new tab)`}
+                className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-black/10 bg-white transition-shadow hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+              >
+                <div className="relative aspect-video w-full overflow-hidden bg-primary-soft">
+                  <Image
+                    src={slot.image}
+                    alt={slot.imageAlt}
+                    fill
+                    sizes="(min-width: 1280px) 390px, (min-width: 768px) 33vw, 100vw"
+                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transform-none"
+                  />
+                </div>
+                <div className="flex flex-1 flex-col p-5">
+                  <p className="text-xs text-ink/55">AI-generated illustration, not a photograph from the article</p>
+                  <h4 className="mt-3 font-semibold leading-snug text-ink group-hover:text-primary-darker">
+                    {slot.headline}
+                  </h4>
+                  <p className="mt-2 text-xs font-medium text-ink/50">
+                    {slot.publisher} · {slot.publishedAt}
+                  </p>
+                  <p className="mt-3 flex-1 text-sm leading-relaxed text-ink/65">{slot.summary}</p>
+                  <span className="mt-4 inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-primary-darker underline underline-offset-2">
+                    Read original source <ArrowUpRight className="h-4 w-4" />
+                  </span>
+                </div>
+              </a>
             ))}
           </div>
         </div>

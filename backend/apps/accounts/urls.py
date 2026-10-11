@@ -1,5 +1,9 @@
-# API endpoints for authentication, registration and profile will be added here.
-# e.g. register, login (JWT), refresh, current-user.
+from django.urls import path
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
 app_name = 'accounts'
 
-urlpatterns = []
+urlpatterns = [
+	path('token/', TokenObtainPairView.as_view(), name='token-obtain'),
+	path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
+]

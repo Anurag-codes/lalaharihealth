@@ -170,11 +170,45 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'LalahariHealth API',
-    'DESCRIPTION': 'API documentation for the LalahariHealth platform.',
+    'DESCRIPTION': (
+        'Mobile booking flow:\n\n'
+        '1. Obtain a JWT from POST /api/v1/auth/token/ using an existing account. '
+        'Use `Authorization: Bearer ACCESS_TOKEN` for all mobile endpoints. Account signup/OTP is not implemented here.\n'
+        '2. POST /api/v1/consultations/ with patient_name, patient_age, patient_gender, patient_phone and mode. '
+        'Store the returned consultation id. Accounts may book for a family member.\n'
+        '3. GET /api/v1/consultations/conditions/ for dropdown options; '
+        'PUT /api/v1/consultations/{id}/history/ with condition (optional/null), symptoms (optional), '
+        'duration_value, duration_unit, ongoing_medication and treatment_details (optional).\n'
+        '4. Optional POST /api/v1/consultations/{id}/documents/ as multipart with one file per request. '
+        'PDF/PNG/JPG up to 10 MB. Skip means no upload call; private downloads require authentication.\n'
+        '5. GET /api/v1/appointments/slots/?date=YYYY-MM-DD. Dates are Asia/Kolkata; '
+        'slots are admin-configured, future only, between 08:00 and 23:59. Empty array means no availability.\n'
+        '6. POST /api/v1/appointments/ with consultation_id and slot_id. General fee is INR 200. '
+        'An appointment is reserved, not doctor-confirmed; pending reservations consume capacity.\n'
+        '7. POST /api/v1/payments/orders/ with appointment_id and method (card/upi). '
+        'Use returned order id, public key, amount in paise and currency with Razorpay mobile Checkout. '
+        'Never submit card numbers, CVVs or UPI credentials to this API. Configure automatic capture in Razorpay.\n'
+        '8. POST /api/v1/payments/verify/ with payment_id, razorpay_payment_id and razorpay_signature. '
+        'Only gateway-confirmed captured payments succeed; signed webhooks also reconcile capture.\n'
+        '9. Poll GET /api/v1/appointments/{id}/. Status moves awaiting_payment -> finding_doctor -> confirmed '
+        'when staff assign a verified doctor. A 30-minute match or push notification is not implemented or guaranteed.\n\n'
+        'All appointment summary prices are INR rupees; checkout order amounts are paise. '
+        'Payment gateway configuration is required for live checkout. Private medical files must never be served '
+        'through a public /media/ alias. Use PostgreSQL for production scheduling locks.'
+    ),
     'VERSION': 'v1',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_DIST': 'SIDECAR',
     'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'ENUM_NAME_OVERRIDES': {
+        'ConsultationStatusEnum': ['draft', 'requested', 'ongoing', 'completed', 'cancelled'],
+        'AppointmentStatusEnum': ['pending', 'awaiting_payment', 'finding_doctor', 'confirmed', 'completed', 'cancelled'],
+        'PaymentStatusEnum': ['pending', 'success', 'failed', 'refunded'],
+        'ApplicationStatusEnum': [
+            ('pending', 'Pending Review'), ('contacted', 'Contacted'),
+            ('approved', 'Approved'), ('rejected', 'Rejected'),
+        ],
+    },
 }
 
 SIMPLE_JWT = {
@@ -205,3 +239,7 @@ SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
+RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')
+RAZORPAY_WEBHOOK_SECRET = config('RAZORPAY_WEBHOOK_SECRET', default='')

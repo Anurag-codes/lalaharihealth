@@ -1,0 +1,1646 @@
+openapi: 3.0.3
+info:
+  title: LalahariHealth API
+  version: v1
+  description: |-
+    Mobile booking flow:
+
+    1. Obtain a JWT from POST /api/v1/auth/token/ using an existing account. Use `Authorization: Bearer ACCESS_TOKEN` for all mobile endpoints. Account signup/OTP is not implemented here.
+    2. POST /api/v1/consultations/ with patient_name, patient_age, patient_gender, patient_phone and mode. Store the returned consultation id. Accounts may book for a family member.
+    3. GET /api/v1/consultations/conditions/ for dropdown options; PUT /api/v1/consultations/{id}/history/ with condition (optional/null), symptoms (optional), duration_value, duration_unit, ongoing_medication and treatment_details (optional).
+    4. Optional POST /api/v1/consultations/{id}/documents/ as multipart with one file per request. PDF/PNG/JPG up to 10 MB. Skip means no upload call; private downloads require authentication.
+    5. GET /api/v1/appointments/slots/?date=YYYY-MM-DD. Dates are Asia/Kolkata; slots are admin-configured, future only, between 08:00 and 23:59. Empty array means no availability.
+    6. POST /api/v1/appointments/ with consultation_id and slot_id. General fee is INR 200. An appointment is reserved, not doctor-confirmed; pending reservations consume capacity.
+    7. POST /api/v1/payments/orders/ with appointment_id and method (card/upi). Use returned order id, public key, amount in paise and currency with Razorpay mobile Checkout. Never submit card numbers, CVVs or UPI credentials to this API. Configure automatic capture in Razorpay.
+    8. POST /api/v1/payments/verify/ with payment_id, razorpay_payment_id and razorpay_signature. Only gateway-confirmed captured payments succeed; signed webhooks also reconcile capture.
+    9. Poll GET /api/v1/appointments/{id}/. Status moves awaiting_payment -> finding_doctor -> confirmed when staff assign a verified doctor. A 30-minute match or push notification is not implemented or guaranteed.
+
+    All appointment summary prices are INR rupees; checkout order amounts are paise. Payment gateway configuration is required for live checkout. Private medical files must never be served through a public /media/ alias. Use PostgreSQL for production scheduling locks.
+paths:
+  /api/v1/appointments/:
+    get:
+      operationId: appointments_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Mobile scheduling
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAppointmentList'
+          description: ''
+    post:
+      operationId: appointments_create
+      description: Uploads are optional. Fee is server-set to INR 200 for this general
+        consultation flow. Repeating the same draft/slot returns the existing appointment;
+        no second reservation is created. Pending reservations consume capacity until
+        staff cancel them.
+      summary: Reserve a slot after completing patient details and history
+      tags:
+      - Mobile scheduling
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+  /api/v1/appointments/{appointment_id}/:
+    get:
+      operationId: appointments_retrieve
+      summary: Poll appointment summary, payment and doctor-matching status
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile scheduling
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+  /api/v1/appointments/{appointment_id}/assign-doctor/:
+    post:
+      operationId: appointments_assign_doctor_create
+      summary: 'Staff only: assign a verified doctor to a paid appointment'
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Staff matching
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DoctorAssignment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DoctorAssignment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DoctorAssignment'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+  /api/v1/appointments/slots/:
+    get:
+      operationId: appointments_slots_list
+      summary: 'Step 4: available slots for an India-local date'
+      parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Local India date, YYYY-MM-DD
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Mobile scheduling
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAppointmentSlotList'
+          description: ''
+  /api/v1/auth/token/:
+    post:
+      operationId: auth_token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/v1/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/consultations/:
+    get:
+      operationId: consultations_list
+      summary: List your consultation drafts and bookings
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Mobile intake
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedConsultationList'
+          description: ''
+    post:
+      operationId: consultations_create
+      summary: 'Step 1: save patient details and create a draft'
+      tags:
+      - Mobile intake
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientDetails'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatientDetails'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatientDetails'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consultation'
+          description: ''
+  /api/v1/consultations/{consultation_id}/:
+    get:
+      operationId: consultations_retrieve
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile intake
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consultation'
+          description: ''
+    patch:
+      operationId: consultations_partial_update
+      summary: Update patient details before booking
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile intake
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientDetails'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientDetails'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientDetails'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consultation'
+          description: ''
+  /api/v1/consultations/{consultation_id}/documents/:
+    get:
+      operationId: consultations_documents_list
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Mobile documents
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDocumentList'
+          description: ''
+    post:
+      operationId: consultations_documents_create
+      summary: 'Step 3: optional upload, one PDF/PNG/JPG up to 10 MB per request'
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentUpload'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+          description: ''
+  /api/v1/consultations/{consultation_id}/documents/{document_id}/:
+    delete:
+      operationId: consultations_documents_destroy
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: document_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile documents
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/consultations/{consultation_id}/documents/{document_id}/download/:
+    get:
+      operationId: consultations_documents_download_retrieve
+      summary: Download a private document with Bearer authentication
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: document_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile documents
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          description: ''
+  /api/v1/consultations/{consultation_id}/history/:
+    put:
+      operationId: consultations_history_update
+      summary: 'Step 2: save condition, duration and medication history'
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile intake
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/History'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/History'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/History'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consultation'
+          description: ''
+  /api/v1/consultations/conditions/:
+    get:
+      operationId: consultations_conditions_list
+      summary: Known disease/category dropdown (staff manage options in admin)
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Mobile intake
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedConditionChoiceList'
+          description: ''
+  /api/v1/core/contact-messages/:
+    post:
+      operationId: core_contact_messages_create
+      description: Public, unauthenticated endpoint for callback requests from the
+        homepage.
+      summary: Submit a callback request
+      tags:
+      - Public enquiries
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactMessage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContactMessage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContactMessage'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactMessage'
+          description: ''
+  /api/v1/doctors/applications/:
+    post:
+      operationId: doctors_applications_create
+      description: Submit multipart form data with up to five optional supporting
+        documents.
+      summary: Submit a doctor application
+      tags:
+      - Doctors
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DoctorApplicationSubmission'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DoctorApplicationSubmission'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorApplication'
+          description: ''
+  /api/v1/health/:
+    get:
+      operationId: health_retrieve
+      summary: Check API health
+      tags:
+      - System
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: The API is available.
+  /api/v1/hospitals/applications/:
+    post:
+      operationId: hospitals_applications_create
+      description: Public, unauthenticated endpoint for the pre-launch hospital/clinic
+        interest form.
+      tags:
+      - hospitals
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HospitalApplication'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HospitalApplication'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HospitalApplication'
+          description: ''
+  /api/v1/payments/{payment_id}/:
+    get:
+      operationId: payments_retrieve
+      summary: Read your payment status
+      parameters:
+      - in: path
+        name: payment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile payments
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/payments/orders/:
+    post:
+      operationId: payments_orders_create
+      description: Send only appointment_id and card/upi. Server controls amount and
+        currency. Use the returned key_id, gateway_order_id, amount (paise) and currency
+        with the official Razorpay mobile SDK. Never send PAN, CVV, card details or
+        UPI credentials to this API. Returns 503 when gateway keys are not configured.
+      summary: 'Step 5: create/reuse Razorpay checkout order'
+      tags:
+      - Mobile payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentOrderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentOrderRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentOrderRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutOrder'
+          description: ''
+  /api/v1/payments/verify/:
+    post:
+      operationId: payments_verify_create
+      description: 'Call after Razorpay SDK success. Backend verifies the signature
+        using its stored order id, then fetches the payment from Razorpay. An authorized
+        but not captured payment is not considered paid. After success, poll appointment
+        detail: finding_doctor changes to confirmed after staff assign a doctor.'
+      summary: Verify signed checkout result and captured status
+      tags:
+      - Mobile payments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentVerification'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentVerification'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentVerification'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          description: ''
+  /api/v1/payments/webhooks/razorpay/:
+    post:
+      operationId: payments_webhooks_razorpay_create
+      description: Configure this HTTPS URL in Razorpay, subscribe to payment.captured
+        and use the separate webhook secret. This is not an app callback.
+      summary: 'Razorpay only: signed payment.captured webhook'
+      parameters:
+      - in: header
+        name: X-Razorpay-Signature
+        schema:
+          type: string
+        required: true
+      tags:
+      - Gateway webhooks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: {}
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {}
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+components:
+  schemas:
+    ApplicationStatusEnum:
+      enum:
+      - pending
+      - contacted
+      - approved
+      - rejected
+      type: string
+      description: |-
+        * `pending` - Pending Review
+        * `contacted` - Contacted
+        * `approved` - Approved
+        * `rejected` - Rejected
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        appointment_number:
+          type: string
+          readOnly: true
+        consultation:
+          type: integer
+          readOnly: true
+        slot:
+          type: integer
+          readOnly: true
+          nullable: true
+        slot_time:
+          type: string
+          format: date-time
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/AppointmentStatusEnum'
+          readOnly: true
+        doctor:
+          type: integer
+          readOnly: true
+          nullable: true
+        amount:
+          type: integer
+          readOnly: true
+        currency:
+          type: string
+          readOnly: true
+          default: INR
+        payment_status:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - appointment_number
+      - consultation
+      - created_at
+      - currency
+      - doctor
+      - id
+      - payment_status
+      - slot
+      - slot_time
+      - status
+    AppointmentRequest:
+      type: object
+      properties:
+        consultation_id:
+          type: integer
+          minimum: 1
+        slot_id:
+          type: integer
+          minimum: 1
+      required:
+      - consultation_id
+      - slot_id
+    AppointmentSlot:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        starts_at:
+          type: string
+          format: date-time
+        remaining_capacity:
+          type: integer
+          readOnly: true
+      required:
+      - id
+      - remaining_capacity
+      - starts_at
+    AppointmentStatusEnum:
+      enum:
+      - pending
+      - awaiting_payment
+      - finding_doctor
+      - confirmed
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `awaiting_payment` - Awaiting payment
+        * `finding_doctor` - Finding doctor
+        * `confirmed` - Confirmed
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+    CheckoutOrder:
+      type: object
+      properties:
+        payment_id:
+          type: integer
+        gateway_order_id:
+          type: string
+        key_id:
+          type: string
+        amount:
+          type: integer
+          description: 'INR minor units (paise): 20000 means INR 200'
+        currency:
+          type: string
+        status:
+          type: string
+      required:
+      - amount
+      - currency
+      - gateway_order_id
+      - key_id
+      - payment_id
+      - status
+    ConditionChoice:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        slug:
+          type: string
+          maxLength: 170
+          pattern: ^[-a-zA-Z0-9_]+$
+      required:
+      - id
+      - name
+      - slug
+    Consultation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        patient_name:
+          type: string
+          readOnly: true
+        patient_age:
+          type: integer
+          readOnly: true
+          nullable: true
+        patient_gender:
+          allOf:
+          - $ref: '#/components/schemas/PatientGenderEnum'
+          readOnly: true
+        patient_phone:
+          type: string
+          readOnly: true
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/ModeEnum'
+          readOnly: true
+        condition:
+          type: integer
+          readOnly: true
+          nullable: true
+        symptoms:
+          type: string
+          readOnly: true
+        duration_value:
+          type: integer
+          readOnly: true
+          nullable: true
+        duration_unit:
+          allOf:
+          - $ref: '#/components/schemas/DurationUnitEnum'
+          readOnly: true
+        ongoing_medication:
+          type: boolean
+          readOnly: true
+          nullable: true
+        treatment_details:
+          type: string
+          readOnly: true
+        history_completed:
+          type: boolean
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ConsultationStatusEnum'
+          readOnly: true
+        fee_charged:
+          type: integer
+          readOnly: true
+          description: Fee in INR
+        scheduled_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - condition
+      - created_at
+      - documents
+      - duration_unit
+      - duration_value
+      - fee_charged
+      - history_completed
+      - id
+      - mode
+      - ongoing_medication
+      - patient_age
+      - patient_gender
+      - patient_name
+      - patient_phone
+      - scheduled_at
+      - status
+      - symptoms
+      - treatment_details
+    ConsultationCategoryEnum:
+      enum:
+      - general
+      - specialist
+      type: string
+      description: |-
+        * `general` - General Physician / General Doctor
+        * `specialist` - Specialist
+    ConsultationStatusEnum:
+      enum:
+      - draft
+      - requested
+      - ongoing
+      - completed
+      - cancelled
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `requested` - Requested
+        * `ongoing` - Ongoing
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+    ContactMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        phone_number:
+          type: string
+          maxLength: 15
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - name
+      - phone_number
+    DoctorApplication:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          maxLength: 150
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        phone_number:
+          type: string
+          maxLength: 15
+        qualification:
+          type: string
+          description: e.g. MBBS, BAMS, MD (Ayurveda)
+          maxLength: 255
+        experience_years:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        specialization:
+          type: string
+          maxLength: 150
+        consultation_category:
+          $ref: '#/components/schemas/ConsultationCategoryEnum'
+        consultation_fee:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          description: Consultation fee in INR
+        treatment_systems:
+          type: array
+          items:
+            $ref: '#/components/schemas/TreatmentSystemsEnum'
+        city:
+          type: string
+          maxLength: 100
+        message:
+          type: string
+        is_priority:
+          type: boolean
+          readOnly: true
+          description: Pre-launch registrants get priority status
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ApplicationStatusEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DoctorApplicationDocument'
+          readOnly: true
+      required:
+      - created_at
+      - documents
+      - experience_years
+      - full_name
+      - id
+      - is_priority
+      - phone_number
+      - qualification
+      - specialization
+      - status
+      - treatment_systems
+    DoctorApplicationDocument:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        file:
+          type: string
+          format: uri
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - file
+      - id
+      - uploaded_at
+    DoctorApplicationSubmission:
+      type: object
+      description: Request body for the public doctor application endpoint.
+      properties:
+        full_name:
+          type: string
+          maxLength: 150
+        email:
+          oneOf:
+          - type: string
+            format: email
+          - type: string
+            maxLength: 0
+        phone_number:
+          type: string
+          maxLength: 15
+        qualification:
+          type: string
+          maxLength: 255
+        experience_years:
+          type: integer
+          minimum: 0
+        specialization:
+          type: string
+          maxLength: 150
+        consultation_category:
+          $ref: '#/components/schemas/ConsultationCategoryEnum'
+        consultation_fee:
+          type: integer
+          maximum: 2000
+          minimum: 200
+        treatment_systems:
+          type: array
+          items:
+            $ref: '#/components/schemas/TreatmentSystemsEnum'
+        city:
+          type: string
+          maxLength: 100
+        message:
+          type: string
+        documents:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Optional supporting documents; submit at most five files.
+          maxItems: 5
+      required:
+      - consultation_category
+      - consultation_fee
+      - experience_years
+      - full_name
+      - phone_number
+      - qualification
+      - specialization
+      - treatment_systems
+    DoctorAssignment:
+      type: object
+      properties:
+        doctor_id:
+          type: integer
+          minimum: 1
+      required:
+      - doctor_id
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        original_name:
+          type: string
+          maxLength: 255
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+        download_url:
+          type: string
+          readOnly: true
+      required:
+      - download_url
+      - id
+      - original_name
+      - uploaded_at
+    DocumentUpload:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+      required:
+      - file
+    DurationUnitEnum:
+      enum:
+      - hours
+      - days
+      - weeks
+      - months
+      - years
+      type: string
+      description: |-
+        * `hours` - Hours
+        * `days` - Days
+        * `weeks` - Weeks
+        * `months` - Months
+        * `years` - Years
+    History:
+      type: object
+      properties:
+        condition:
+          type: integer
+          nullable: true
+        symptoms:
+          type: string
+          maxLength: 10000
+        duration_value:
+          type: integer
+          maximum: 10000
+          minimum: 1
+        duration_unit:
+          $ref: '#/components/schemas/DurationUnitEnum'
+        ongoing_medication:
+          type: boolean
+        treatment_details:
+          type: string
+          maxLength: 10000
+      required:
+      - duration_unit
+      - duration_value
+      - ongoing_medication
+    HospitalApplication:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        facility_name:
+          type: string
+          maxLength: 200
+        contact_person_name:
+          type: string
+          maxLength: 150
+        email:
+          oneOf:
+          - type: string
+            format: email
+            maxLength: 254
+          - type: string
+            maxLength: 0
+        phone_number:
+          type: string
+          maxLength: 15
+        city:
+          type: string
+          maxLength: 100
+        address:
+          type: string
+        specialties:
+          type: string
+          description: Comma separated specialties
+          maxLength: 255
+        bed_count:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+        message:
+          type: string
+        is_priority:
+          type: boolean
+          readOnly: true
+          description: Pre-launch registrants get priority status
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ApplicationStatusEnum'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/HospitalApplicationDocument'
+          readOnly: true
+      required:
+      - city
+      - contact_person_name
+      - created_at
+      - documents
+      - facility_name
+      - id
+      - is_priority
+      - phone_number
+      - status
+    HospitalApplicationDocument:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        file:
+          type: string
+          format: uri
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - file
+      - id
+      - uploaded_at
+    ModeEnum:
+      enum:
+      - chat
+      - audio
+      - video
+      type: string
+      description: |-
+        * `chat` - Chat
+        * `audio` - Audio Call
+        * `video` - Video Call
+    PaginatedAppointmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+    PaginatedAppointmentSlotList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppointmentSlot'
+    PaginatedConditionChoiceList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConditionChoice'
+    PaginatedConsultationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Consultation'
+    PaginatedDocumentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+    PatchedPatientDetails:
+      type: object
+      properties:
+        patient_name:
+          type: string
+          maxLength: 150
+        patient_age:
+          type: integer
+          maximum: 120
+          minimum: 0
+        patient_gender:
+          $ref: '#/components/schemas/PatientGenderEnum'
+        patient_phone:
+          type: string
+          maxLength: 16
+          pattern: ^\+?[0-9]{10,15}$
+        mode:
+          $ref: '#/components/schemas/ModeEnum'
+    PatientDetails:
+      type: object
+      properties:
+        patient_name:
+          type: string
+          maxLength: 150
+        patient_age:
+          type: integer
+          maximum: 120
+          minimum: 0
+        patient_gender:
+          $ref: '#/components/schemas/PatientGenderEnum'
+        patient_phone:
+          type: string
+          maxLength: 16
+          pattern: ^\+?[0-9]{10,15}$
+        mode:
+          $ref: '#/components/schemas/ModeEnum'
+      required:
+      - patient_age
+      - patient_gender
+      - patient_name
+      - patient_phone
+    PatientGenderEnum:
+      enum:
+      - male
+      - female
+      - other
+      - prefer_not_to_say
+      type: string
+      description: |-
+        * `male` - Male
+        * `female` - Female
+        * `other` - Other
+        * `prefer_not_to_say` - Prefer not to say
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        consultation:
+          type: integer
+          readOnly: true
+          nullable: true
+        amount:
+          type: integer
+          readOnly: true
+          description: Amount in INR
+        currency:
+          type: string
+          readOnly: true
+        method:
+          allOf:
+          - $ref: '#/components/schemas/PaymentMethodEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/PaymentStatusEnum'
+          readOnly: true
+        gateway_order_id:
+          type: string
+          readOnly: true
+          nullable: true
+        transaction_id:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - consultation
+      - created_at
+      - currency
+      - gateway_order_id
+      - id
+      - method
+      - status
+      - transaction_id
+    PaymentMethodEnum:
+      enum:
+      - upi
+      - card
+      - netbanking
+      - wallet
+      type: string
+      description: |-
+        * `upi` - UPI
+        * `card` - Card
+        * `netbanking` - Netbanking
+        * `wallet` - Wallet
+    PaymentOrderRequest:
+      type: object
+      properties:
+        appointment_id:
+          type: integer
+          minimum: 1
+        method:
+          $ref: '#/components/schemas/PaymentOrderRequestMethodEnum'
+      required:
+      - appointment_id
+      - method
+    PaymentOrderRequestMethodEnum:
+      enum:
+      - card
+      - upi
+      type: string
+      description: |-
+        * `card` - Card
+        * `upi` - UPI
+    PaymentStatusEnum:
+      enum:
+      - pending
+      - success
+      - failed
+      - refunded
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `success` - Success
+        * `failed` - Failed
+        * `refunded` - Refunded
+    PaymentVerification:
+      type: object
+      properties:
+        payment_id:
+          type: integer
+          minimum: 1
+          description: Local payment id from the order API
+        razorpay_payment_id:
+          type: string
+          maxLength: 100
+        razorpay_signature:
+          type: string
+          pattern: ^[a-fA-F0-9]{64}$
+      required:
+      - payment_id
+      - razorpay_payment_id
+      - razorpay_signature
+    TokenObtainPair:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - password
+      - refresh
+      - username
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+    TreatmentSystemsEnum:
+      enum:
+      - allopathy
+      - homeopathy
+      - ayurveda
+      - unani
+      - home_remedy
+      type: string
+      description: |-
+        * `allopathy` - Allopathic
+        * `homeopathy` - Homeopathic
+        * `ayurveda` - Ayurvedic
+        * `unani` - Unani
+        * `home_remedy` - Home Remedy
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

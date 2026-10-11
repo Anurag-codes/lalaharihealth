@@ -79,7 +79,7 @@ export function HomeCallVideo() {
         </div>
       ) : (
         <>
-          <div className="flex min-h-12 items-center justify-between gap-3 px-3 py-2">
+          {/* <div className="flex min-h-12 items-center justify-between gap-3 px-3 py-2">
             <p className="truncate text-sm font-semibold text-ink">LalahariHealth offer</p>
             <div className="flex shrink-0 items-center gap-1">
               <button
@@ -128,7 +128,7 @@ export function HomeCallVideo() {
                 </button>
               </div>
             )}
-          </div>
+          </div> */}
         </>
       )}
       {audioAutoplayBlocked && isMinimized && (

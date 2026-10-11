@@ -42,6 +42,9 @@ export function useCloseAfterBottomScroll(onClose: () => void) {
 
   const onWheel = (event: WheelEvent<HTMLElement>) => {
     if (event.deltaY < 0) {
+      if (event.currentTarget.scrollTop <= 8) {
+        onClose();
+      }
       bottomScrollCount.current = 0;
       return;
     }
@@ -58,6 +61,10 @@ export function useCloseAfterBottomScroll(onClose: () => void) {
     touchStartY.current = null;
 
     if (startY !== null && endY !== undefined && startY - endY >= TOUCH_SCROLL_THRESHOLD) {
+      if (event.currentTarget.scrollTop <= 12) {
+        onClose();
+        return;
+      }
       countDownGesture(event.currentTarget);
     } else if (startY !== null && endY !== undefined && endY - startY >= TOUCH_SCROLL_THRESHOLD) {
       bottomScrollCount.current = 0;

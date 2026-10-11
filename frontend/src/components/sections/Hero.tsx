@@ -2,12 +2,14 @@
 
 import { motion } from "framer-motion";
 import { BadgeCheck, Lock, PlayCircle, Star } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
 import { Eyebrow } from "@/components/ui/Eyebrow";
-import { SiteImage } from "@/components/ui/SiteImage";
 import { FlashingBadge } from "../ui/FlashingBadge";
+
+const POPUP_DISMISSED_EVENT = "lalahari:home-offer-dismissed";
 
 const TRUST_BADGES = [
   { icon: BadgeCheck, label: "Verified Doctors" },
@@ -16,6 +18,43 @@ const TRUST_BADGES = [
 ];
 
 export function Hero() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isPopupDismissed, setIsPopupDismissed] = useState(false);
+
+  useEffect(() => {
+    const handlePopupDismissed = () => {
+      setIsPopupDismissed(true);
+
+      const video = videoRef.current;
+      if (!video) return;
+
+      requestAnimationFrame(() => {
+        video.muted = false;
+        video.volume = 1;
+        video.currentTime = 0;
+        video.play().catch(() => undefined);
+      });
+    };
+
+    window.addEventListener(POPUP_DISMISSED_EVENT, handlePopupDismissed);
+    return () => window.removeEventListener(POPUP_DISMISSED_EVENT, handlePopupDismissed);
+  }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!isPopupDismissed) {
+      video.pause();
+      video.muted = true;
+      video.currentTime = 0;
+      return;
+    }
+
+    video.muted = false;
+    video.volume = 1;
+  }, [isPopupDismissed]);
+
   return (
     <section className="relative overflow-hidden pt-14 pb-20 sm:pt-20 sm:pb-28">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(0,167,167,0.12),transparent_45%),radial-gradient(circle_at_5%_85%,rgba(0,167,167,0.10),transparent_40%)]" />
@@ -32,6 +71,27 @@ export function Hero() {
             Tests, procedures and hospital bills can add up fast.{" "}
             <span className="text-primary">Ask us before you spend your savings.</span>
           </h1>
+          <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
+            {TRUST_BADGES.map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-2 text-sm font-medium text-ink/70">
+                <Icon className="h-4.5 w-4.5 text-primary" />
+                {label}
+              </div>
+            ))}
+          </div>
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+            <FlashingBadge className="sm:hidden">Limited Time Offer</FlashingBadge>
+            <div className="relative">
+              <FlashingBadge className="absolute -top-4 left-1/2 hidden -translate-x-1/2 sm:inline-flex">
+                Limited Time Offer
+              </FlashingBadge>
+              <BookConsultationButton>Get Your Free Consultation</BookConsultationButton>
+            </div>
+            <Button href="#how-it-works" variant="outline">
+              <PlayCircle className="h-5 w-5" />
+              Watch How It Works
+            </Button>
+          </div>
 
           <div className="mt-6 max-w-xl space-y-4 text-base leading-relaxed text-ink/70 sm:text-lg">
             <p className="text-primary">
@@ -59,28 +119,16 @@ export function Hero() {
             </p>
           </div>
 
-          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-            <FlashingBadge className="sm:hidden">Limited Time Offer</FlashingBadge>
-            <div className="relative">
-              <FlashingBadge className="absolute -top-4 left-1/2 hidden -translate-x-1/2 sm:inline-flex">
-                Limited Time Offer
-              </FlashingBadge>
-              <BookConsultationButton>Get Your Free Consultation</BookConsultationButton>
-            </div>
-            <Button href="#how-it-works" variant="outline">
-              <PlayCircle className="h-5 w-5" />
-              Watch How It Works
-            </Button>
-          </div>
+          
 
-          <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
+          {/* <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
             {TRUST_BADGES.map(({ icon: Icon, label }) => (
               <div key={label} className="flex items-center gap-2 text-sm font-medium text-ink/70">
                 <Icon className="h-4.5 w-4.5 text-primary" />
                 {label}
               </div>
             ))}
-          </div>
+          </div> */}
         </motion.div>
 
         <motion.div
@@ -89,20 +137,27 @@ export function Hero() {
           transition={{ duration: 0.7, delay: 0.15 }}
           className="relative"
         >
-          <SiteImage
-            src="/image_1.png"
-            alt="Doctor consulting a patient over a video call"
-            aspect="aspect-[4/5]"
-            priority
-          />
+          <div className="overflow-hidden rounded-[2rem] border border-black/5 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.10)]">
+            <video
+              ref={videoRef}
+              src="/videos/sale_video.mp4"
+              loop
+              playsInline
+              controls
+              muted={!isPopupDismissed}
+              preload="metadata"
+              className="aspect-[4/5] w-full object-cover"
+              aria-label="LalahariHealth doctor consultation overview video"
+            />
+          </div>
 
           <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             className="absolute -left-4 top-8 hidden rounded-2xl bg-white p-4 shadow-xl sm:block"
           >
-            <p className="text-xs font-medium text-ink/50">Free app consultation</p>
-            <p className="font-heading text-xl font-bold text-primary">Free</p>
+            {/* <p className="text-xs font-medium text-ink/50">App registration</p> */}
+            <p className="font-heading text-xl font-bold text-primary">App registration</p>
           </motion.div>
 
           <motion.div
