@@ -28,7 +28,7 @@ export default function Home() {
       <MedicalCostAwareness />
       <ProblemSolution />
       <HowItWorks />
-      <TreatmentComparison />
+      {/* <TreatmentComparison /> */}
       <HomeRemedyBanner />
       <HospitalSupport />
       <WhyChooseUs />

@@ -49,7 +49,7 @@ const LAUNCH_PERKS = [
   {
     icon: Zap,
     title: "Free registration",
-    text: "No fee to register for first 100 registrations.",
+    text: "No fee to register for First 20 registrations.",
   },
   {
     icon: ShieldCheck,
@@ -71,7 +71,7 @@ export default function ForDoctorsPage() {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(0,167,167,0.12),transparent_45%)]" />
         <Container className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div>
-            <Eyebrow>Golden opportunity for doctors, hospitals, clinics, labs and to earn through online consultation(Free for first 100 registrations).</Eyebrow>
+            <Eyebrow>Golden opportunity for doctors, hospitals, clinics, labs and to earn through online consultation(Free for First 20 registrations).</Eyebrow>
             <Eyebrow>Launching in Dec 2026</Eyebrow>
             <h1 className="mt-5 font-heading text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
               {/* Bring your expertise online.{" "} */}
@@ -81,7 +81,7 @@ export default function ForDoctorsPage() {
               <b>LalahariHealth is an app providing health consultations to people at affordable rates.</b> 
               As of now we are onboarding Allopathic, Naturopathy(Home Remedy) doctors and Institutions.
               Ayurvedic, Unani and Homeopathy doctors are also welcome. 
-              <strong className="text-ink">First 100 registrations free.</strong>
+              <strong className="text-ink">First 20 registrations free.</strong>
             </p>
             <div className="mt-8">
               <div className="relative">

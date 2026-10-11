@@ -15,18 +15,18 @@ const SYSTEMS = [
     text: "Gentle, low-dose treatment for chronic issues, allergies and lifestyle conditions.",
     cost: "₹300 – ₹1,500",
   },
-  {
-    icon: Leaf,
-    name: "Ayurvedic",
-    text: "Holistic healing with diet & lifestyle correction to fix the root cause, not just symptoms.",
-    cost: "₹400 – ₹2,000",
-  },
-  {
-    icon: FlaskConical,
-    name: "Unani",
-    text: "Natural herbal formulations for mild-to-moderate conditions, gentle on the body.",
-    cost: "₹300 – ₹1,800",
-  },
+  // {
+  //   icon: Leaf,
+  //   name: "Ayurvedic",
+  //   text: "Holistic healing with diet & lifestyle correction to fix the root cause, not just symptoms.",
+  //   cost: "₹400 – ₹2,000",
+  // },
+  // {
+  //   icon: FlaskConical,
+  //   name: "Unani",
+  //   text: "Natural herbal formulations for mild-to-moderate conditions, gentle on the body.",
+  //   cost: "₹300 – ₹1,800",
+  // },
   {
     icon: HomeIcon,
     name: "Home Remedy",
@@ -39,8 +39,8 @@ const SYSTEMS = [
 const EXAMPLE_BARS = [
   { name: "Allopathic", cost: "₹2,500", width: "100%" },
   { name: "Homeopathic", cost: "₹900", width: "36%" },
-  { name: "Ayurvedic", cost: "₹1,100", width: "44%" },
-  { name: "Unani", cost: "₹850", width: "34%" },
+  // { name: "Ayurvedic", cost: "₹1,100", width: "44%" },
+  // { name: "Unani", cost: "₹850", width: "34%" },
   { name: "Home Remedy", cost: "₹150", width: "8%", highlight: true },
 ];
 

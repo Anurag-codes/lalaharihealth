@@ -49,7 +49,7 @@ export function RegistrationOfferPopup() {
         className="my-auto w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl sm:rounded-3xl"
       >
         <div className="flex items-center justify-between border-b border-black/5 px-5 py-4 sm:px-8">
-          <FlashingBadge>Free for first 100 registrations</FlashingBadge>
+          <FlashingBadge>Free for First 20 registrations</FlashingBadge>
           <button
             type="button"
             onClick={closePopup}
@@ -77,7 +77,7 @@ export function RegistrationOfferPopup() {
             <div className="flex items-start gap-3 rounded-xl bg-primary-soft p-4">
               <Stethoscope className="mt-0.5 h-5 w-5 shrink-0 text-primary-darker" />
               <p className="text-sm leading-relaxed text-ink/70">
-                We&apos;re onboarding Allopathic and Naturopathy/home-remedy practitioners now.
+                We&apos;re onboarding Allopathic and Naturopathy practitioners now.
                 Ayurvedic, Unani and Homeopathic practitioners are welcome too.
               </p>
             </div>
@@ -91,7 +91,7 @@ export function RegistrationOfferPopup() {
           </div>
 
           <p className="mt-5 rounded-xl border border-primary/20 bg-primary-light px-4 py-3 text-sm font-semibold leading-relaxed text-primary-darker sm:text-base">
-            Registration is free for the first 100 registrations. Apply now to be considered for
+            Registration is free for the First 20 registrations. Apply now to be considered for
             priority placement when the app launches.
           </p>
 
