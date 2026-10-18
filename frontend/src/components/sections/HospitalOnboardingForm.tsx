@@ -275,7 +275,7 @@ export function HospitalOnboardingForm() {
           {errorMessage}
         </div>
       )}
-      <FlashingBadge className="sm:hidden">Limited Time Offer</FlashingBadge>
+      {/* <FlashingBadge className="sm:hidden">Limited Time Offer</FlashingBadge> */}
       <div className="relative">
         <FlashingBadge className="absolute -top-4 left-1/2 hidden -translate-x-1/2 sm:inline-flex">
           Limited Time Offer
