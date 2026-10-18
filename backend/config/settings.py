@@ -37,11 +37,13 @@ INSTALLED_APPS = [
     # Third-party
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
     'drf_spectacular_sidecar',
     # LalahariHealth apps
     'apps.core',
+    'apps.blogs',
     'apps.accounts',
     'apps.doctors',
     'apps.patients',
@@ -50,6 +52,8 @@ INSTALLED_APPS = [
     'apps.consultations',
     'apps.appointments',
     'apps.payments',
+    'apps.notifications',
+    'apps.pricing',
 ]
 
 MIDDLEWARE = [
@@ -172,35 +176,69 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'LalahariHealth API',
     'DESCRIPTION': (
         'Mobile booking flow:\n\n'
-        '1. Obtain a JWT from POST /api/v1/auth/token/ using an existing account. '
-        'Use `Authorization: Bearer ACCESS_TOKEN` for all mobile endpoints. Account signup/OTP is not implemented here.\n'
-        '2. POST /api/v1/consultations/ with patient_name, patient_age, patient_gender, patient_phone and mode. '
-        'Store the returned consultation id. Accounts may book for a family member.\n'
-        '3. GET /api/v1/consultations/conditions/ for dropdown options; '
-        'PUT /api/v1/consultations/{id}/history/ with condition (optional/null), symptoms (optional), '
-        'duration_value, duration_unit, ongoing_medication and treatment_details (optional).\n'
+        '1. Request and verify Gmail email OTP through /api/v1/auth/patient/email/request-otp/ '
+        'and /api/v1/auth/patient/email/verify-otp/, or verify phone OTP in the app with Firebase '
+        'and exchange its ID token at /api/v1/auth/patient/phone/firebase/. New verified patients '
+        'are registered automatically. Use the returned access JWT as a Bearer token. Refresh '
+        'through /api/v1/auth/patient/token/refresh/. Signed-in patients can link another verified '
+        'contact through /api/v1/auth/patient/link/. Legacy password endpoints remain available.\n'
+        'Logged-out users fill Patient Details first, then log in with phone OTP, then continue at step 2.\n'
+        '2. Select Patient: GET /api/v1/patients/booking-patients/ lists Myself and family members '
+        '(add one with POST /api/v1/patients/family-members/). POST /api/v1/consultations/ with family_member_id '
+        '(null = Myself), mode and, for Book Specialist, speciality (id from GET /api/v1/doctors/specialities/); blank patient fields are auto-filled. A 400 listing missing fields means show '
+        'the Patient Details form and send patient_name, patient_age, patient_gender and patient_phone.\n'
+        '3. Symptoms: GET /api/v1/consultations/conditions/ returns disease -> type -> variant. '
+        'PUT /api/v1/consultations/{id}/history/ with condition, condition_type and condition_variant '
+        '(required when that level has options), condition_details, duration_value, duration_unit, '
+        'ongoing_medication and treatment_details.\n'
         '4. Optional POST /api/v1/consultations/{id}/documents/ as multipart with one file per request. '
         'PDF/PNG/JPG up to 10 MB. Skip means no upload call; private downloads require authentication.\n'
-        '5. GET /api/v1/appointments/slots/?date=YYYY-MM-DD. Dates are Asia/Kolkata; '
-        'slots are admin-configured, future only, between 08:00 and 23:59. Empty array means no availability.\n'
-        '6. POST /api/v1/appointments/ with consultation_id and slot_id. General fee is INR 200. '
-        'An appointment is reserved, not doctor-confirmed; pending reservations consume capacity.\n'
-        '7. POST /api/v1/payments/orders/ with appointment_id and method (card/upi). '
-        'Use returned order id, public key, amount in paise and currency with Razorpay mobile Checkout. '
+        '5. Schedule Appointment: GET /api/v1/appointments/slot-dates/?days=7 for the date strip and '
+        'GET /api/v1/appointments/slots/?date=YYYY-MM-DD (add speciality_id= for specialists) for 15-minute times (Asia/Kolkata, 08:00-23:59) '
+        'opened by verified doctors through /api/v1/doctors/me/slots/. "Request Appointment" reserves nothing.\n'
+        '6. Case Preview: GET /api/v1/consultations/{id}/preview/?slot_id=. "Submit Case": POST /api/v1/appointments/ '
+        'with consultation_id, slot_id and information_confirmed=true. General fee is the country rate from the pricing table (default India INR 200) using the country_code sent in step 1; specialists always use the INR speciality fee. '
+        'An appointment is reserved, not doctor-confirmed; pending reservations consume the slot.\n'
+        '7. Checkout: POST /api/v1/payments/orders/ with appointment_id and method (card/upi). '
+        'Use returned order id, public key, amount in minor units of the currency (paise, cents...) and currency with Razorpay mobile Checkout. '
         'Never submit card numbers, CVVs or UPI credentials to this API. Configure automatic capture in Razorpay.\n'
         '8. POST /api/v1/payments/verify/ with payment_id, razorpay_payment_id and razorpay_signature. '
         'Only gateway-confirmed captured payments succeed; signed webhooks also reconcile capture.\n'
-        '9. Poll GET /api/v1/appointments/{id}/. Status moves awaiting_payment -> finding_doctor -> confirmed '
-        'when staff assign a verified doctor. A 30-minute match or push notification is not implemented or guaranteed.\n\n'
-        'All appointment summary prices are INR rupees; checkout order amounts are paise. '
+        '9. Finding Your Doctor: poll GET /api/v1/appointments/{id}/. Status moves awaiting_payment -> finding_doctor '
+        '-> confirmed when staff assign a verified doctor of that speciality. The 30-minute match is a staff target, not guaranteed. '
+        'Each change also creates a notification and an FCM push.\n\n'
+        'Location pricing: GET /api/v1/pricing/?lat=&lng= (or ?country=US) is public and returns the general physician fee for the country of the user, falling back to India INR 200 when the country has no active rate. Send its country_code in booking step 1. Appointment summary prices are whole units of the appointment currency; checkout order amounts are minor units. '
         'Payment gateway configuration is required for live checkout. Private medical files must never be served '
-        'through a public /media/ alias. Use PostgreSQL for production scheduling locks.'
+        'through a public /media/ alias. Use PostgreSQL for production scheduling locks.\n\n'
+        'Profile section: GET/PATCH /api/v1/patients/profile/ (name, city, gender, date of birth, app language en/hi), '
+        'PUT/DELETE /api/v1/patients/profile/photo/, family CRUD at /api/v1/patients/family-members/, '
+        'Medical Records at /api/v1/patients/medical-records/ and /{id}/, and Contact Us at '
+        '/api/v1/core/support-contacts/. Verified doctors write diagnosis and prescriptions through '
+        '/api/v1/doctors/me/consultations/{id}/record/.\n\n'
+        'Home screen: GET /api/v1/patients/home/ (name, photo, language, bell count, General Physician card, '
+        'specialities, support number, upcoming appointments, My Cases badge). My Cases with a progress tracker: '
+        'GET /api/v1/patients/cases/?status=active|closed and /{consultation_id}/. Notifications: '
+        'GET /api/v1/notifications/, unread-count/, {id}/read/, read-all/; register the FCM token after login with '
+        'POST /api/v1/notifications/devices/ and remove it on logout with devices/remove/.\n\n'
+        'Conventions: JSON bodies (multipart only for file uploads). Lists are paginated as '
+        '{count, next, previous, results} with ?page=. Errors use HTTP status codes with a JSON body: '
+        '{"detail": "message"} or {"field": ["message"]} for validation (400). 401 = refresh the token or log in, '
+        '403 = not allowed, 404 = not found or not yours, 429 = too many requests, 503 = service not configured. '
+        'Every endpoint below shows request and response examples and its error responses.'
     ),
+    'POSTPROCESSING_HOOKS': [
+        'drf_spectacular.hooks.postprocess_schema_enums',
+        'apps.core.openapi.add_docs',
+    ],
     'VERSION': 'v1',
     'SERVE_INCLUDE_SCHEMA': False,
     'SWAGGER_UI_DIST': 'SIDECAR',
     'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
     'ENUM_NAME_OVERRIDES': {
+        'VerifiedIdentityKindEnum': [('email', 'Email'), ('phone', 'Phone')],
+        'BlogPostKindEnum': [('external', 'External blog / video link'), ('article', 'Original article')],
+        'BlogBlockKindEnum': [('heading', 'Heading'), ('paragraph', 'Paragraph'), ('image', 'Image'), ('video', 'Video link')],
+        'BlogVideoKindEnum': ['embed', 'file'],
         'ConsultationStatusEnum': ['draft', 'requested', 'ongoing', 'completed', 'cancelled'],
         'AppointmentStatusEnum': ['pending', 'awaiting_payment', 'finding_doctor', 'confirmed', 'completed', 'cancelled'],
         'PaymentStatusEnum': ['pending', 'success', 'failed', 'refunded'],
@@ -215,6 +253,7 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 # CORS - allow the Next.js frontend to call the API during development
@@ -238,7 +277,35 @@ SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER)
+EMAIL_TIMEOUT = 10
+
+EMAIL_OTP_EXPIRY_SECONDS = 300
+EMAIL_OTP_RESEND_SECONDS = 60
+EMAIL_OTP_MAX_ATTEMPTS = 5
+EMAIL_OTP_ADDRESS_HOURLY_LIMIT = 5
+EMAIL_OTP_IP_HOURLY_LIMIT = 20
+PATIENT_AUTH_VERIFY_HOURLY_LIMIT = 60
+PATIENT_AUTH_RECENT_LOGIN_SECONDS = 300
+PATIENT_AUTH_TRUST_PROXY_HEADERS = config('PATIENT_AUTH_TRUST_PROXY_HEADERS', default=False, cast=bool)
+FIREBASE_PROJECT_ID = config('FIREBASE_PROJECT_ID', default='')
+FIREBASE_CREDENTIALS_FILE = config('FIREBASE_CREDENTIALS_FILE', default='')
+
+SUPPORT_PHONE_NUMBER = config('SUPPORT_PHONE_NUMBER', default='+919818677599')
+SUPPORT_EMAIL = config('SUPPORT_EMAIL', default='care@lalaharihealth.com')
+
+# Shown to patients ("Matched within 30 minutes"); matching itself is done by staff.
+DOCTOR_MATCH_TARGET_MINUTES = config('DOCTOR_MATCH_TARGET_MINUTES', default=30, cast=int)
+# Push uses Firebase Cloud Messaging with the FIREBASE_* credentials above; skipped when they are not set.
+PUSH_NOTIFICATIONS_ENABLED = config('PUSH_NOTIFICATIONS_ENABLED', default=True, cast=bool)
+APPOINTMENT_REMINDER_MINUTES = config('APPOINTMENT_REMINDER_MINUTES', default=30, cast=int)
 
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
 RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')

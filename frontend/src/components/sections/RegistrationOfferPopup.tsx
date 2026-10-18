@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Building2, Stethoscope, X } from "lucide-react";
 import { FlashingBadge } from "@/components/ui/FlashingBadge";
 import { useCloseAfterBottomScroll } from "@/hooks/useCloseAfterBottomScroll";
+import { formatAmount, usePricing } from "@/components/pricing/PricingContext";
 
 const POPUP_DISMISSED_EVENT = "lalahari:registration-offer-dismissed";
 
@@ -15,6 +16,16 @@ export function RegistrationOfferPopup() {
     window.dispatchEvent(new Event(POPUP_DISMISSED_EVENT));
   };
   const scrollDismissHandlers = useCloseAfterBottomScroll(closePopup);
+  const pricing = usePricing();
+  const money = (amount: number) => formatAmount(amount, pricing.currency_symbol);
+  const share = pricing.doctor_share_percent / 100;
+  const generalPayout = pricing.general_fee * share;
+  const specialistPayout = pricing.specialist_fee_max * share;
+  const specialistMonthly = specialistPayout * 100;
+  const specialistMonthlyText =
+    pricing.currency === "INR" && specialistMonthly >= 100000
+      ? `\u20b9${specialistMonthly / 100000} lakh`
+      : money(specialistMonthly);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setIsOpen(true), 2000);
@@ -105,7 +116,7 @@ export function RegistrationOfferPopup() {
               Potential to earn in Thousands and Lakhs*
             </h2>
             <p className="mt-1 text-sm text-ink/60">
-              General doctors charge a fixed ₹200. Specialists choose ₹200–₹2,000. Doctors receive
+              General doctors charge a fixed {pricing.general_fee_display}. Specialists choose {pricing.specialist_fee_range_display}. Doctors receive
               75% of the fee after the 25% platform fee.
             </p>
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -113,15 +124,15 @@ export function RegistrationOfferPopup() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">
                   General doctor · 5 completed consults/day
                 </p>
-                <p className="mt-1 font-heading text-2xl font-extrabold text-primary-darker">₹15,000/month</p>
-                <p className="text-xs text-ink/50">₹150 payout × 5/day × 20 days</p>
+                <p className="mt-1 font-heading text-2xl font-extrabold text-primary-darker">{money(generalPayout * 100)}/month</p>
+                <p className="text-xs text-ink/50">{money(generalPayout)} payout × 5/day × 20 days</p>
               </div>
               <div className="rounded-xl bg-primary-soft p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-ink/50">
-                  Specialist at ₹2,000 · 5 completed consults/day
+                  Specialist at {money(pricing.specialist_fee_max)} · 5 completed consults/day
                 </p>
-                <p className="mt-1 font-heading text-2xl font-extrabold text-primary-darker">₹1.5 lakh/month</p>
-                <p className="text-xs text-ink/50">₹1,500 payout × 5/day × 20 days</p>
+                <p className="mt-1 font-heading text-2xl font-extrabold text-primary-darker">{specialistMonthlyText}/month</p>
+                <p className="text-xs text-ink/50">{money(specialistPayout)} payout × 5/day × 20 days</p>
               </div>
             </div>
             <p className="mt-3 text-xs leading-relaxed text-ink/45">

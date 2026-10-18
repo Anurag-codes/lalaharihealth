@@ -23,7 +23,7 @@ class Payment(models.Model):
     consultation = models.OneToOneField(
         Consultation, related_name='payment', on_delete=models.SET_NULL, null=True, blank=True
     )
-    amount = models.PositiveIntegerField(help_text='Amount in INR')
+    amount = models.PositiveIntegerField(help_text='Amount in whole units of currency')
     method = models.CharField(max_length=15, choices=Method.choices, default=Method.UPI)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     transaction_id = models.CharField(max_length=100, unique=True, blank=True, null=True)
@@ -35,4 +35,4 @@ class Payment(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Payment #{self.pk} - INR {self.amount}'
+        return f'Payment #{self.pk} - {self.currency} {self.amount}'

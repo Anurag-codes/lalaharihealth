@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { MobileStickyCta } from "@/components/layout/MobileStickyCta";
 import { FloatingCallButton } from "@/components/layout/FloatingCallButton";
 import { BookingModalProvider } from "@/components/booking/BookingModalContext";
+import { PricingProvider } from "@/components/pricing/PricingContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,8 +29,7 @@ const notoDevanagari = Noto_Sans_Devanagari({
 export const metadata: Metadata = {
   title: "LalahariHealth | Consult Doctors, Compare Treatments, Save Money",
   description:
-    // "Get your app-based symptom consultation free. Compare Allopathic, Homeopathic and home-care options, with human-assisted consultation available for ₹200.",
-    "Get your app-based symptom consultation free. Compare Allopathic and Natural(home-care) options, with human-assisted consultation available for ₹200.",
+    "Register for free with LalahariHealth. Compare Allopathic and Natural(home-care) options, with human-assisted consultation available for ₹200. Other consultation fees are confirmed before booking.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -39,6 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${poppins.variable} ${notoDevanagari.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-ink">
+        <PricingProvider>
         <BookingModalProvider>
           <AnnouncementBar />
           <Navbar />
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <MobileStickyCta />
           <FloatingCallButton />
         </BookingModalProvider>
+        </PricingProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 import { Phone, ShieldCheck } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 // Plain-language explainer aimed at first-time and elderly visitors who may
 // skip past the flashier Hero section — one idea per line, one obvious action.
@@ -17,13 +18,14 @@ export function SimpleExplainer() {
         </h2>
 
         <p className="mt-4 text-lg leading-relaxed text-ink/80 sm:text-xl">
-          Describe your health problem in our app and get initial symptom-based consultation free. Prefer help from a person? Our team can arrange a
-          human-assisted consultation for ₹200.
+          Register for free and explore consultation options for your health problem.
+          Our team can arrange a human-assisted consultation for <GeneralFee />.
+          Other consultation fees are confirmed before booking.
         </p>
 
         <p className="font-devanagari mt-3 text-base leading-relaxed text-ink/60 sm:text-lg">
-          आसान भाषा में: ऐप पर अपनी तकलीफ़ बताइए और पहली सलाह मुफ़्त पाइए। किसी व्यक्ति से मदद
-          चाहिए? हमारी टीम ₹200 में सलाह की व्यवस्था करेगी।
+          आसान भाषा में: पंजीकरण मुफ़्त है, परामर्श नहीं। हमारी टीम <GeneralFee /> में परामर्श की व्यवस्था करेगी।
+          अन्य परामर्श शुल्क बुकिंग से पहले बताए जाएंगे।
         </p>
 
         <p className="mt-6 text-base font-semibold text-ink sm:text-lg">
@@ -36,8 +38,8 @@ export function SimpleExplainer() {
             Book Consultation — Talk to Us
           </BookConsultationButton>
           <p className="text-sm text-ink/60">
-            Choose free app guidance when it launches, or request a human-assisted consultation
-            for ₹200.
+            Registration is free. Request a human-assisted consultation for <GeneralFee />,
+            or confirm other consultation fees before booking.
           </p>
         </div>
       </Container>

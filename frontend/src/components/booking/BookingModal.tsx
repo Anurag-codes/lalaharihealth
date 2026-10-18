@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { AlertCircle, CheckCircle2, Loader2, Phone, Smartphone, X } from "lucide-react";
-import { API_BASE_URL } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { Phone, Smartphone, X } from "lucide-react";
+import { CallbackForm } from "@/components/booking/CallbackForm";
 import { useCloseAfterBottomScroll } from "@/hooks/useCloseAfterBottomScroll";
-
-type Status = "idle" | "submitting" | "success" | "error";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [status, setStatus] = useState<Status>("idle");
   const [audioAutoplayBlocked, setAudioAutoplayBlocked] = useState(false);
   const appVideoRef = useRef<HTMLVideoElement>(null);
   const scrollDismissHandlers = useCloseAfterBottomScroll(onClose);
@@ -29,29 +27,6 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setStatus("submitting");
-    const formData = new FormData(event.currentTarget);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/core/contact-messages/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.get("name"),
-          phone_number: formData.get("phone_number"),
-          message:
-            "Callback requested for a human-assisted consultation (₹200). Executive to explain the fee and confirm the appointment.",
-        }),
-      });
-      if (!response.ok) throw new Error("Request failed");
-      setStatus("success");
-    } catch {
-      setStatus("error");
-    }
-  };
 
   return (
     <div
@@ -76,7 +51,8 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               Choose how you&apos;d like to get help
             </h2>
             <p className="mt-2 text-sm text-ink/70 sm:text-base">
-              Start with free app consultation, or ask our team to arrange a personal consultation.
+              Registration is free. Consultations are paid; human-assisted consultation is <GeneralFee />.
+              Other consultation fees are confirmed before booking.
               Get specialist consultations from home and save time, money, visits to doctors. Our aim is to help you understand the
               care you may need—not push unnecessary tests or treatment for profit.
             </p>
@@ -96,7 +72,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
         </div>
 
         <div className="space-y-5" style={{ marginTop: "40px" }}>
-          <section aria-labelledby="free-app-title" className="rounded-2xl border-2 border-primary bg-primary-light p-5 sm:p-6">
+          <section aria-labelledby="app-registration-title" className="rounded-2xl border-2 border-primary bg-primary-light p-5 sm:p-6">
             <div className="relative mb-5 overflow-hidden rounded-xl bg-ink">
               <video
                 ref={appVideoRef}
@@ -134,12 +110,12 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                 <Smartphone className="h-6 w-6" />
               </span>
               <div>
-                <h3 id="free-app-title" className="font-heading text-lg font-bold text-ink sm:text-xl">
-                  Get your free consultation on the app
+                <h3 id="app-registration-title" className="font-heading text-lg font-bold text-ink sm:text-xl">
+                  Register for free on the app
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/70">
-                  Describe your symptoms in the app and receive your app-generated consultation
-                  free. The app is launching soon.
+                  Registration is free, not the consultation. Consultation fees are confirmed
+                  before booking. The app is launching soon.
                 </p>
               </div>
             </div>
@@ -182,7 +158,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   Talk to our executive and get your appointment fixed
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/70">
-                  Human-assisted consultation costs <strong className="text-ink">₹200</strong>.
+                  Human-assisted consultation costs <strong className="text-ink"><GeneralFee /></strong>.
                   Our executive will explain the next steps and confirm the appointment and payment.
                 </p>
               </div>
@@ -193,7 +169,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-4 text-base font-bold text-white shadow-lg shadow-primary/25 hover:bg-primary-dark"
             >
               <Phone className="h-5 w-5" />
-              Call our executive — ₹200 consultation
+              Call our executive — <GeneralFee /> consultation
             </a>
 
             <div className="my-4 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-ink/40">
@@ -202,53 +178,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               <span className="h-px flex-1 bg-ink/10" />
             </div>
 
-            {status === "success" ? (
-              <div className="flex flex-col items-center gap-2 rounded-2xl bg-primary-light px-4 py-6 text-center">
-                <CheckCircle2 className="h-9 w-9 text-primary-darker" />
-                <p className="text-sm font-semibold text-ink">
-                  Callback requested. Our executive will explain the ₹200 consultation and confirm
-                  your appointment.
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <input
-                  name="name"
-                  type="text"
-                  required
-                  placeholder="Your name"
-                  aria-label="Your name"
-                  className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <input
-                  name="phone_number"
-                  type="tel"
-                  required
-                  placeholder="Your phone number"
-                  aria-label="Your phone number"
-                  className="w-full rounded-xl border border-black/10 bg-white px-4 py-3.5 text-base text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                {status === "error" && (
-                  <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 sm:col-span-2">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    Something went wrong. Please call our executive instead.
-                  </div>
-                )}
-                <button
-                  type="submit"
-                  disabled={status === "submitting"}
-                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full border-2 border-primary bg-white px-5 py-3.5 text-base font-bold text-primary-darker hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-70 sm:col-span-2"
-                >
-                  {status === "submitting" ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" /> Sending...
-                    </>
-                  ) : (
-                    "Request a Callback — ₹200 consultation"
-                  )}
-                </button>
-              </form>
-            )}
+            <CallbackForm />
           </section>
         </div>
         <p className="mt-5 text-center text-xs text-ink/45">

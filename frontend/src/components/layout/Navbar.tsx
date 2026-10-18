@@ -8,11 +8,12 @@ import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
 import { TextSizeControl } from "@/components/layout/TextSizeControl";
 
 const NAV_LINKS = [
-  { label: "How It Works", href: "#how-it-works" },
-  { label: "Compare Treatments", href: "#compare-treatments" },
-  { label: "Hospital Support", href: "#hospital-support" },
-  { label: "Stories", href: "#testimonials" },
-  { label: "FAQs", href: "#faq" },
+  { label: "How It Works", href: "/get-started#how-it-works" },
+  { label: "Hospital Support", href: "/get-started#hospital-support" },
+  { label: "Stories", href: "/get-started#testimonials" },
+  { label: "Doctors", href: "/#doctors" },
+  { label: "FAQs", href: "/#faq" },
+  { label: "Blogs", href: "/blogs" },
 ];
 
 export function Navbar() {
@@ -30,19 +31,19 @@ export function Navbar() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-8 lg:flex">
+        <nav className="hidden items-center gap-4 xl:flex">
           {NAV_LINKS.map((link) => (
-            <a
+            <Link
               key={link.href}
               href={link.href}
               className="text-sm font-medium text-ink/70 transition-colors hover:text-primary-darker"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-4 lg:flex">
+        <div className="hidden items-center gap-4 xl:flex">
           <TextSizeControl />
           <a
             href="tel:+911800000000"
@@ -51,10 +52,10 @@ export function Navbar() {
             <Phone className="h-4 w-4 text-primary" />
             1800-000-000
           </a>
-          <BookConsultationButton size="sm" />
+          <BookConsultationButton size="sm">Get yourself registered for free</BookConsultationButton>
         </div>
 
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex items-center gap-2 xl:hidden">
           <TextSizeControl />
           <button
             type="button"
@@ -68,17 +69,17 @@ export function Navbar() {
       </Container>
 
       {open && (
-        <div className="border-t border-black/5 bg-white lg:hidden">
+        <div className="border-t border-black/5 bg-white xl:hidden">
           <Container className="flex flex-col gap-1 py-4">
             {NAV_LINKS.map((link) => (
-              <a
+              <Link
                 key={link.href}
                 href={link.href}
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-3 text-sm font-medium text-ink/80 hover:bg-primary-light hover:text-primary-darker"
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
             <Link
               href="/for-doctors"
@@ -96,9 +97,12 @@ export function Navbar() {
                 1800-000-000
               </a>
               <BookConsultationButton
+                size="md"
                 className="w-full"
                 onBeforeOpen={() => setOpen(false)}
-              />
+              >
+                Get yourself registered for free
+              </BookConsultationButton>
             </div>
           </Container>
         </div>

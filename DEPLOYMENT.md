@@ -60,6 +60,22 @@ python manage.py check --deploy
 
 Swagger documentation is available after deployment at `https://api.lalaharihealth.com/api/v1/health/swagger-documentation/`. The OpenAPI schema is available at `https://api.lalaharihealth.com/api/v1/schema/`.
 
+Patient authentication needs the SMTP sender/App Password and Firebase project
+settings in `deploy/backend.env.example`. Store the Firebase service account file
+outside the checkout and public media; restrict it to the service user. Install
+the updated requirements, run migrations (including SimpleJWT blacklist tables),
+and restart the API. Missing provider configuration returns 503 rather than
+issuing unverified tokens. See the root README's Patient mobile authentication
+section for the Android/iOS contract and account-linking flow.
+
+`PATIENT_AUTH_TRUST_PROXY_HEADERS=True` is appropriate for this deployment only
+because the API listens on a private Unix socket and Nginx overwrites `X-Real-IP`.
+Do not enable it for a directly reachable development/API server. Use PostgreSQL
+for authentication row-locking and run `python manage.py cleanup_patient_auth`
+and `python manage.py flushexpiredtokens` daily using the API service user and its
+virtual environment. Never include SMTP passwords, Firebase credentials or live
+OTP values in logs or commits.
+
 Set a real random `SECRET_KEY` in `.env`; this command prints one:
 
 ```bash
@@ -120,6 +136,15 @@ curl -I https://lalaharihealth.com/
 If a certificate was accidentally deployed to another site's Nginx block, remove the LalahariHealth-specific block from that site and replace `/etc/nginx/sites-available/lalaharihealth` with `deploy/nginx-lalaharihealth-https.conf`. The dedicated configuration uses the existing certificate files and must be validated with `sudo nginx -t` before reloading Nginx.
 
 ## Later releases
+
+Blog publishing requires the `blogs` migrations and public image storage under
+`backend/media/blogs/`. The API's existing `/media/` location serves those images;
+include that directory in persistent storage and backups. Never put private
+medical records in blog uploads. Staff publish at `/admin/` under Blog publishing.
+The Next.js server must be able to reach the configured API URL for admin-published
+posts on `/blogs` and `/blogs/<slug>`; these reads are not persistently cached.
+The homepage blog preview and the three default resources on `/blogs` are fixed
+site content and do not require the API.
 
 Back up PostgreSQL before each migration. The production database is separate from all other app databases.
 

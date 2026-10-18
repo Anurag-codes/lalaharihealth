@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Rocket, X } from "lucide-react";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 export function AnnouncementBar() {
   const [visible, setVisible] = useState(true);
@@ -12,7 +13,7 @@ export function AnnouncementBar() {
     <div className="relative flex items-center justify-center gap-3 bg-ink px-4 py-2.5 text-center text-white">
       <Rocket className="h-4 w-4 shrink-0 text-primary" />
       <p className="text-xs font-medium sm:text-sm">
-        App launching soon: Get yourself registered to be entitled for concessional consultations. Human-assisted consultation: ₹200.
+        App launching soon: Get yourself registered to be entitled for concessional consultations. Human-assisted consultation: <GeneralFee />.
       </p>
       <button
         type="button"

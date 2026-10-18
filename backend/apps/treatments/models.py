@@ -17,6 +17,10 @@ class Condition(models.Model):
     name = models.CharField(max_length=150, unique=True)
     slug = models.SlugField(max_length=170, unique=True)
     description = models.TextField(blank=True)
+    type_label = models.CharField(
+        max_length=150, blank=True,
+        help_text='Label of the second dropdown in the app, e.g. "Specific Headache Type".',
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -25,6 +29,38 @@ class Condition(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class ConditionType(models.Model):
+    """Second booking dropdown, e.g. Headache -> Cluster Headache."""
+
+    condition = models.ForeignKey(Condition, related_name='types', on_delete=models.CASCADE)
+    name = models.CharField(max_length=150)
+    display_order = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['condition', 'display_order', 'name']
+        constraints = [models.UniqueConstraint(fields=['condition', 'name'], name='unique_condition_type_name')]
+
+    def __str__(self):
+        return f'{self.condition.name} - {self.name}'
+
+
+class ConditionVariant(models.Model):
+    """Third booking dropdown, e.g. Cluster Headache -> Chronic."""
+
+    condition_type = models.ForeignKey(ConditionType, related_name='variants', on_delete=models.CASCADE)
+    name = models.CharField(max_length=150)
+    display_order = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['condition_type', 'display_order', 'name']
+        constraints = [models.UniqueConstraint(fields=['condition_type', 'name'], name='unique_condition_variant_name')]
+
+    def __str__(self):
+        return f'{self.condition_type} - {self.name}'
 
 
 class TreatmentOption(models.Model):

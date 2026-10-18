@@ -11,6 +11,38 @@ const VIDEOS = [
   },
 ];
 
+export function HealthcareStoryVideos() {
+  return (
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] justify-items-center gap-6">
+      {VIDEOS.map((video) => (
+        <article key={video.id} className="w-full max-w-[20rem] min-w-0">
+          <div className="aspect-[9/16] w-full overflow-hidden rounded-lg bg-black">
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${video.id}?playsinline=1&rel=0`}
+              title={`YouTube video: ${video.title}`}
+              className="h-full w-full border-0"
+              loading="lazy"
+              allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          </div>
+          <h3 className="mt-3 font-heading text-base font-semibold text-ink">{video.title}</h3>
+          <p className="mt-1 text-sm leading-relaxed text-ink/65">{video.description}</p>
+          <a
+            href={`https://www.youtube.com/shorts/${video.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary-darker underline underline-offset-4"
+          >
+            Watch on YouTube <ArrowUpRight className="h-4 w-4" />
+          </a>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function HealthcareVideoStories() {
   return (
     <section aria-labelledby="healthcare-stories-title" className="border-b border-black/5 bg-primary-soft py-10 sm:py-14">
@@ -33,7 +65,7 @@ export function HealthcareVideoStories() {
             <div className="mt-6">
               <BookConsultationButton size="lg" className="w-full sm:w-auto">
                 <Smartphone className="h-5 w-5 shrink-0" />
-                Get free app guidance / consultation options
+                Register for free / view consultation options
               </BookConsultationButton>
             </div>
             <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink/65">
@@ -42,33 +74,7 @@ export function HealthcareVideoStories() {
             </p>
           </div>
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,16rem),1fr))] justify-items-center gap-6">
-            {VIDEOS.map((video) => (
-              <article key={video.id} className="w-full max-w-[20rem] min-w-0">
-                <div className="aspect-[9/16] w-full overflow-hidden rounded-lg bg-black">
-                  <iframe
-                    src={`https://www.youtube-nocookie.com/embed/${video.id}?playsinline=1&rel=0`}
-                    title={`YouTube video: ${video.title}`}
-                    className="h-full w-full border-0"
-                    loading="lazy"
-                    allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    allowFullScreen
-                  />
-                </div>
-                <h3 className="mt-3 font-heading text-base font-semibold text-ink">{video.title}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-ink/65">{video.description}</p>
-                <a
-                  href={`https://www.youtube.com/shorts/${video.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary-darker underline underline-offset-4"
-                >
-                  Watch on YouTube <ArrowUpRight className="h-4 w-4" />
-                </a>
-              </article>
-            ))}
-          </div>
+          <HealthcareStoryVideos />
         </div>
         <p className="mt-6 border-t border-black/10 pt-4 text-sm leading-relaxed text-ink/60">
           These videos express their creators&apos; perspectives, not findings about every hospital

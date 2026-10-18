@@ -12,7 +12,9 @@ class CheckoutOrderSerializer(serializers.Serializer):
     payment_id = serializers.IntegerField()
     gateway_order_id = serializers.CharField()
     key_id = serializers.CharField()
-    amount = serializers.IntegerField(help_text='INR minor units (paise): 20000 means INR 200')
+    amount = serializers.IntegerField(
+        help_text='Smallest currency unit for Razorpay: 20000 = INR 200 (paise), 1000 = USD 10 (cents)',
+    )
     currency = serializers.CharField()
     status = serializers.CharField()
 

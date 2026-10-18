@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 
-from .views import ContactMessageCreateView
+from .views import ContactMessageCreateView, SupportContactsView
 
 app_name = 'core'
 
@@ -20,5 +20,6 @@ def health_check(request):
 
 urlpatterns = [
     path('contact-messages/', ContactMessageCreateView.as_view(), name='contact-message-create'),
+    path('support-contacts/', SupportContactsView.as_view(), name='support-contacts'),
 ]
 

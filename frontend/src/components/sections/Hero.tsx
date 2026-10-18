@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { BadgeCheck, Lock, PlayCircle, Star } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Container } from "@/components/ui/Container";
 import { Button } from "@/components/ui/Button";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
@@ -17,7 +17,10 @@ const TRUST_BADGES = [
   { icon: Star, label: "4.8/5 Rated" },
 ];
 
-export function Hero() {
+export function Hero({ media, howItWorksHref = "#how-it-works" }: {
+  media?: ReactNode;
+  howItWorksHref?: string;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mobileVideoRef = useRef<HTMLVideoElement>(null);
   const [isPopupDismissed, setIsPopupDismissed] = useState(false);
@@ -41,14 +44,16 @@ export function Hero() {
   };
 
   useEffect(() => {
+    if (media) return;
     const updateViewport = () => setIsMobile(window.innerWidth < 1024);
 
     updateViewport();
     window.addEventListener("resize", updateViewport);
     return () => window.removeEventListener("resize", updateViewport);
-  }, []);
+  }, [media]);
 
   useEffect(() => {
+    if (media) return;
     const handlePopupDismissed = () => {
       setIsPopupDismissed(true);
 
@@ -60,7 +65,7 @@ export function Hero() {
 
     window.addEventListener(POPUP_DISMISSED_EVENT, handlePopupDismissed);
     return () => window.removeEventListener(POPUP_DISMISSED_EVENT, handlePopupDismissed);
-  }, []);
+  }, [media]);
 
   useEffect(() => {
     if (!isPopupDismissed) {
@@ -86,7 +91,7 @@ export function Hero() {
           <Eyebrow>Trusted by 50,000+ patients across India</Eyebrow>
 
           <h1 className="mt-6 font-heading text-4xl font-extrabold leading-[1.1] tracking-tight text-ink sm:text-5xl lg:text-[3.4rem]">
-            Tests, procedures and hospital bills can add up fast.{" "}
+            Tests, procedures and hospital bills can reach upto Lakhs and you can become pauper.{" "}
             <span className="text-primary">Ask us before you spend your savings.</span>
           </h1>
           <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3">
@@ -104,21 +109,21 @@ export function Hero() {
                 Limited Time Offer
               </FlashingBadge>
               <BookConsultationButton className="w-full sm:w-auto">
-                Get Your Free Consultation
+                Get yourself registered for free
               </BookConsultationButton>
             </div>
-            <Button href="#how-it-works" variant="outline" className="w-full sm:w-auto">
+            <Button href={howItWorksHref} variant="outline" className="w-full sm:w-auto">
               <PlayCircle className="h-5 w-5" />
               Watch How It Works
             </Button>
           </div>
 
-          <div className="mt-6 max-w-xl space-y-4 text-base leading-relaxed text-ink/70 sm:text-lg">
+          {/* <div className="mt-6 max-w-xl space-y-4 text-base leading-relaxed text-ink/70 sm:text-lg">
             <p className="text-primary">
-              Get your first symptom-based app consultation free, or consult a specialist from
-              home for ₹200. Save travel and waiting time while you understand your next steps.
+              Register for free. Human-assisted consultation is ₹200, and other consultation fees
+              are confirmed before booking. Save travel and waiting time while you understand your next steps.
             </p>
-            {isMobile && (
+            {!media && isMobile && (
               <div className="mt-2 overflow-hidden rounded-[1.5rem] border border-black/5 bg-white shadow-[0_20px_55px_rgba(15,23,42,0.08)]">
                 <video
                   ref={mobileVideoRef}
@@ -146,13 +151,14 @@ export function Hero() {
             <p className="text-primary">Telephonic consultation is also available.</p>
             <p className="font-devanagari text-base leading-relaxed text-primary-darker sm:text-lg">
               जाँच, इलाज और अस्पताल के बिल तेज़ी से बढ़ सकते हैं। अपनी बचत खर्च करने से पहले हमसे
-              सलाह लें। ऐप पर पहली सलाह मुफ़्त पाएं या घर बैठे ₹200 में विशेषज्ञ से परामर्श लें।
+              सलाह लें। पंजीकरण मुफ़्त है, परामर्श नहीं। हमारी टीम की सहायता से परामर्श ₹200 में उपलब्ध है।
+              अन्य परामर्श शुल्क बुकिंग से पहले बताए जाएंगे।
             </p>
             <p className="font-devanagari text-sm leading-relaxed text-ink/65 sm:text-base">
               किसी नियोजित जाँच या प्रक्रिया से पहले उसका कारण, खर्च, लाभ, जोखिम और संभावित दुष्प्रभाव
               पूछें। ज़रूरी इलाज में देरी न करें।
             </p>
-          </div>
+          </div> */}
 
           
 
@@ -166,7 +172,7 @@ export function Hero() {
           </div> */}
         </motion.div>
 
-        <motion.div
+        {media ?? <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.7, delay: 0.15 }}
@@ -208,7 +214,7 @@ export function Hero() {
               <p className="text-sm font-bold text-ink">100% Verified</p>
             </div>
           </motion.div>
-        </motion.div>
+        </motion.div>}
       </Container>
     </section>
   );

@@ -3,9 +3,10 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema
 
 from .models import HospitalApplication, HospitalApplicationDocument
-from .serializers import HospitalApplicationSerializer
+from .serializers import HospitalApplicationSerializer, HospitalApplicationSubmissionSerializer
 
 MAX_APPLICATION_DOCUMENTS = 5
 
@@ -17,6 +18,13 @@ class HospitalApplicationCreateView(APIView):
     serializer_class = HospitalApplicationSerializer
     parser_classes = [MultiPartParser, FormParser]
 
+    @extend_schema(
+        tags=['Hospitals'],
+        summary='Submit a hospital / clinic application',
+        description='Public multipart form for hospitals, clinics and labs with up to five optional supporting documents.',
+        request=HospitalApplicationSubmissionSerializer,
+        responses={201: HospitalApplicationSerializer},
+    )
     def post(self, request):
         serializer = HospitalApplicationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

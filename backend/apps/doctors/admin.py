@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import DoctorApplication, DoctorApplicationDocument, DoctorDocument, DoctorProfile
+from .models import DoctorApplication, DoctorApplicationDocument, DoctorDocument, DoctorProfile, Speciality
+
+
+@admin.register(Speciality)
+class SpecialityAdmin(admin.ModelAdmin):
+    list_display = ('name', 'short_name', 'fee', 'display_order', 'is_active')
+    list_editable = ('fee', 'display_order', 'is_active')
+    prepopulated_fields = {'slug': ('name',)}
+    search_fields = ('name', 'short_name')
 
 
 class DoctorDocumentInline(admin.TabularInline):
@@ -10,8 +18,8 @@ class DoctorDocumentInline(admin.TabularInline):
 
 @admin.register(DoctorProfile)
 class DoctorProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'specialization', 'city', 'verification_status', 'consultation_fee', 'is_active')
-    list_filter = ('verification_status', 'is_active', 'city')
+    list_display = ('user', 'speciality', 'specialization', 'city', 'verification_status', 'consultation_fee', 'is_active')
+    list_filter = ('verification_status', 'speciality', 'is_active', 'city')
     search_fields = ('user__username', 'user__first_name', 'user__last_name', 'registration_number')
     inlines = [DoctorDocumentInline]
 
@@ -28,6 +36,7 @@ class DoctorApplicationAdmin(admin.ModelAdmin):
         'specialization',
         'consultation_category',
         'consultation_fee',
+        'currency',
         'experience_years',
         'phone_number',
         'email',

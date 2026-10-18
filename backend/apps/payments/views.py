@@ -12,6 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.appointments.models import Appointment
+from apps.pricing.service import to_minor_units
 from .gateway import GatewayUnavailable, gateway_client, record_capture
 from .models import Payment
 from .serializers import (
@@ -26,7 +27,7 @@ class PaymentOrderView(generics.GenericAPIView):
 	permission_classes = [IsAuthenticated]
 	serializer_class = PaymentOrderRequestSerializer
 
-	@extend_schema(tags=['Mobile payments'], summary='Step 5: create/reuse Razorpay checkout order', description='Send only appointment_id and card/upi. Server controls amount and currency. Use the returned key_id, gateway_order_id, amount (paise) and currency with the official Razorpay mobile SDK. Never send PAN, CVV, card details or UPI credentials to this API. Returns 503 when gateway keys are not configured.', responses={200: CheckoutOrderSerializer})
+	@extend_schema(tags=['Mobile payments'], summary='Step 5: create/reuse Razorpay checkout order', description='Send only appointment_id and card/upi. Server controls amount and currency. Use the returned key_id, gateway_order_id, amount (smallest unit: paise for INR, cents for USD) and currency with the official Razorpay mobile SDK. The currency follows the booking country (international payments must be enabled in Razorpay). Never send PAN, CVV, card details or UPI credentials to this API. Returns 503 when gateway keys are not configured.', responses={200: CheckoutOrderSerializer})
 	def post(self, request):
 		serializer = self.get_serializer(data=request.data)
 		serializer.is_valid(raise_exception=True)
@@ -38,14 +39,18 @@ class PaymentOrderView(generics.GenericAPIView):
 				raise serializers.ValidationError('This appointment is not awaiting payment.')
 			payment, _ = Payment.objects.get_or_create(
 				consultation=appointment.consultation,
-				defaults={'user': request.user, 'amount': appointment.consultation.fee_charged, 'method': data['method']},
+				defaults={
+					'user': request.user, 'amount': appointment.consultation.fee_charged,
+					'currency': appointment.consultation.currency, 'method': data['method'],
+				},
 			)
 			if payment.status != Payment.Status.PENDING:
 				raise serializers.ValidationError('Payment is not pending.')
 			if not payment.gateway_order_id:
 				try:
 					order = client.order.create({
-						'amount': payment.amount * 100, 'currency': 'INR', 'receipt': f'payment_{payment.pk}',
+						'amount': to_minor_units(payment.amount, payment.currency), 'currency': payment.currency,
+						'receipt': f'payment_{payment.pk}',
 					}, timeout=15)
 				except GATEWAY_ERRORS as error:
 					raise GatewayUnavailable() from error
@@ -54,7 +59,7 @@ class PaymentOrderView(generics.GenericAPIView):
 			payment.save(update_fields=['gateway_order_id', 'method'])
 		return Response({
 			'payment_id': payment.pk, 'gateway_order_id': payment.gateway_order_id,
-			'key_id': settings.RAZORPAY_KEY_ID, 'amount': payment.amount * 100,
+			'key_id': settings.RAZORPAY_KEY_ID, 'amount': to_minor_units(payment.amount, payment.currency),
 			'currency': payment.currency, 'status': payment.status,
 		})
 

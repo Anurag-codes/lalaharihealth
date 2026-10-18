@@ -58,7 +58,7 @@ class MobileConsultationFlowTests(APITestCase):
 
 	def book(self):
 		consultation_id = self.create_draft()
-		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk}, format='json')
+		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
 		self.assertEqual(response.status_code, 201, response.data)
 		return response.data
 
@@ -93,14 +93,14 @@ class MobileConsultationFlowTests(APITestCase):
 		self.assertEqual(appointment['currency'], 'INR')
 		self.assertEqual(appointment['status'], 'awaiting_payment')
 		self.assertIsNone(appointment['doctor'])
-		repeated = self.client.post('/api/v1/appointments/', {'consultation_id': appointment['consultation'], 'slot_id': self.slot.pk}, format='json')
+		repeated = self.client.post('/api/v1/appointments/', {'consultation_id': appointment['consultation'], 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
 		self.assertEqual(repeated.status_code, 200)
 		self.assertEqual(repeated.data['id'], appointment['id'])
 		self.assertEqual(Appointment.objects.count(), 1)
 
 	def test_draft_requires_history_before_booking(self):
 		draft = self.client.post('/api/v1/consultations/', self.patient_details).data
-		response = self.client.post('/api/v1/appointments/', {'consultation_id': draft['id'], 'slot_id': self.slot.pk}, format='json')
+		response = self.client.post('/api/v1/appointments/', {'consultation_id': draft['id'], 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
 		self.assertEqual(response.status_code, 400)
 
 	def test_full_slot_is_hidden_and_rejected(self):
@@ -109,14 +109,14 @@ class MobileConsultationFlowTests(APITestCase):
 		self.assertEqual(response.data, [])
 		self.client.force_authenticate(self.other)
 		consultation_id = self.create_draft()
-		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk}, format='json')
+		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
 		self.assertEqual(response.status_code, 400)
 
 	def test_past_slot_rejected(self):
 		self.slot.starts_at = timezone.now() - timedelta(hours=1)
 		self.slot.save()
 		consultation_id = self.create_draft()
-		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk}, format='json')
+		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
 		self.assertEqual(response.status_code, 400)
 
 	def test_cross_account_access_is_hidden(self):

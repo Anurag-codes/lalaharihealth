@@ -6,10 +6,11 @@ const FOOTER_LINKS: { title: string; links: { label: string; href: string }[] }[
   {
     title: "Company",
     links: [
-      { label: "How It Works", href: "#how-it-works" },
-      { label: "Compare Treatments", href: "#compare-treatments" },
-      { label: "Hospital Support", href: "#hospital-support" },
-      { label: "Patient Stories", href: "#testimonials" },
+      { label: "How It Works", href: "/get-started#how-it-works" },
+      { label: "Compare Treatments", href: "/get-started#compare-treatments" },
+      { label: "Hospital Support", href: "/get-started#hospital-support" },
+      { label: "Patient Stories", href: "/get-started#testimonials" },
+      { label: "Blogs", href: "/blogs" },
     ],
   },
   {
@@ -24,6 +25,7 @@ const FOOTER_LINKS: { title: string; links: { label: string; href: string }[] }[
     title: "Legal",
     links: [
       { label: "Privacy Policy", href: "/privacy" },
+      { label: "Grievance Support", href: "/grievance" },
       { label: "Terms of Service", href: "/terms" },
       { label: "Refund Policy", href: "/refunds" },
       { label: "Medical Disclaimer", href: "/disclaimer" },

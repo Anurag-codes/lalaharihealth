@@ -4,6 +4,9 @@ from django.db import transaction
 from rest_framework.exceptions import APIException, ValidationError
 
 from apps.appointments.models import Appointment
+from apps.notifications.models import Notification
+from apps.notifications.service import notify_appointment
+from apps.pricing.service import to_minor_units
 from .models import Payment
 
 
@@ -26,7 +29,7 @@ def record_capture(payment_id, entity):
         payment = Payment.objects.select_for_update().get(pk=payment_id)
         if (
             entity.get('order_id') != payment.gateway_order_id
-            or entity.get('amount') != payment.amount * 100
+            or entity.get('amount') != to_minor_units(payment.amount, payment.currency)
             or entity.get('currency') != payment.currency
             or entity.get('status') != 'captured'
             or not entity.get('id')
@@ -45,6 +48,6 @@ def record_capture(payment_id, entity):
         if entity.get('method') in Payment.Method.values:
             payment.method = entity['method']
         payment.save(update_fields=['status', 'transaction_id', 'method'])
-        appointment.status = Appointment.Status.FINDING_DOCTOR
-        appointment.save(update_fields=['status'])
+        appointment.save(update_fields=appointment.set_status(Appointment.Status.FINDING_DOCTOR))
+        notify_appointment(appointment, Notification.Kind.PAYMENT_SUCCESS)
         return payment

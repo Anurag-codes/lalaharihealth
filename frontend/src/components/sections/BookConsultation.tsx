@@ -6,16 +6,17 @@ import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Button } from "@/components/ui/Button";
 import { API_BASE_URL } from "@/lib/api";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 const PLANS = [
   {
-    name: "App consultation",
+    name: "Registration",
     price: "FREE",
-    text: "Describe your symptoms in the app and receive initial symptom-based guidance.",
+    text: "Registration is free. Consultations are paid, with fees confirmed before booking.",
   },
   {
     name: "Human-assisted consultation",
-    price: "₹200",
+    price: <GeneralFee />,
     text: "Speak with our executive to get help arranging a personal consultation.",
     highlight: true,
   },
@@ -62,8 +63,8 @@ export function BookConsultation() {
             No hidden costs. Just care.
           </h2>
           <p className="mt-4 text-base leading-relaxed text-ink/60">
-            Start with free app-generated symptom guidance. If you prefer personal help from our
-            team, a human-assisted consultation is ₹200; the executive will explain and confirm
+            Registration is free. Consultations are paid. A human-assisted consultation is <GeneralFee />;
+            other consultation fees are confirmed before booking. Our executive will explain
             the details before you proceed.
           </p>
 
@@ -90,9 +91,9 @@ export function BookConsultation() {
         </div>
 
         <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-lg shadow-black/[0.03] sm:p-8">
-          <h3 className="font-heading text-xl font-bold text-ink">Request a consultation callback</h3>
+          <h3 className="font-heading text-xl font-bold text-ink">Book your consultation</h3>
           <p className="mt-1 text-sm text-ink/60">
-            Human-assisted consultation is ₹200. Share your details and our executive will call
+            Human-assisted consultation is <GeneralFee />. Share your details and our executive will call
             to explain the service and confirm your appointment.
           </p>
 

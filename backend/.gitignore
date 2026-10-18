@@ -3,5 +3,8 @@ __pycache__/
 *.pyc
 db.sqlite3
 media/
+private_documents/
 staticfiles/
 .env
+*firebase*adminsdk*.json
+*service-account*.json

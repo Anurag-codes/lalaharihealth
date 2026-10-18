@@ -16,6 +16,13 @@ import { Button } from "@/components/ui/Button";
 import { RegistrationTabs } from "@/components/sections/RegistrationTabs";
 import { FlashingBadge } from "@/components/ui/FlashingBadge";
 import { RegistrationOfferPopup } from "@/components/sections/RegistrationOfferPopup";
+import {
+  GeneralDoctorPayout,
+  GeneralFee,
+  SpecialistFeeMax,
+  SpecialistFeeMin,
+  SpecialistFeeRange,
+} from "@/components/pricing/PricingContext";
 
 const POPUP_DISMISSED_EVENT = "lalahari:registration-offer-dismissed";
 
@@ -28,7 +35,11 @@ const BENEFITS = [
   {
     icon: IndianRupee,
     title: "Transparent earnings",
-    text: "General consultations are fixed at ₹200; specialists select ₹200–₹2,000. You receive 75% of each completed, paid consultation, transferred within 48 hours.",
+    text: (
+      <>
+        General consultations are fixed at <GeneralFee />; specialists select <SpecialistFeeRange />. You receive 75% of each completed, paid consultation, transferred within 48 hours.
+      </>
+    ),
   },
   {
     icon: CalendarClock,
@@ -184,17 +195,17 @@ export default function ForDoctorsPage() {
               Know your share before you join
             </h2>
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-ink/60 sm:text-base">
-              General Physician / General Doctor consultations are fixed at ₹200. Specialists
-              choose a fee between ₹200 and ₹2,000. The platform fee is 25%; the doctor receives
+              General Physician / General Doctor consultations are fixed at <GeneralFee />. Specialists
+              choose a fee between <SpecialistFeeMin /> and <SpecialistFeeMax />. The platform fee is 25%; the doctor receives
               the remaining 75%, transferred within 48 hours after a completed consultation and
               confirmed payment.
             </p>
           </div>
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
-              { label: "General consultation", amount: "₹200" },
-              { label: "General doctor receives", amount: "₹150" },
-              { label: "Specialist sets a fee", amount: "₹200–₹2,000" },
+              { label: "General consultation", amount: <GeneralFee /> },
+              { label: "General doctor receives", amount: <GeneralDoctorPayout /> },
+              { label: "Specialist sets a fee", amount: <SpecialistFeeRange /> },
             ].map((item) => (
               <div key={item.label} className="rounded-xl border border-black/5 bg-white p-5 text-center">
                 <p className="text-sm font-medium text-ink/60">{item.label}</p>

@@ -2,6 +2,7 @@ import { ClipboardList, MessagesSquare, ScanSearch, Sparkles } from "lucide-reac
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { VideoPlaceholder } from "@/components/ui/VideoPlaceholder";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 const STEPS = [
   {
@@ -11,8 +12,12 @@ const STEPS = [
   },
   {
     icon: MessagesSquare,
-    title: "Get your app guidance free",
-    text: "Describe your symptoms in the app to receive initial guidance. Want personal help? An executive can arrange a human-assisted consultation for ₹200.",
+    title: "Register for free",
+    text: (
+      <>
+        Registration is free, not the consultation. An executive can arrange a human-assisted consultation for <GeneralFee />. Other consultation fees are confirmed before booking.
+      </>
+    ),
   },
   {
     icon: ScanSearch,

@@ -13,7 +13,8 @@ export function FinalCta() {
             Don&apos;t sell your property or take heavy loans for treatment. Ask a doctor first.
           </h2>
           <p className="relative mx-auto mt-4 max-w-xl text-base text-white/85 sm:text-lg">
-            Get initial symptom-based consultation free on your app. Download the app now!
+            Register for free. Consultations are paid, with fees confirmed before booking.
+            The app is launching soon.
           </p>
           <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <FlashingBadge className="sm:hidden">Limited Time Offer</FlashingBadge>
@@ -22,7 +23,7 @@ export function FinalCta() {
                 Limited Time Offer
               </FlashingBadge>
               <BookConsultationButton variant="white" size="lg">
-                Book Your Free Consultation
+                Get yourself registered for free
               </BookConsultationButton>
             </div>
             <Button href="/for-doctors" variant="outline-white" size="lg">

@@ -20,6 +20,7 @@ urlpatterns = [
         name='swagger-documentation',
     ),
     path('api/v1/core/', include('apps.core.urls')),
+    path('api/v1/blogs/', include('apps.blogs.urls')),
     path('api/v1/auth/', include('apps.accounts.urls')),
     path('api/v1/doctors/', include('apps.doctors.urls')),
     path('api/v1/patients/', include('apps.patients.urls')),
@@ -28,6 +29,8 @@ urlpatterns = [
     path('api/v1/consultations/', include('apps.consultations.urls')),
     path('api/v1/appointments/', include('apps.appointments.urls')),
     path('api/v1/payments/', include('apps.payments.urls')),
+    path('api/v1/notifications/', include('apps.notifications.urls')),
+    path('api/v1/pricing/', include('apps.pricing.urls')),
 ]
 
 if settings.DEBUG:

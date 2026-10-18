@@ -4,11 +4,20 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 const FAQS = [
   {
-    q: "Is the app consultation really free?",
-    a: "Yes. Your app consultation provides initial symptom-based guidance at no cost. This is not a doctor diagnosis and does not replace urgent medical care. If you request a human-assisted consultation through our team, the fee is ₹200.",
+    q: "What is free: registration or consultation?",
+    a: (
+      <>
+        Only registration is free. Consultations are paid. Human-assisted consultation through our team is <GeneralFee />; other consultation fees are confirmed before booking. Free registration does not include a free consultation, treatment or lab test.
+      </>
+    ),
+  },
+  {
+    q: "Do I have to pay before I know the consultation fee?",
+    a: "No. The applicable consultation fee will be explained and confirmed before booking. Registration itself is free and does not pay for any consultation.",
   },
   {
     q: "How are your doctors verified?",
@@ -16,7 +25,11 @@ const FAQS = [
   },
   {
     q: "Is home remedy advice actually safe?",
-    a: "The app can offer initial symptom-based home-care guidance. It is not a doctor diagnosis. If symptoms are severe, worsening, or urgent, seek medical care; you can also request a human-assisted consultation for ₹200.",
+    a: (
+      <>
+        The app can offer initial symptom-based home-care guidance. It is not a doctor diagnosis. If symptoms are severe, worsening, or urgent, seek medical care; you can also request a human-assisted consultation for <GeneralFee />.
+      </>
+    ),
   },
   {
     q: "What if my condition needs surgery or hospitalisation?",
@@ -24,7 +37,11 @@ const FAQS = [
   },
   {
     q: "Can I get a refund if I'm not satisfied?",
-    a: "Yes, unresolved consultations are eligible for a refund as per our refund policy — reach out to our support team within 24 hours.",
+    a: "Please submit a complaint through our Grievance Support page or email care@lalaharihealth.com with your booking or payment reference and what went wrong. Our team will review your request and explain any applicable refund terms; submitting a complaint does not guarantee a refund. Never share an OTP, password or full payment-card details.",
+  },
+  {
+    q: "How do I raise a complaint or privacy concern?",
+    a: "Use Grievance Support or Privacy Policy in the footer. You can submit a complaint online, email care@lalaharihealth.com, or call our founder on 9818677599. Include a contact number and a brief description so we can follow up. This is not an emergency medical service.",
   },
 ];
 

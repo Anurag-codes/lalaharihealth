@@ -4,6 +4,33 @@ from django.db import models
 from apps.treatments.models import TreatmentSystem
 
 
+class Speciality(models.Model):
+    """Specialist category patients can book from "Book Specialist". Doctors without one are general physicians."""
+
+    name = models.CharField(max_length=100, unique=True, help_text='e.g. Dermatology')
+    slug = models.SlugField(max_length=120, unique=True)
+    short_name = models.CharField(max_length=40, blank=True, help_text='Compact label, e.g. Derma')
+    consultation_title = models.CharField(
+        max_length=120, blank=True, help_text='Shown on appointment cards, e.g. "Skin Consultation". Default: "<name> Consultation".',
+    )
+    description = models.CharField(max_length=255, blank=True)
+    fee = models.PositiveIntegerField(help_text='Consultation fee in INR charged to the patient')
+    display_order = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+        verbose_name_plural = 'specialities'
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def title(self):
+        return self.consultation_title or f'{self.name} Consultation'
+
+
 class DoctorProfile(models.Model):
     """Extended profile + verification/KYC state for a user with role=doctor."""
 
@@ -14,6 +41,10 @@ class DoctorProfile(models.Model):
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, related_name='doctor_profile', on_delete=models.CASCADE)
     specialization = models.CharField(max_length=150)
+    speciality = models.ForeignKey(
+        Speciality, related_name='doctors', on_delete=models.PROTECT, null=True, blank=True,
+        help_text='Empty for general physicians. Specialists are matched only to bookings of this speciality.',
+    )
     systems_practiced = models.CharField(
         max_length=255,
         help_text='Comma separated TreatmentSystem values this doctor consults on',
@@ -23,7 +54,8 @@ class DoctorProfile(models.Model):
     experience_years = models.PositiveSmallIntegerField(default=0)
     bio = models.TextField(blank=True)
     profile_photo = models.ImageField(upload_to='doctors/photos/', blank=True, null=True)
-    consultation_fee = models.PositiveIntegerField(help_text='Fee in INR')
+    consultation_fee = models.PositiveIntegerField(help_text='Fee in whole units of currency')
+    currency = models.CharField(max_length=3, default='INR')
     languages_spoken = models.CharField(max_length=255, blank=True)
     city = models.CharField(max_length=100, blank=True)
     verification_status = models.CharField(
@@ -87,7 +119,9 @@ class DoctorApplication(models.Model):
         choices=ConsultationCategory.choices,
         default=ConsultationCategory.GENERAL,
     )
-    consultation_fee = models.PositiveSmallIntegerField(default=200, help_text='Consultation fee in INR')
+    consultation_fee = models.PositiveIntegerField(default=200, help_text='Consultation fee in whole units of currency')
+    country_code = models.CharField(max_length=2, default='IN', help_text='Pricing country used to validate the fee')
+    currency = models.CharField(max_length=3, default='INR')
     treatment_systems = models.JSONField(default=list, help_text='Selected TreatmentSystem values')
     city = models.CharField(max_length=100, blank=True)
     message = models.TextField(blank=True)

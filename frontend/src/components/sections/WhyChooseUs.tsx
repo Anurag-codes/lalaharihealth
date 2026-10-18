@@ -1,6 +1,7 @@
 import { Clock, Lock, ShieldCheck, Sparkles, Stethoscope, Wallet } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 const FEATURES = [
   {
@@ -11,7 +12,11 @@ const FEATURES = [
   {
     icon: Wallet,
     title: "Clear, upfront pricing",
-    text: "Your app consultation is totally free. No hidden charges. Human-assisted consultation through our team is ₹200.",
+    text: (
+      <>
+        Registration is free, not the consultation. Human-assisted consultation through our team is <GeneralFee />. Other consultation fees are confirmed before booking.
+      </>
+    ),
   },
   {
     icon: Sparkles,

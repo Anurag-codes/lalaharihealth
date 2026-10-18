@@ -4,6 +4,7 @@ import { Eyebrow } from "@/components/ui/Eyebrow";
 import { Button } from "@/components/ui/Button";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
 import { SiteImage } from "@/components/ui/SiteImage";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 // Sample/template doctor cards — swap for real onboarded doctor data once the
 // doctors API + onboarding flow is live.
@@ -13,7 +14,6 @@ const DOCTORS = [
     specialization: "General Physician",
     systems: ["Allopathy", "Home Remedy"],
     experience: "12 yrs experience",
-    fee: "₹200",
     rating: "4.9",
     image: "/imge_8_9_10.png",
   },
@@ -22,7 +22,6 @@ const DOCTORS = [
     specialization: "Ayurveda Specialist",
     systems: ["Ayurveda", "Home Remedy"],
     experience: "9 yrs experience",
-    fee: "₹200",
     rating: "4.8",
     image: "/imge_8_9_10.png",
   },
@@ -31,7 +30,6 @@ const DOCTORS = [
     specialization: "Homeopathy Consultant",
     systems: ["Homeopathy"],
     experience: "10 yrs experience",
-    fee: "₹200",
     rating: "4.9",
     image: "/imge_8_9_10.png",
   },
@@ -40,7 +38,6 @@ const DOCTORS = [
     specialization: "Unani Physician",
     systems: ["Unani", "Home Remedy"],
     experience: "8 yrs experience",
-    fee: "₹200",
     rating: "4.7",
     image: "/imge_8_9_10.png",
   },
@@ -48,7 +45,7 @@ const DOCTORS = [
 
 export function DoctorsShowcase() {
   return (
-    <section className="py-20 sm:py-28">
+    <section id="doctors" className="scroll-mt-20 py-20 sm:py-28">
       <Container>
         <div className="mx-auto max-w-2xl text-center">
           <Eyebrow>Meet the experts</Eyebrow>
@@ -97,7 +94,7 @@ export function DoctorsShowcase() {
                 </div>
                 <div className="mt-4 flex items-center justify-between">
                   <span className="font-heading text-lg font-bold text-ink">
-                    {doctor.fee}
+                    <GeneralFee />
                   </span>
                   <BookConsultationButton size="sm">
                     Book

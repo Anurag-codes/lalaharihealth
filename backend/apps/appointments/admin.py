@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.db import transaction
 
+from apps.notifications.models import Notification
+from apps.notifications.service import notify_appointment
 from apps.payments.models import Payment
 
 from .models import Appointment, AppointmentSlot
@@ -8,8 +10,10 @@ from .models import Appointment, AppointmentSlot
 
 @admin.register(AppointmentSlot)
 class AppointmentSlotAdmin(admin.ModelAdmin):
-    list_display = ('starts_at', 'capacity', 'is_active')
-    list_filter = ('is_active',)
+    list_display = ('starts_at', 'doctor', 'capacity', 'is_active')
+    list_filter = ('is_active', 'doctor')
+    list_select_related = ('doctor',)
+    date_hierarchy = 'starts_at'
 
 
 @admin.register(Appointment)
@@ -30,10 +34,10 @@ class AppointmentAdmin(admin.ModelAdmin):
                 payment = Payment.objects.filter(consultation=appointment.consultation).first()
                 if payment and (payment.gateway_order_id or payment.status != Payment.Status.PENDING):
                     continue
-                appointment.status = Appointment.Status.CANCELLED
-                appointment.save(update_fields=['status'])
+                appointment.save(update_fields=appointment.set_status(Appointment.Status.CANCELLED))
                 appointment.consultation.status = 'cancelled'
                 appointment.consultation.save(update_fields=['status'])
+                notify_appointment(appointment, Notification.Kind.APPOINTMENT_CANCELLED)
                 released += 1
         self.message_user(request, f'Released {released} unpaid reservation(s).')
 

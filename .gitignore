@@ -38,6 +38,7 @@ venv/
 *.sqlite3
 *.sqlite3-journal
 backend/media/
+backend/private_documents/
 backend/staticfiles/
 media/
 staticfiles/

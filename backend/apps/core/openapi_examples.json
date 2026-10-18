@@ -1,0 +1,2289 @@
+{
+ "POST /api/v1/auth/patient/email/request-otp/": {
+  "status": 202,
+  "request": {
+   "email": "rahul.sharma@gmail.com"
+  },
+  "response": {
+   "request_id": "0988b090-3a0e-4f18-b321-b120fbbe4b0b",
+   "expires_in": 300,
+   "resend_after": 60,
+   "detail": "Verification email sent. Use the code to continue."
+  },
+  "errors": {
+   "429": {
+    "detail": "Request was throttled. Expected available in 3599 seconds."
+   },
+   "503": {
+    "detail": "The verification email could not be sent. Please try again later."
+   },
+   "400": {
+    "email": [
+     "Enter a valid email address."
+    ]
+   }
+  }
+ },
+ "POST /api/v1/auth/patient/email/verify-otp/": {
+  "status": 200,
+  "request": {
+   "request_id": "1063655c-3eb1-4975-8213-0934e6f5cef6",
+   "otp": "123456"
+  },
+  "response": {
+   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwidXNlcl9pZCI6MX0.access-signature",
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature",
+   "is_new_user": true,
+   "user": {
+    "id": 1,
+    "first_name": "",
+    "last_name": "",
+    "city": "",
+    "role": "patient",
+    "email": "rahul.sharma@gmail.com",
+    "phone_number": "",
+    "is_email_verified": true,
+    "is_phone_verified": false,
+    "identities": [
+     {
+      "kind": "email",
+      "value": "rahul.sharma@gmail.com",
+      "verified_at": "2026-10-18T18:37:12+05:30"
+     }
+    ]
+   }
+  },
+  "errors": {
+   "400": {
+    "otp": "Invalid or expired code. Request a new code if needed."
+   },
+   "403": {
+    "detail": "An active patient account is required."
+   },
+   "429": {
+    "detail": "Request was throttled. Expected available in 3599 seconds."
+   }
+  }
+ },
+ "POST /api/v1/auth/patient/phone/firebase/": {
+  "status": 200,
+  "request": {
+   "id_token": "<Firebase ID token from the app after SMS OTP>"
+  },
+  "response": {
+   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwidXNlcl9pZCI6MX0.access-signature",
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature",
+   "is_new_user": true,
+   "user": {
+    "id": 2,
+    "first_name": "",
+    "last_name": "",
+    "city": "",
+    "role": "patient",
+    "email": "",
+    "phone_number": "+919812345678",
+    "is_email_verified": false,
+    "is_phone_verified": true,
+    "identities": [
+     {
+      "kind": "phone",
+      "value": "+919812345678",
+      "verified_at": "2026-10-18T18:37:12+05:30"
+     }
+    ]
+   }
+  },
+  "errors": {
+   "503": {
+    "detail": "Authentication is temporarily unavailable. Please try again later."
+   },
+   "401": {
+    "detail": "Firebase token must contain a verified E.164 phone number."
+   },
+   "400": {
+    "id_token": [
+     "This field is required."
+    ]
+   }
+  }
+ },
+ "POST /api/v1/auth/patient/link/phone/": {
+  "status": 200,
+  "request": {
+   "id_token": "<Firebase ID token from the app after SMS OTP>"
+  },
+  "response": {
+   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwidXNlcl9pZCI6MX0.access-signature",
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature",
+   "is_new_user": false,
+   "user": {
+    "id": 1,
+    "first_name": "",
+    "last_name": "",
+    "city": "",
+    "role": "patient",
+    "email": "rahul.sharma@gmail.com",
+    "phone_number": "+919812345678",
+    "is_email_verified": true,
+    "is_phone_verified": true,
+    "identities": [
+     {
+      "kind": "email",
+      "value": "rahul.sharma@gmail.com",
+      "verified_at": "2026-10-18T18:37:15+05:30"
+     },
+     {
+      "kind": "phone",
+      "value": "+919812345678",
+      "verified_at": "2026-10-18T18:37:15+05:30"
+     }
+    ]
+   }
+  },
+  "errors": {
+   "400": [
+    "This contact is already linked to another account. Accounts cannot be merged automatically."
+   ],
+   "401": {
+    "detail": "Authentication credentials were not provided."
+   }
+  }
+ },
+ "POST /api/v1/auth/patient/link/email/request-otp/": {
+  "status": 202,
+  "request": {
+   "email": "rahul.work@gmail.com"
+  },
+  "response": {
+   "request_id": "5606a5c2-8adb-4a50-b854-ce7a3883e558",
+   "expires_in": 300,
+   "resend_after": 60,
+   "detail": "Verification email sent. Use the code to continue."
+  },
+  "errors": {
+   "401": {
+    "detail": "Authentication credentials were not provided."
+   }
+  }
+ },
+ "POST /api/v1/auth/patient/link/email/verify-otp/": {
+  "status": 200,
+  "request": {
+   "request_id": "3b57fb4d-b72f-4969-a255-508f8cb698b2",
+   "otp": "123456"
+  },
+  "response": {
+   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwidXNlcl9pZCI6MX0.access-signature",
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature",
+   "is_new_user": false,
+   "user": {
+    "id": 1,
+    "first_name": "",
+    "last_name": "",
+    "city": "",
+    "role": "patient",
+    "email": "rahul.sharma@gmail.com",
+    "phone_number": "+919812345678",
+    "is_email_verified": true,
+    "is_phone_verified": true,
+    "identities": [
+     {
+      "kind": "phone",
+      "value": "+919812345678",
+      "verified_at": "2026-10-18T18:37:15+05:30"
+     },
+     {
+      "kind": "email",
+      "value": "rahul.sharma@gmail.com",
+      "verified_at": "2026-10-18T18:37:15+05:30"
+     }
+    ]
+   }
+  },
+  "errors": {
+   "400": [
+    "This account already has a verified contact of this type. Contact support to change it."
+   ],
+   "401": {
+    "detail": "Authentication credentials were not provided."
+   }
+  }
+ },
+ "POST /api/v1/auth/token/": {
+  "status": 200,
+  "request": {
+   "username": "doctor@lalaharihealth.com",
+   "password": "<password>"
+  },
+  "response": {
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature",
+   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwidXNlcl9pZCI6MX0.access-signature"
+  },
+  "errors": {
+   "401": {
+    "detail": "No active account found with the given credentials"
+   }
+  }
+ },
+ "POST /api/v1/auth/patient/token/refresh/": {
+  "status": 200,
+  "request": {
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature"
+  },
+  "response": {
+   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwidXNlcl9pZCI6MX0.access-signature",
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature"
+  },
+  "errors": {
+   "401": {
+    "detail": "Token is blacklisted",
+    "code": "token_not_valid"
+   },
+   "403": {
+    "detail": "An active patient account is required."
+   }
+  }
+ },
+ "PATCH /api/v1/auth/patient/me/": {
+  "status": 200,
+  "request": {
+   "first_name": "Rahul",
+   "last_name": "Sharma",
+   "city": "Delhi"
+  },
+  "response": {
+   "id": 1,
+   "first_name": "Rahul",
+   "last_name": "Sharma",
+   "city": "Delhi",
+   "role": "patient",
+   "email": "rahul.sharma@gmail.com",
+   "phone_number": "",
+   "is_email_verified": true,
+   "is_phone_verified": false,
+   "identities": [
+    {
+     "kind": "email",
+     "value": "rahul.sharma@gmail.com",
+     "verified_at": "2026-10-18T18:37:15+05:30"
+    }
+   ]
+  },
+  "errors": {
+   "400": {
+    "email": [
+     "This field cannot be updated here. Use verified contact linking for email or phone."
+    ],
+    "is_phone_verified": [
+     "This field cannot be updated here. Use verified contact linking for email or phone."
+    ],
+    "role": [
+     "This field cannot be updated here. Use verified contact linking for email or phone."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/auth/patient/me/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "first_name": "Rahul",
+   "last_name": "Sharma",
+   "city": "Delhi",
+   "role": "patient",
+   "email": "rahul.sharma@gmail.com",
+   "phone_number": "",
+   "is_email_verified": true,
+   "is_phone_verified": false,
+   "identities": [
+    {
+     "kind": "email",
+     "value": "rahul.sharma@gmail.com",
+     "verified_at": "2026-10-18T18:37:15+05:30"
+    }
+   ]
+  }
+ },
+ "POST /api/v1/auth/patient/logout/": {
+  "status": 204,
+  "request": {
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature"
+  },
+  "errors": {
+   "401": {
+    "detail": "The refresh token does not belong to this account.",
+    "code": "token_not_valid"
+   },
+   "400": {
+    "refresh": [
+     "This field is required."
+    ]
+   }
+  }
+ },
+ "POST /api/v1/consultations/": {
+  "status": 201,
+  "request": {
+   "patient_name": "Rahul Sharma",
+   "patient_age": 25,
+   "patient_gender": "male",
+   "patient_phone": "9876543210",
+   "mode": "video",
+   "country_code": "IN"
+  },
+  "response": {
+   "id": 1,
+   "speciality": null,
+   "country_code": "IN",
+   "consultation_title": "General Consultation",
+   "fee": 200,
+   "fee_currency": "INR",
+   "family_member": null,
+   "patient_relation": "self",
+   "patient_name": "Rahul Sharma",
+   "patient_age": 25,
+   "patient_gender": "male",
+   "patient_phone": "9876543210",
+   "mode": "video",
+   "condition": null,
+   "condition_type": null,
+   "condition_variant": null,
+   "chief_complaint": "",
+   "condition_details": "",
+   "symptoms": "",
+   "duration_value": null,
+   "duration_unit": "",
+   "ongoing_medication": null,
+   "treatment_details": "",
+   "history_completed": false,
+   "status": "draft",
+   "fee_charged": 0,
+   "currency": "INR",
+   "scheduled_at": null,
+   "information_confirmed_at": null,
+   "documents": [],
+   "created_at": "2026-10-18T18:37:16+05:30"
+  },
+  "errors": {
+   "401": {
+    "detail": "Authentication credentials were not provided."
+   },
+   "400": {
+    "patient_age": [
+     "Ensure this value is greater than or equal to 0."
+    ],
+    "patient_phone": [
+     "This value does not match the required pattern."
+    ]
+   }
+  }
+ },
+ "PUT /api/v1/consultations/{consultation_id}/history/": {
+  "status": 200,
+  "request": {
+   "condition": 2,
+   "condition_type": 5,
+   "condition_variant": null,
+   "condition_details": "High fever since Monday with body ache",
+   "duration_value": 5,
+   "duration_unit": "days",
+   "ongoing_medication": true,
+   "treatment_details": "Paracetamol 650mg twice a day"
+  },
+  "response": {
+   "id": 1,
+   "speciality": null,
+   "country_code": "",
+   "consultation_title": "General Consultation",
+   "fee": 200,
+   "fee_currency": "INR",
+   "family_member": null,
+   "patient_relation": "self",
+   "patient_name": "Rahul Sharma",
+   "patient_age": 25,
+   "patient_gender": "male",
+   "patient_phone": "9876543210",
+   "mode": "video",
+   "condition": 2,
+   "condition_type": 5,
+   "condition_variant": null,
+   "chief_complaint": "Viral Fever",
+   "condition_details": "High fever since Monday with body ache",
+   "symptoms": "",
+   "duration_value": 5,
+   "duration_unit": "days",
+   "ongoing_medication": true,
+   "treatment_details": "Paracetamol 650mg twice a day",
+   "history_completed": true,
+   "status": "draft",
+   "fee_charged": 0,
+   "currency": "INR",
+   "scheduled_at": null,
+   "information_confirmed_at": null,
+   "documents": [],
+   "created_at": "2026-10-18T18:37:16+05:30"
+  },
+  "errors": {
+   "400": {
+    "condition_type": [
+     "Select the specific type."
+    ]
+   }
+  }
+ },
+ "POST /api/v1/appointments/": {
+  "status": 201,
+  "request": {
+   "consultation_id": 1,
+   "slot_id": 1,
+   "information_confirmed": true
+  },
+  "response": {
+   "id": 1,
+   "appointment_number": "APT-00001",
+   "consultation": 1,
+   "slot": 1,
+   "slot_time": "2026-10-20T10:00:00+05:30",
+   "schedule_date": "2026-10-20",
+   "schedule_time": "10:00 AM",
+   "status": "awaiting_payment",
+   "status_label": "Awaiting payment",
+   "patient_name": "Rahul Sharma",
+   "consultation_title": "General Consultation",
+   "speciality": null,
+   "chief_complaint": "General Consultation",
+   "mode_label": "Online",
+   "doctor": null,
+   "doctor_name": null,
+   "doctor_specialization": null,
+   "amount": 200,
+   "currency": "INR",
+   "payment_status": "not_started",
+   "created_at": "2026-10-18T18:37:16+05:30"
+  },
+  "errors": {
+   "400": {
+    "information_confirmed": [
+     "Please confirm the information is correct."
+    ]
+   }
+  }
+ },
+ "POST /api/v1/appointments/{appointment_id}/assign-doctor/": {
+  "status": 200,
+  "request": {
+   "doctor_id": 3
+  },
+  "response": {
+   "id": 1,
+   "appointment_number": "APT-00001",
+   "consultation": 1,
+   "slot": 2,
+   "slot_time": "2026-10-20T10:00:00+05:30",
+   "schedule_date": "2026-10-20",
+   "schedule_time": "10:00 AM",
+   "status": "confirmed",
+   "status_label": "Confirmed",
+   "patient_name": "Rahul Sharma",
+   "consultation_title": "General Consultation",
+   "speciality": null,
+   "chief_complaint": "General Consultation",
+   "mode_label": "Online",
+   "doctor": 3,
+   "doctor_name": "Dr. Ananya Sharma",
+   "doctor_specialization": "General Physician",
+   "amount": 200,
+   "currency": "INR",
+   "payment_status": "success",
+   "created_at": "2026-10-18T18:37:16+05:30"
+  },
+  "errors": {
+   "400": [
+    "This doctor has no free slot at the appointment time."
+   ],
+   "403": {
+    "detail": "You do not have permission to perform this action."
+   },
+   "404": {
+    "detail": "No DoctorProfile matches the given query."
+   }
+  }
+ },
+ "GET /api/v1/appointments/slots/": {
+  "status": 200,
+  "response": [
+   {
+    "id": 1,
+    "starts_at": "2026-10-20T10:00:00+05:30",
+    "time_display": "10:00 AM",
+    "remaining_capacity": 1
+   }
+  ]
+ },
+ "GET /api/v1/consultations/{consultation_id}/preview/": {
+  "status": 200,
+  "response": {
+   "consultation_id": 1,
+   "consultation_title": "General Consultation",
+   "speciality": null,
+   "patient": {
+    "name": "Rahul Sharma",
+    "age": 25,
+    "gender": "male",
+    "gender_label": "Male",
+    "phone": "9876543210",
+    "relation": "self",
+    "relation_label": "You"
+   },
+   "chief_complaint": "General Consultation",
+   "condition_details": "",
+   "symptoms": "",
+   "duration_display": "5 Days",
+   "ongoing_medication": false,
+   "treatment_details": "",
+   "mode": "video",
+   "schedule": {
+    "slot_id": 1,
+    "starts_at": "2026-10-20T19:00:00+05:30",
+    "date_display": "20 Oct 2026",
+    "time_display": "07:00 PM",
+    "is_available": true
+   },
+   "documents": [],
+   "document_count": 0,
+   "fee": 200,
+   "currency": "INR",
+   "ready_to_submit": true,
+   "missing_steps": []
+  }
+ },
+ "GET /api/v1/consultations/conditions/": {
+  "status": 200,
+  "response": {
+   "count": 9,
+   "next": null,
+   "previous": null,
+   "results": [
+    {
+     "id": 6,
+     "name": "Cough & Cold",
+     "slug": "cough-cold",
+     "type_label": "Specific Cough & Cold Type",
+     "types": []
+    },
+    {
+     "id": 3,
+     "name": "Diabetes",
+     "slug": "diabetes",
+     "type_label": "Specific Diabetes Type",
+     "types": [
+      {
+       "id": 9,
+       "name": "Type 1 Diabetes",
+       "variants": []
+      },
+      {
+       "id": 10,
+       "name": "Type 2 Diabetes",
+       "variants": []
+      },
+      {
+       "id": 11,
+       "name": "Gestational Diabetes",
+       "variants": []
+      }
+     ]
+    },
+    {
+     "id": 2,
+     "name": "Fever",
+     "slug": "fever",
+     "type_label": "Specific Fever Type",
+     "types": [
+      {
+       "id": 5,
+       "name": "Viral Fever",
+       "variants": []
+      },
+      {
+       "id": 6,
+       "name": "Dengue",
+       "variants": []
+      },
+      {
+       "id": 7,
+       "name": "Typhoid",
+       "variants": []
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "GET /api/v1/doctors/me/slots/": {
+  "status": 200,
+  "response": [
+   {
+    "id": 1,
+    "starts_at": "2026-10-20T10:00:00+05:30",
+    "date": "2026-10-20",
+    "time_display": "10:00 AM",
+    "is_active": true,
+    "is_booked": true,
+    "appointment_id": 1
+   },
+   {
+    "id": 2,
+    "starts_at": "2026-10-20T10:15:00+05:30",
+    "date": "2026-10-20",
+    "time_display": "10:15 AM",
+    "is_active": true,
+    "is_booked": false,
+    "appointment_id": null
+   }
+  ],
+  "errors": {
+   "403": {
+    "detail": "A verified, active doctor account is required."
+   }
+  }
+ },
+ "DELETE /api/v1/doctors/me/slots/{slot_id}/": {
+  "status": 204,
+  "errors": {
+   "400": [
+    "This slot has a booking and cannot be removed."
+   ],
+   "404": {
+    "detail": "No AppointmentSlot matches the given query."
+   }
+  }
+ },
+ "POST /api/v1/doctors/me/slots/": {
+  "status": 201,
+  "request": {
+   "date": "2026-10-20",
+   "start_time": "22:00"
+  },
+  "response": {
+   "created_count": 8,
+   "slots": [
+    {
+     "id": 1,
+     "starts_at": "2026-10-20T22:00:00+05:30",
+     "date": "2026-10-20",
+     "time_display": "10:00 PM",
+     "is_active": true,
+     "is_booked": false,
+     "appointment_id": null
+    },
+    {
+     "id": 2,
+     "starts_at": "2026-10-20T22:15:00+05:30",
+     "date": "2026-10-20",
+     "time_display": "10:15 PM",
+     "is_active": true,
+     "is_booked": false,
+     "appointment_id": null
+    },
+    {
+     "id": 3,
+     "starts_at": "2026-10-20T22:30:00+05:30",
+     "date": "2026-10-20",
+     "time_display": "10:30 PM",
+     "is_active": true,
+     "is_booked": false,
+     "appointment_id": null
+    }
+   ]
+  },
+  "errors": {
+   "400": [
+    "No new future slots in this time range."
+   ],
+   "403": {
+    "detail": "A verified, active doctor account is required."
+   }
+  }
+ },
+ "GET /api/v1/appointments/slot-dates/": {
+  "status": 200,
+  "response": [
+   {
+    "date": "2026-10-18",
+    "day_label": "Today",
+    "day_number": 18,
+    "available_slot_count": 0
+   },
+   {
+    "date": "2026-10-19",
+    "day_label": "Mon",
+    "day_number": 19,
+    "available_slot_count": 0
+   },
+   {
+    "date": "2026-10-20",
+    "day_label": "Tue",
+    "day_number": 20,
+    "available_slot_count": 2
+   }
+  ]
+ },
+ "GET /api/v1/blogs/{slug}/": {
+  "status": 200,
+  "response": {
+   "id": 5,
+   "title": "How to read your blood test report",
+   "slug": "how-to-read-your-blood-test-report",
+   "description": "A simple guide to the numbers on a CBC report.",
+   "kind": "article",
+   "cover_image": "https://api.lalaharihealth.com/media/blogs/covers/cbc-report.jpg",
+   "cover_alt": "Blood test report on a table",
+   "author_name": "",
+   "published_at": "2026-01-01T12:00:00+05:30",
+   "source_url": "",
+   "source_video": null,
+   "blocks": [
+    {
+     "id": 4,
+     "position": 10,
+     "kind": "paragraph",
+     "heading_level": "h2",
+     "text": "Your CBC report lists haemoglobin, WBC and platelets...",
+     "image": null,
+     "image_alt": "",
+     "caption": "",
+     "video": null
+    }
+   ]
+  },
+  "errors": {
+   "404": {
+    "detail": "No BlogPost matches the given query."
+   }
+  }
+ },
+ "GET /api/v1/blogs/": {
+  "status": 200,
+  "response": {
+   "count": 2,
+   "next": "https://api.lalaharihealth.com/api/v1/blogs/?page=2",
+   "previous": null,
+   "results": [
+    {
+     "id": 2,
+     "title": "Why hospital bills keep rising",
+     "slug": "why-hospital-bills-keep-rising",
+     "description": "A YouTube discussion on healthcare costs in India.",
+     "kind": "external",
+     "cover_image": "https://api.lalaharihealth.com/media/blogs/covers/hospital-costs.jpg",
+     "cover_alt": "Doctors discussing hospital costs",
+     "author_name": "",
+     "published_at": "2026-10-18T18:37:16+05:30"
+    }
+   ]
+  },
+  "errors": {
+   "404": {
+    "detail": "Invalid page."
+   }
+  }
+ },
+ "POST /api/v1/payments/orders/": {
+  "status": 200,
+  "request": {
+   "appointment_id": 1,
+   "method": "upi"
+  },
+  "response": {
+   "payment_id": 1,
+   "gateway_order_id": "order_PJ8tA1xYzQ2bC3",
+   "key_id": "rzp_live_AbCdEf123456",
+   "amount": 20000,
+   "currency": "INR",
+   "status": "pending"
+  },
+  "errors": {
+   "503": {
+    "detail": "Razorpay is not configured on the server."
+   }
+  }
+ },
+ "POST /api/v1/payments/verify/": {
+  "status": 200,
+  "request": {
+   "payment_id": 1,
+   "razorpay_payment_id": "pay_PJ8uK9mNoP4qR5",
+   "razorpay_signature": "ba839dcbf2a9028a379f8aae8de92443af7330d0d2e77bb30bd6be301a080544"
+  },
+  "response": {
+   "id": 1,
+   "consultation": 1,
+   "amount": 200,
+   "currency": "INR",
+   "method": "upi",
+   "status": "success",
+   "gateway_order_id": "order_PJ8tA1xYzQ2bC3",
+   "transaction_id": "pay_PJ8uK9mNoP4qR5",
+   "created_at": "2026-10-18T18:37:19+05:30"
+  },
+  "errors": {
+   "400": [
+    "Gateway payment is not a captured payment for this order and amount."
+   ]
+  }
+ },
+ "PATCH /api/v1/consultations/{consultation_id}/": {
+  "status": 200,
+  "request": {
+   "patient_phone": "9811122233",
+   "mode": "audio"
+  },
+  "response": {
+   "id": 1,
+   "speciality": null,
+   "country_code": "IN",
+   "consultation_title": "General Consultation",
+   "fee": 200,
+   "fee_currency": "INR",
+   "family_member": null,
+   "patient_relation": "self",
+   "patient_name": "Rahul Sharma",
+   "patient_age": 25,
+   "patient_gender": "male",
+   "patient_phone": "9811122233",
+   "mode": "audio",
+   "condition": 2,
+   "condition_type": 5,
+   "condition_variant": null,
+   "chief_complaint": "Viral Fever",
+   "condition_details": "High fever since Monday with body ache",
+   "symptoms": "",
+   "duration_value": 5,
+   "duration_unit": "days",
+   "ongoing_medication": true,
+   "treatment_details": "Paracetamol 650mg twice a day",
+   "history_completed": true,
+   "status": "draft",
+   "fee_charged": 0,
+   "currency": "INR",
+   "scheduled_at": null,
+   "information_confirmed_at": null,
+   "documents": [],
+   "created_at": "2026-10-18T18:37:16+05:30"
+  },
+  "errors": {
+   "400": [
+    "Booked consultations cannot be edited."
+   ]
+  }
+ },
+ "GET /api/v1/consultations/{consultation_id}/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "speciality": null,
+   "country_code": "IN",
+   "consultation_title": "General Consultation",
+   "fee": 200,
+   "fee_currency": "INR",
+   "family_member": null,
+   "patient_relation": "self",
+   "patient_name": "Rahul Sharma",
+   "patient_age": 25,
+   "patient_gender": "male",
+   "patient_phone": "9876543210",
+   "mode": "video",
+   "condition": 2,
+   "condition_type": 5,
+   "condition_variant": null,
+   "chief_complaint": "Viral Fever",
+   "condition_details": "High fever since Monday with body ache",
+   "symptoms": "",
+   "duration_value": 5,
+   "duration_unit": "days",
+   "ongoing_medication": true,
+   "treatment_details": "Paracetamol 650mg twice a day",
+   "history_completed": true,
+   "status": "draft",
+   "fee_charged": 0,
+   "currency": "INR",
+   "scheduled_at": null,
+   "information_confirmed_at": null,
+   "documents": [],
+   "created_at": "2026-10-18T18:37:16+05:30"
+  },
+  "errors": {
+   "404": {
+    "detail": "No Consultation matches the given query."
+   }
+  }
+ },
+ "GET /api/v1/appointments/{appointment_id}/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "appointment_number": "APT-00001",
+   "consultation": 1,
+   "slot": 2,
+   "slot_time": "2026-10-20T10:00:00+05:30",
+   "schedule_date": "2026-10-20",
+   "schedule_time": "10:00 AM",
+   "status": "confirmed",
+   "status_label": "Confirmed",
+   "patient_name": "Rahul Sharma",
+   "consultation_title": "General Consultation",
+   "speciality": null,
+   "chief_complaint": "General Consultation",
+   "mode_label": "Online",
+   "doctor": 3,
+   "doctor_name": "Dr. Ananya Sharma",
+   "doctor_specialization": "General Physician",
+   "amount": 200,
+   "currency": "INR",
+   "payment_status": "success",
+   "created_at": "2026-10-18T18:37:16+05:30"
+  },
+  "errors": {
+   "404": {
+    "detail": "No Appointment matches the given query."
+   }
+  }
+ },
+ "POST /api/v1/consultations/{consultation_id}/documents/": {
+  "status": 201,
+  "request": {
+   "file": "<file: blood-report.pdf>"
+  },
+  "response": {
+   "id": 1,
+   "original_name": "blood-report.pdf",
+   "uploaded_at": "2026-10-18T18:37:20+05:30",
+   "download_url": "https://api.lalaharihealth.com/api/v1/consultations/1/documents/1/download/"
+  },
+  "errors": {
+   "400": {
+    "file": [
+     "Upload a valid PDF, PNG or JPG file."
+    ]
+   }
+  }
+ },
+ "POST /api/v1/payments/webhooks/razorpay/": {
+  "status": 200,
+  "request": {
+   "event": "payment.captured",
+   "payload": {
+    "payment": {
+     "entity": {
+      "id": "pay_PJ8uK9mNoP4qR5",
+      "order_id": "order_PJ8tA1xYzQ2bC3",
+      "amount": 20000,
+      "currency": "INR",
+      "status": "captured",
+      "method": "upi"
+     }
+    }
+   }
+  },
+  "response": {
+   "received": true
+  },
+  "errors": {
+   "400": [
+    "Invalid webhook payload or signature."
+   ],
+   "503": {
+    "detail": "Payment webhook is not configured."
+   }
+  }
+ },
+ "GET /api/v1/consultations/{consultation_id}/documents/{document_id}/download/": {
+  "status": 200,
+  "errors": {
+   "404": {
+    "detail": "No Consultation matches the given query."
+   }
+  }
+ },
+ "DELETE /api/v1/consultations/{consultation_id}/documents/{document_id}/": {
+  "status": 204
+ },
+ "GET /api/v1/patients/cases/": {
+  "status": 200,
+  "response": {
+   "count": 4,
+   "next": null,
+   "previous": null,
+   "results": [
+    {
+     "consultation_id": 4,
+     "appointment_id": 3,
+     "appointment_number": "APT-00003",
+     "title": "General Consultation",
+     "chief_complaint": "General Consultation",
+     "speciality": null,
+     "patient_name": "Rahul Sharma",
+     "patient_relation": "self",
+     "patient_relation_label": "You",
+     "mode": "video",
+     "mode_label": "Online",
+     "schedule": {
+      "starts_at": "2026-10-20T08:30:00Z",
+      "date": "20 Oct 2026",
+      "time": "02:00 PM"
+     },
+     "doctor_name": null,
+     "doctor_specialization": null,
+     "amount": 200,
+     "currency": "INR",
+     "stage": "completed",
+     "status_label": "Completed",
+     "next_action": "view_record",
+     "tracker": [
+      {
+       "key": "submitted",
+       "label": "Case submitted",
+       "done": true,
+       "at": "2026-10-18T13:07:20Z"
+      },
+      {
+       "key": "paid",
+       "label": "Payment done",
+       "done": true,
+       "at": "2026-10-18T13:07:20Z"
+      },
+      {
+       "key": "doctor_assigned",
+       "label": "Doctor assigned",
+       "done": true,
+       "at": null
+      }
+     ],
+     "created_at": "2026-10-18T18:37:20+05:30"
+    },
+    {
+     "consultation_id": 3,
+     "appointment_id": 2,
+     "appointment_number": "APT-00002",
+     "title": "General Consultation",
+     "chief_complaint": "General Consultation",
+     "speciality": null,
+     "patient_name": "Rahul Sharma",
+     "patient_relation": "self",
+     "patient_relation_label": "You",
+     "mode": "video",
+     "mode_label": "Online",
+     "schedule": {
+      "starts_at": "2026-10-20T07:30:00Z",
+      "date": "20 Oct 2026",
+      "time": "01:00 PM"
+     },
+     "doctor_name": null,
+     "doctor_specialization": null,
+     "amount": 200,
+     "currency": "INR",
+     "stage": "awaiting_payment",
+     "status_label": "Awaiting payment",
+     "next_action": "pay",
+     "tracker": [
+      {
+       "key": "submitted",
+       "label": "Case submitted",
+       "done": true,
+       "at": "2026-10-18T13:07:20Z"
+      },
+      {
+       "key": "paid",
+       "label": "Payment done",
+       "done": false,
+       "at": null
+      },
+      {
+       "key": "doctor_assigned",
+       "label": "Doctor assigned",
+       "done": false,
+       "at": null
+      }
+     ],
+     "created_at": "2026-10-18T18:37:20+05:30"
+    },
+    {
+     "consultation_id": 2,
+     "appointment_id": null,
+     "appointment_number": null,
+     "title": "General Consultation",
+     "chief_complaint": "General Consultation",
+     "speciality": null,
+     "patient_name": "Rahul Sharma",
+     "patient_relation": "self",
+     "patient_relation_label": "You",
+     "mode": "video",
+     "mode_label": "Online",
+     "schedule": null,
+     "doctor_name": null,
+     "doctor_specialization": null,
+     "amount": 200,
+     "currency": "INR",
+     "stage": "draft",
+     "status_label": "Draft",
+     "next_action": "complete_history",
+     "tracker": [
+      {
+       "key": "submitted",
+       "label": "Case submitted",
+       "done": false,
+       "at": null
+      },
+      {
+       "key": "paid",
+       "label": "Payment done",
+       "done": false,
+       "at": null
+      },
+      {
+       "key": "doctor_assigned",
+       "label": "Doctor assigned",
+       "done": false,
+       "at": null
+      }
+     ],
+     "created_at": "2026-10-18T18:37:20+05:30"
+    }
+   ]
+  },
+  "errors": {
+   "400": {
+    "status": [
+     "Use active or closed."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/patients/cases/{consultation_id}/": {
+  "status": 200,
+  "response": {
+   "consultation_id": 1,
+   "appointment_id": 1,
+   "appointment_number": "APT-00001",
+   "title": "General Consultation",
+   "chief_complaint": "General Consultation",
+   "speciality": null,
+   "patient_name": "Rahul Sharma",
+   "patient_relation": "self",
+   "patient_relation_label": "You",
+   "mode": "video",
+   "mode_label": "Online",
+   "schedule": {
+    "starts_at": "2026-10-20T04:30:00Z",
+    "date": "20 Oct 2026",
+    "time": "10:00 AM"
+   },
+   "doctor_name": null,
+   "doctor_specialization": null,
+   "amount": 200,
+   "currency": "INR",
+   "stage": "finding_doctor",
+   "status_label": "Finding doctor",
+   "next_action": "wait_for_doctor",
+   "tracker": [
+    {
+     "key": "submitted",
+     "label": "Case submitted",
+     "done": true,
+     "at": "2026-10-18T13:07:20Z"
+    },
+    {
+     "key": "paid",
+     "label": "Payment done",
+     "done": true,
+     "at": "2026-10-18T13:07:20Z"
+    },
+    {
+     "key": "doctor_assigned",
+     "label": "Doctor assigned",
+     "done": false,
+     "at": null
+    }
+   ],
+   "created_at": "2026-10-18T18:37:20+05:30"
+  },
+  "errors": {
+   "404": {
+    "detail": "No Consultation matches the given query."
+   }
+  }
+ },
+ "GET /api/v1/patients/home/": {
+  "status": 200,
+  "response": {
+   "greeting_name": "Rahul Sharma",
+   "photo_url": null,
+   "preferred_language": "en",
+   "unread_notification_count": 4,
+   "support_phone": "+919818677599",
+   "general_care": {
+    "title": "General Consultation",
+    "country_code": "IN",
+    "fee": 200,
+    "currency": "INR",
+    "fee_display": "₹200",
+    "match_within_minutes": 30
+   },
+   "specialities": [
+    {
+     "id": 4,
+     "name": "Dermatology",
+     "slug": "dermatology",
+     "short_name": "Derma",
+     "title": "Skin Consultation",
+     "description": "",
+     "fee": 400,
+     "currency": "INR",
+     "fee_display": "₹400"
+    }
+   ],
+   "upcoming_appointments": [
+    {
+     "appointment_id": 1,
+     "consultation_id": 1,
+     "title": "General Consultation",
+     "patient_name": "Rahul Sharma",
+     "doctor_name": "Dr. Ananya Sharma",
+     "doctor_specialization": "General Physician",
+     "starts_at": "2026-10-20T10:00:00+05:30",
+     "day": "20",
+     "month": "OCT",
+     "time": "10:00 AM",
+     "mode": "video",
+     "mode_label": "Online",
+     "status": "confirmed",
+     "status_label": "Confirmed"
+    },
+    {
+     "appointment_id": 2,
+     "consultation_id": 2,
+     "title": "Skin Consultation",
+     "patient_name": "Rahul Sharma",
+     "doctor_name": null,
+     "doctor_specialization": null,
+     "starts_at": "2026-10-20T12:00:00+05:30",
+     "day": "20",
+     "month": "OCT",
+     "time": "12:00 PM",
+     "mode": "video",
+     "mode_label": "Online",
+     "status": "finding_doctor",
+     "status_label": "Finding doctor"
+    }
+   ],
+   "active_case_count": 3
+  }
+ },
+ "POST /api/v1/notifications/devices/": {
+  "status": 200,
+  "request": {
+   "token": "fGx1Yk2vQ3uA:APA91bH-device-token",
+   "platform": "android"
+  },
+  "response": {
+   "token": "fGx1Yk2vQ3uA:APA91bH-device-token",
+   "platform": "android"
+  }
+ },
+ "POST /api/v1/notifications/devices/remove/": {
+  "status": 204,
+  "request": {
+   "token": "fGx1Yk2vQ3uA:APA91bH-device-token"
+  }
+ },
+ "GET /api/v1/notifications/": {
+  "status": 200,
+  "response": {
+   "count": 2,
+   "next": null,
+   "previous": null,
+   "results": [
+    {
+     "id": 2,
+     "kind": "appointment_confirmed",
+     "kind_label": "Appointment confirmed",
+     "title": "Doctor assigned",
+     "body": "Dr. Ananya Sharma will consult you on 20 Oct 2026 at 10:00 AM.",
+     "appointment_id": 1,
+     "consultation_id": 1,
+     "is_read": false,
+     "read_at": null,
+     "created_at": "2026-10-18T18:37:21+05:30"
+    },
+    {
+     "id": 1,
+     "kind": "announcement",
+     "kind_label": "Announcement",
+     "title": "App update",
+     "body": "Hindi language is now available in the app.",
+     "appointment_id": null,
+     "consultation_id": null,
+     "is_read": false,
+     "read_at": null,
+     "created_at": "2026-10-18T18:37:21+05:30"
+    }
+   ]
+  },
+  "errors": {
+   "401": {
+    "detail": "Authentication credentials were not provided."
+   }
+  }
+ },
+ "GET /api/v1/notifications/unread-count/": {
+  "status": 200,
+  "response": {
+   "unread_count": 2
+  }
+ },
+ "POST /api/v1/notifications/{notification_id}/read/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "kind": "announcement",
+   "kind_label": "Announcement",
+   "title": "App update",
+   "body": "Hindi language is now available in the app.",
+   "appointment_id": null,
+   "consultation_id": null,
+   "is_read": true,
+   "read_at": "2026-10-18T18:37:21+05:30",
+   "created_at": "2026-10-18T18:37:21+05:30"
+  },
+  "errors": {
+   "404": {
+    "detail": "No Notification matches the given query."
+   }
+  }
+ },
+ "POST /api/v1/notifications/read-all/": {
+  "status": 200,
+  "response": {
+   "marked_read": 1
+  }
+ },
+ "PUT /api/v1/doctors/me/consultations/{consultation_id}/record/": {
+  "status": 200,
+  "request": {
+   "diagnosis": "Viral fever",
+   "prescriptions": [],
+   "mark_completed": true
+  },
+  "response": {
+   "id": 1,
+   "appointment_id": 1,
+   "scheduled_at": "2026-10-20T10:00:00+05:30",
+   "status": "completed",
+   "appointment_status": "completed",
+   "doctor": {
+    "id": 3,
+    "name": "Dr. Ananya Sharma",
+    "specialization": "General Physician"
+   },
+   "patient": {
+    "name": "Rahul Sharma",
+    "age": 25,
+    "gender": "male",
+    "relation": "self",
+    "relation_label": "You",
+    "is_self": true,
+    "family_member_id": null
+   },
+   "mode": "video",
+   "mode_display": "Video Call",
+   "mode_label": "Online",
+   "has_clinical_record": true,
+   "condition_name": "",
+   "chief_complaint": "",
+   "condition_details": "",
+   "symptoms": "",
+   "duration_value": 2,
+   "duration_unit": "days",
+   "ongoing_medication": false,
+   "treatment_details": "",
+   "diagnosis": "Viral fever",
+   "prescriptions": [],
+   "doctor_notes": "",
+   "follow_up_date": null,
+   "follow_up_notes": "",
+   "record_updated_at": "2026-10-18T18:37:21+05:30",
+   "documents": []
+  },
+  "errors": {
+   "400": {
+    "detail": "Records can be written only for confirmed or completed appointments."
+   },
+   "404": {
+    "detail": "No Consultation matches the given query."
+   },
+   "403": {
+    "detail": "A verified, active doctor account is required."
+   }
+  }
+ },
+ "GET /api/v1/doctors/specialities/": {
+  "status": 200,
+  "response": [
+   {
+    "id": 4,
+    "name": "Dermatology",
+    "slug": "dermatology",
+    "short_name": "Derma",
+    "title": "Skin Consultation",
+    "description": "",
+    "fee": 400,
+    "currency": "INR",
+    "fee_display": "₹400"
+   }
+  ]
+ },
+ "GET /api/v1/doctors/me/consultations/": {
+  "status": 200,
+  "response": {
+   "count": 1,
+   "next": null,
+   "previous": null,
+   "results": [
+    {
+     "id": 1,
+     "appointment_id": 1,
+     "scheduled_at": "2026-10-19T18:37:21+05:30",
+     "status": "upcoming",
+     "appointment_status": "confirmed",
+     "doctor": {
+      "id": 3,
+      "name": "Dr. Ananya Sharma",
+      "specialization": "General Physician"
+     },
+     "patient": {
+      "name": "Rahul Sharma",
+      "age": 35,
+      "gender": "male",
+      "relation": "self",
+      "relation_label": "You",
+      "is_self": true,
+      "family_member_id": null
+     },
+     "mode": "video",
+     "mode_display": "Video Call",
+     "mode_label": "Online",
+     "has_clinical_record": false,
+     "condition_name": "",
+     "chief_complaint": "",
+     "condition_details": "",
+     "symptoms": "Fever",
+     "duration_value": null,
+     "duration_unit": "",
+     "ongoing_medication": null,
+     "treatment_details": "",
+     "diagnosis": "",
+     "prescriptions": [],
+     "doctor_notes": "",
+     "follow_up_date": null,
+     "follow_up_notes": "",
+     "record_updated_at": null,
+     "documents": []
+    }
+   ]
+  }
+ },
+ "GET /api/v1/doctors/me/consultations/{consultation_id}/record/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "appointment_id": 1,
+   "scheduled_at": "2026-10-19T18:37:21+05:30",
+   "status": "upcoming",
+   "appointment_status": "confirmed",
+   "doctor": {
+    "id": 3,
+    "name": "Dr. Ananya Sharma",
+    "specialization": "General Physician"
+   },
+   "patient": {
+    "name": "Rahul Sharma",
+    "age": 35,
+    "gender": "male",
+    "relation": "self",
+    "relation_label": "You",
+    "is_self": true,
+    "family_member_id": null
+   },
+   "mode": "video",
+   "mode_display": "Video Call",
+   "mode_label": "Online",
+   "has_clinical_record": false,
+   "condition_name": "",
+   "chief_complaint": "",
+   "condition_details": "",
+   "symptoms": "Fever",
+   "duration_value": null,
+   "duration_unit": "",
+   "ongoing_medication": null,
+   "treatment_details": "",
+   "diagnosis": "",
+   "prescriptions": [],
+   "doctor_notes": "",
+   "follow_up_date": null,
+   "follow_up_notes": "",
+   "record_updated_at": null,
+   "documents": []
+  },
+  "errors": {
+   "404": {
+    "detail": "No Consultation matches the given query."
+   },
+   "403": {
+    "detail": "A verified, active doctor account is required."
+   }
+  }
+ },
+ "GET /api/v1/patients/medical-records/{consultation_id}/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "appointment_id": 1,
+   "scheduled_at": "2026-10-19T18:37:21+05:30",
+   "status": "completed",
+   "appointment_status": "completed",
+   "doctor": {
+    "id": 3,
+    "name": "Dr. Ananya Sharma",
+    "specialization": "General Physician"
+   },
+   "patient": {
+    "name": "Rahul Sharma",
+    "age": 35,
+    "gender": "male",
+    "relation": "self",
+    "relation_label": "You",
+    "is_self": true,
+    "family_member_id": null
+   },
+   "mode": "video",
+   "mode_display": "Video Call",
+   "mode_label": "Online",
+   "has_clinical_record": true,
+   "chief_complaint": "",
+   "condition_details": "",
+   "symptoms": "Fever",
+   "diagnosis": "Acute pharyngitis",
+   "prescriptions": [
+    {
+     "id": 3,
+     "medicine_name": "Azithromycin 500mg",
+     "dosage": "1 tablet",
+     "timings": [
+      "morning"
+     ],
+     "timing_labels": [
+      "Morning"
+     ],
+     "food_relation": "after_food",
+     "food_relation_label": "After food",
+     "duration_days": 5,
+     "instructions": ""
+    }
+   ],
+   "doctor_notes": "Rest well.",
+   "follow_up": {
+    "date": "2030-01-10",
+    "notes": "Review after a week."
+   },
+   "record_updated_at": "2026-10-18T18:37:22+05:30",
+   "documents": []
+  },
+  "errors": {
+   "404": {
+    "detail": "No Consultation matches the given query."
+   }
+  }
+ },
+ "POST /api/v1/patients/family-members/": {
+  "status": 201,
+  "request": {
+   "full_name": "Priya Sharma",
+   "relation": "spouse",
+   "date_of_birth": "1993-01-01",
+   "gender": "female",
+   "phone_number": "+919876543211"
+  },
+  "response": {
+   "id": 1,
+   "full_name": "Priya Sharma",
+   "relation": "spouse",
+   "relation_label": "Spouse",
+   "date_of_birth": "1993-01-01",
+   "age": 33,
+   "gender": "female",
+   "gender_label": "Female",
+   "phone_number": "+919876543211",
+   "created_at": "2026-10-18T18:37:22+05:30",
+   "updated_at": "2026-10-18T18:37:22+05:30"
+  },
+  "errors": {
+   "400": {
+    "relation": [
+     "\"cousin\" is not a valid choice."
+    ],
+    "date_of_birth": [
+     "Date of birth cannot be in the future."
+    ],
+    "phone_number": [
+     "This value does not match the required pattern."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/patients/family-members/": {
+  "status": 200,
+  "response": [
+   {
+    "id": 1,
+    "full_name": "Priya Sharma",
+    "relation": "spouse",
+    "relation_label": "Spouse",
+    "date_of_birth": "1993-01-01",
+    "age": 33,
+    "gender": "female",
+    "gender_label": "Female",
+    "phone_number": "+919876543211",
+    "created_at": "2026-10-18T18:37:22+05:30",
+    "updated_at": "2026-10-18T18:37:22+05:30"
+   },
+   {
+    "id": 2,
+    "full_name": "Aarav",
+    "relation": "son",
+    "relation_label": "Son",
+    "date_of_birth": "2017-01-01",
+    "age": 9,
+    "gender": "male",
+    "gender_label": "Male",
+    "phone_number": "",
+    "created_at": "2026-10-18T18:37:22+05:30",
+    "updated_at": "2026-10-18T18:37:22+05:30"
+   }
+  ],
+  "errors": {
+   "403": {
+    "detail": "An active patient account is required."
+   }
+  }
+ },
+ "GET /api/v1/patients/family-members/{member_id}/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "full_name": "Priya Sharma",
+   "relation": "spouse",
+   "relation_label": "Spouse",
+   "date_of_birth": "1993-01-01",
+   "age": 33,
+   "gender": "female",
+   "gender_label": "Female",
+   "phone_number": "+919876543211",
+   "created_at": "2026-10-18T18:37:22+05:30",
+   "updated_at": "2026-10-18T18:37:22+05:30"
+  },
+  "errors": {
+   "404": {
+    "detail": "No FamilyMember matches the given query."
+   }
+  }
+ },
+ "PATCH /api/v1/patients/family-members/{member_id}/": {
+  "status": 200,
+  "request": {
+   "phone_number": "+919811112222"
+  },
+  "response": {
+   "id": 1,
+   "full_name": "Priya Sharma",
+   "relation": "spouse",
+   "relation_label": "Spouse",
+   "date_of_birth": "1993-01-01",
+   "age": 33,
+   "gender": "female",
+   "gender_label": "Female",
+   "phone_number": "+919811112222",
+   "created_at": "2026-10-18T18:37:22+05:30",
+   "updated_at": "2026-10-18T18:37:22+05:30"
+  },
+  "errors": {
+   "404": {
+    "detail": "No FamilyMember matches the given query."
+   }
+  }
+ },
+ "DELETE /api/v1/patients/family-members/{member_id}/": {
+  "status": 204,
+  "errors": {
+   "404": {
+    "detail": "No FamilyMember matches the given query."
+   }
+  }
+ },
+ "GET /api/v1/patients/booking-patients/": {
+  "status": 200,
+  "response": [
+   {
+    "family_member_id": null,
+    "name": "Rahul Sharma",
+    "age": 25,
+    "gender": "male",
+    "gender_label": "Male",
+    "phone": "+919876543210",
+    "relation": "self",
+    "relation_label": "Myself",
+    "subtitle": "Myself · 25 years · Male",
+    "details_complete": true
+   },
+   {
+    "family_member_id": 1,
+    "name": "Priya Sharma",
+    "age": 33,
+    "gender": "female",
+    "gender_label": "Female",
+    "phone": "+919876543211",
+    "relation": "spouse",
+    "relation_label": "Spouse",
+    "subtitle": "Spouse · 33 years · Female",
+    "details_complete": true
+   }
+  ]
+ },
+ "GET /api/v1/patients/medical-records/": {
+  "status": 200,
+  "response": {
+   "count": 3,
+   "next": null,
+   "previous": null,
+   "results": [
+    {
+     "id": 1,
+     "appointment_id": 1,
+     "scheduled_at": "2026-10-21T18:37:22+05:30",
+     "status": "upcoming",
+     "appointment_status": "confirmed",
+     "doctor": {
+      "id": 3,
+      "name": "Dr. Ananya Sharma",
+      "specialization": "General Physician"
+     },
+     "patient": {
+      "name": "Priya Sharma",
+      "age": 33,
+      "gender": "female",
+      "relation": "spouse",
+      "relation_label": "Spouse",
+      "is_self": false,
+      "family_member_id": 1
+     },
+     "mode": "video",
+     "mode_display": "Video Call",
+     "mode_label": "Online",
+     "has_clinical_record": false
+    },
+    {
+     "id": 2,
+     "appointment_id": 2,
+     "scheduled_at": "2026-10-16T18:37:22+05:30",
+     "status": "completed",
+     "appointment_status": "completed",
+     "doctor": {
+      "id": 3,
+      "name": "Dr. Ananya Sharma",
+      "specialization": "General Physician"
+     },
+     "patient": {
+      "name": "Rahul Sharma",
+      "age": 35,
+      "gender": "male",
+      "relation": "self",
+      "relation_label": "You",
+      "is_self": true,
+      "family_member_id": null
+     },
+     "mode": "video",
+     "mode_display": "Video Call",
+     "mode_label": "Online",
+     "has_clinical_record": false
+    },
+    {
+     "id": 3,
+     "appointment_id": 3,
+     "scheduled_at": "2026-10-13T18:37:22+05:30",
+     "status": "cancelled",
+     "appointment_status": "cancelled",
+     "doctor": null,
+     "patient": {
+      "name": "Rahul Sharma",
+      "age": 35,
+      "gender": "male",
+      "relation": "self",
+      "relation_label": "You",
+      "is_self": true,
+      "family_member_id": null
+     },
+     "mode": "video",
+     "mode_display": "Video Call",
+     "mode_label": "Online",
+     "has_clinical_record": false
+    }
+   ]
+  }
+ },
+ "PUT /api/v1/patients/profile/photo/": {
+  "status": 200,
+  "request": {
+   "photo": "<file: photo.jpg>"
+  },
+  "response": {
+   "id": 1,
+   "first_name": "Rahul",
+   "last_name": "Sharma",
+   "full_name": "Rahul Sharma",
+   "email": "rahul.sharma@gmail.com",
+   "phone_number": "+919876543210",
+   "is_email_verified": false,
+   "is_phone_verified": false,
+   "city": "",
+   "gender": "",
+   "date_of_birth": null,
+   "age": null,
+   "preferred_language": "en",
+   "preferred_language_label": "English",
+   "available_languages": [
+    {
+     "code": "en",
+     "label": "English"
+    },
+    {
+     "code": "hi",
+     "label": "हिन्दी"
+    }
+   ],
+   "photo_url": "https://api.lalaharihealth.com/api/v1/patients/profile/photo/",
+   "membership_label": "LalaHari Health Beneficiary",
+   "family_member_count": 0,
+   "medical_record_count": 0
+  },
+  "errors": {
+   "400": {
+    "photo": [
+     "Upload a valid image. The file you uploaded was either not an image or a corrupted image."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/patients/profile/photo/": {
+  "status": 200,
+  "errors": {
+   "404": {
+    "detail": "Not found."
+   }
+  }
+ },
+ "DELETE /api/v1/patients/profile/photo/": {
+  "status": 204
+ },
+ "GET /api/v1/patients/profile/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "first_name": "Rahul",
+   "last_name": "Sharma",
+   "full_name": "Rahul Sharma",
+   "email": "rahul.sharma@gmail.com",
+   "phone_number": "+919876543210",
+   "is_email_verified": false,
+   "is_phone_verified": false,
+   "city": "",
+   "gender": "",
+   "date_of_birth": null,
+   "age": null,
+   "preferred_language": "en",
+   "preferred_language_label": "English",
+   "available_languages": [
+    {
+     "code": "en",
+     "label": "English"
+    },
+    {
+     "code": "hi",
+     "label": "हिन्दी"
+    }
+   ],
+   "photo_url": null,
+   "membership_label": "LalaHari Health Beneficiary",
+   "family_member_count": 2,
+   "medical_record_count": 0
+  },
+  "errors": {
+   "401": {
+    "detail": "Authentication credentials were not provided."
+   },
+   "403": {
+    "detail": "An active patient account is required."
+   }
+  }
+ },
+ "PATCH /api/v1/patients/profile/": {
+  "status": 200,
+  "request": {
+   "first_name": "Rahul K",
+   "city": "Delhi",
+   "gender": "male",
+   "date_of_birth": "1990-05-14",
+   "preferred_language": "hi"
+  },
+  "response": {
+   "id": 1,
+   "first_name": "Rahul K",
+   "last_name": "Sharma",
+   "full_name": "Rahul K Sharma",
+   "email": "rahul.sharma@gmail.com",
+   "phone_number": "+919876543210",
+   "is_email_verified": false,
+   "is_phone_verified": false,
+   "city": "Delhi",
+   "gender": "male",
+   "date_of_birth": "1990-05-14",
+   "age": 36,
+   "preferred_language": "hi",
+   "preferred_language_label": "हिन्दी",
+   "available_languages": [
+    {
+     "code": "en",
+     "label": "English"
+    },
+    {
+     "code": "hi",
+     "label": "हिन्दी"
+    }
+   ],
+   "photo_url": null,
+   "membership_label": "LalaHari Health Beneficiary",
+   "family_member_count": 0,
+   "medical_record_count": 0
+  },
+  "errors": {
+   "400": {
+    "preferred_language": [
+     "\"fr\" is not a valid choice."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/core/support-contacts/": {
+  "status": 200,
+  "response": {
+   "phone": "+919818677599",
+   "phone_display": "98186 77599",
+   "phone_link": "tel:+919818677599",
+   "email": "care@lalaharihealth.com",
+   "email_link": "mailto:care@lalaharihealth.com"
+  }
+ },
+ "POST /api/v1/doctors/applications/": {
+  "status": 201,
+  "request": {
+   "full_name": "Dr. Ananya Sharma",
+   "phone_number": "9876543210",
+   "email": "ananya.sharma@gmail.com",
+   "qualification": "MBBS, MD",
+   "experience_years": 8,
+   "specialization": "General Physician",
+   "treatment_systems": [
+    "allopathy"
+   ],
+   "consultation_category": "general",
+   "consultation_fee": 200,
+   "country_code": "IN",
+   "city": "Delhi",
+   "documents": [
+    "<file: registration-certificate.pdf>"
+   ]
+  },
+  "response": {
+   "id": 1,
+   "full_name": "Dr. Ananya Sharma",
+   "email": "ananya.sharma@gmail.com",
+   "phone_number": "9876543210",
+   "qualification": "MBBS, MD",
+   "experience_years": 8,
+   "specialization": "General Physician",
+   "consultation_category": "general",
+   "consultation_fee": 200,
+   "country_code": "IN",
+   "currency": "INR",
+   "treatment_systems": [
+    "allopathy"
+   ],
+   "city": "Delhi",
+   "message": "",
+   "is_priority": true,
+   "status": "pending",
+   "created_at": "2026-10-18T18:37:25+05:30",
+   "documents": [
+    {
+     "id": 1,
+     "file": "https://api.lalaharihealth.com/media/doctor_applications/registration-certificate.pdf",
+     "uploaded_at": "2026-10-18T18:37:25+05:30"
+    }
+   ]
+  },
+  "errors": {
+   "400": {
+    "consultation_fee": [
+     "General Physician / General Doctor consultations are fixed at ₹200."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/pricing/": {
+  "status": 200,
+  "response": {
+   "country_code": "US",
+   "country_name": "United States",
+   "detected_country_code": "US",
+   "source": "country",
+   "is_fallback": false,
+   "currency": "USD",
+   "currency_symbol": "$",
+   "general_fee": 10,
+   "general_fee_display": "$10",
+   "doctor_share_percent": 75,
+   "platform_fee_percent": 25,
+   "general_doctor_payout": "7.50",
+   "general_doctor_payout_display": "$7.50",
+   "specialist_fee_min": 10,
+   "specialist_fee_max": 100,
+   "specialist_fee_step": 5,
+   "specialist_fee_range_display": "$10–$100"
+  },
+  "errors": {
+   "400": {
+    "non_field_errors": [
+     "Send both lat and lng, or neither."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/consultations/": {
+  "status": 200,
+  "response": {
+   "count": 1,
+   "next": null,
+   "previous": null,
+   "results": [
+    {
+     "id": 1,
+     "speciality": null,
+     "country_code": "IN",
+     "consultation_title": "General Consultation",
+     "fee": 200,
+     "fee_currency": "INR",
+     "family_member": null,
+     "patient_relation": "self",
+     "patient_name": "Rahul Sharma",
+     "patient_age": 25,
+     "patient_gender": "male",
+     "patient_phone": "9876543210",
+     "mode": "video",
+     "condition": 2,
+     "condition_type": 5,
+     "condition_variant": null,
+     "chief_complaint": "Viral Fever",
+     "condition_details": "High fever since Monday with body ache",
+     "symptoms": "",
+     "duration_value": 5,
+     "duration_unit": "days",
+     "ongoing_medication": true,
+     "treatment_details": "Paracetamol 650mg twice a day",
+     "history_completed": true,
+     "status": "draft",
+     "fee_charged": 0,
+     "currency": "INR",
+     "scheduled_at": null,
+     "information_confirmed_at": null,
+     "documents": [],
+     "created_at": "2026-10-18T18:37:16+05:30"
+    }
+   ]
+  }
+ },
+ "GET /api/v1/appointments/": {
+  "status": 200,
+  "response": {
+   "count": 1,
+   "next": null,
+   "previous": null,
+   "results": [
+    {
+     "id": 1,
+     "appointment_number": "APT-00001",
+     "consultation": 1,
+     "slot": 2,
+     "slot_time": "2026-10-20T10:00:00+05:30",
+     "schedule_date": "2026-10-20",
+     "schedule_time": "10:00 AM",
+     "status": "confirmed",
+     "status_label": "Confirmed",
+     "patient_name": "Rahul Sharma",
+     "consultation_title": "General Consultation",
+     "speciality": null,
+     "chief_complaint": "General Consultation",
+     "mode_label": "Online",
+     "doctor": 3,
+     "doctor_name": "Dr. Ananya Sharma",
+     "doctor_specialization": "General Physician",
+     "amount": 200,
+     "currency": "INR",
+     "payment_status": "success",
+     "created_at": "2026-10-18T18:37:16+05:30"
+    }
+   ]
+  }
+ },
+ "GET /api/v1/consultations/{consultation_id}/documents/": {
+  "status": 200,
+  "response": {
+   "count": 1,
+   "next": null,
+   "previous": null,
+   "results": [
+    {
+     "id": 1,
+     "original_name": "blood-report.pdf",
+     "uploaded_at": "2026-10-18T18:37:20+05:30",
+     "download_url": "https://api.lalaharihealth.com/api/v1/consultations/1/documents/1/download/"
+    }
+   ]
+  },
+  "errors": {
+   "404": {
+    "detail": "No Consultation matches the given query."
+   }
+  }
+ },
+ "GET /api/v1/payments/{payment_id}/": {
+  "status": 200,
+  "response": {
+   "id": 1,
+   "consultation": 1,
+   "amount": 200,
+   "currency": "INR",
+   "method": "upi",
+   "status": "success",
+   "gateway_order_id": "order_PJ8tA1xYzQ2bC3",
+   "transaction_id": "pay_PJ8uK9mNoP4qR5",
+   "created_at": "2026-10-18T18:37:19+05:30"
+  },
+  "errors": {
+   "404": {
+    "detail": "No Payment matches the given query."
+   }
+  }
+ },
+ "POST /api/v1/core/contact-messages/": {
+  "status": 201,
+  "request": {
+   "name": "Rahul Sharma",
+   "phone_number": "9876543210",
+   "email": "rahul.sharma@gmail.com",
+   "message": "Please call me about a consultation for fever."
+  },
+  "response": {
+   "id": 12,
+   "name": "Rahul Sharma",
+   "phone_number": "9876543210",
+   "email": "rahul.sharma@gmail.com",
+   "message": "Please call me about a consultation for fever.",
+   "created_at": "2026-10-18T18:40:00+05:30"
+  },
+  "errors": {
+   "400": {
+    "phone_number": [
+     "This field is required."
+    ]
+   }
+  }
+ },
+ "POST /api/v1/hospitals/applications/": {
+  "status": 201,
+  "request": {
+   "facility_name": "Sharma Multispeciality Clinic",
+   "contact_person_name": "Rakesh Sharma",
+   "email": "admin@sharmaclinic.in",
+   "phone_number": "9876543210",
+   "city": "Delhi",
+   "address": "12 MG Road, Delhi",
+   "specialties": "General medicine, Pathology lab",
+   "bed_count": 20,
+   "message": "We would like to list our lab.",
+   "documents": [
+    "<file: clinic-registration.pdf>"
+   ]
+  },
+  "response": {
+   "id": 3,
+   "facility_name": "Sharma Multispeciality Clinic",
+   "contact_person_name": "Rakesh Sharma",
+   "email": "admin@sharmaclinic.in",
+   "phone_number": "9876543210",
+   "city": "Delhi",
+   "address": "12 MG Road, Delhi",
+   "specialties": "General medicine, Pathology lab",
+   "bed_count": 20,
+   "message": "We would like to list our lab.",
+   "is_priority": true,
+   "status": "pending",
+   "created_at": "2026-10-18T18:40:00+05:30",
+   "documents": [
+    {
+     "id": 1,
+     "file": "https://api.lalaharihealth.com/media/hospital_applications/clinic-registration.pdf",
+     "uploaded_at": "2026-10-18T18:40:00+05:30"
+    }
+   ]
+  },
+  "errors": {
+   "400": {
+    "facility_name": [
+     "This field is required."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/health/": {
+  "status": 200,
+  "response": {
+   "status": "ok",
+   "service": "LalahariHealth API"
+  }
+ },
+ "POST /api/v1/auth/token/refresh/": {
+  "status": 200,
+  "request": {
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature"
+  },
+  "response": {
+   "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwidXNlcl9pZCI6MX0.access-signature",
+   "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsInVzZXJfaWQiOjF9.refresh-signature"
+  },
+  "errors": {
+   "401": {
+    "detail": "Token is invalid",
+    "code": "token_not_valid"
+   }
+  }
+ }
+}

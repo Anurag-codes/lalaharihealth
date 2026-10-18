@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Clock3, Phone, Smartphone, Wallet, X } from "lucide-react";
-import { FlashingBadge } from "@/components/ui/FlashingBadge";
+import { Phone, Smartphone } from "lucide-react";
+import { HomeOfferContent } from "@/components/sections/HomeOfferContent";
 import { useCloseAfterBottomScroll } from "@/hooks/useCloseAfterBottomScroll";
 
 const POPUP_DISMISSED_EVENT = "lalahari:home-offer-dismissed";
@@ -49,7 +49,7 @@ export function HomeOfferPopup() {
 			<section
 				role="dialog"
 				aria-modal="true"
-				aria-labelledby="home-offer-title"
+				aria-label="Home offer"
 				className="my-auto w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl sm:rounded-3xl"
 			>
 				<div className="flex items-center justify-between border-b border-black/5 px-5 py-4 sm:px-8">
@@ -65,61 +65,7 @@ export function HomeOfferPopup() {
 				</div>
 
 				<div className="px-5 py-6 sm:px-8 sm:py-8">
-					<h2 id="home-offer-title"
-						className="font-heading text-3xl font-extrabold leading-tight text-ink sm:text-3xl">
-						Don&apos;t sell your property/take heavy loans for treatment etc.
-						{/* Before bills, tests and procedures add up, ask us first. */}
-					</h2>
-					<h2
-						id="home-offer-title"
-						className="font-heading text-3xl font-extrabold leading-tight text-ink sm:text-3xl"
-					>
-						Get yourself registered to be entitled to:
-					</h2>
-					<ul className="mt-3 space-y-2 pl-6 text-ink">
-						<li className="list-disc font-heading text-xl font-extrabold leading-tight sm:text-2xl">
-							<span className="text-primary">Concessional</span> consultations
-						</li>
-						<li className="list-disc font-heading text-xl font-extrabold leading-tight sm:text-2xl">
-							<span className="text-primary">Concessional</span> Treatment
-						</li>
-						<li className="list-disc font-heading text-xl font-extrabold leading-tight sm:text-2xl">
-							<span className="text-primary">Concessional</span> Lab test
-						</li>
-					</ul>
-					<h2
-						id="home-offer-title"
-						className="mt-3 font-heading text-2xl font-extrabold leading-tight text-ink sm:text-3xl"
-					>
-						at very cheaper rates at home.
-					</h2>
-					
-						{/* <p className="mt-3 text-lg font-semibold text-primary-darker sm:text-xl">
-							Bills, tests and planned procedures can add up. Ask questions before spending your
-							savings or taking a loan.
-						</p> */}
-
-					<ul className="mt-5 space-y-3">
-						<li className="flex items-start gap-3 rounded-xl bg-primary-soft p-4">
-							<Building2 className="mt-0.5 h-5 w-5 shrink-0 text-primary-darker" />
-							<span className="text- leading-relaxed text-ink/75 sm:text-base">
-								Save your travelling time to visit doctors, labs and hospitals.
-							</span>
-						</li>
-						<li className="flex items-start gap-3 rounded-xl bg-primary-soft p-4">
-							<Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-primary-darker" />
-							<span className="text-sm leading-relaxed text-ink/75 sm:text-base">
-								Save your money on consultations, treatement and lab test etc while sitting at home.
-							</span>
-						</li>
-						{/* <li className="flex items-start gap-3 rounded-xl bg-primary-soft p-4">
-							<Wallet className="mt-0.5 h-5 w-5 shrink-0 text-primary-darker" />
-							<span className="text-sm leading-relaxed text-ink/75 sm:text-base">
-								Get yourself on your app consultation. The app is not a
-								doctor diagnosis; seek medical care for urgent symptoms.
-							</span>
-						</li> */}
-					</ul>
+					<HomeOfferContent />
 
 					<div className="mt-6 space-y-4">
 						<a

@@ -31,3 +31,17 @@ class HospitalApplicationSerializer(serializers.ModelSerializer):
             'documents',
         ]
         read_only_fields = ['id', 'is_priority', 'status', 'created_at', 'documents']
+
+
+class HospitalApplicationSubmissionSerializer(HospitalApplicationSerializer):
+    """Documents the multipart request: the form fields plus up to five files named `documents`."""
+
+    documents = serializers.ListField(
+        child=serializers.FileField(),
+        required=False,
+        help_text='Optional supporting documents; submit at most five files.',
+    )
+
+    class Meta(HospitalApplicationSerializer.Meta):
+        fields = [name for name in HospitalApplicationSerializer.Meta.fields if name not in {'id', 'is_priority', 'status', 'created_at'}]
+        read_only_fields = []

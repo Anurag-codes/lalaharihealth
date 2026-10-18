@@ -2,6 +2,7 @@ import { CheckCircle2 } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
 import { SiteImage } from "@/components/ui/SiteImage";
+import { GeneralFee } from "@/components/pricing/PricingContext";
 
 const POINTS = [
   "Doctor-verified remedies using everyday kitchen ingredients",
@@ -19,16 +20,16 @@ export function HomeRemedyBanner() {
             घर बैठे इलाज पाओ
           </p>
           <h2 className="mt-3 font-heading text-3xl font-extrabold leading-tight text-white sm:text-4xl">
-            Gharelu Ilaaj Ki Salah, Pehli Baar{" "}
+            App Par Registration{" "}
             <span className="text-white underline decoration-white/40 decoration-8 underline-offset-4">
               Free
             </span>{" "}
-            App Par!
+            Hai!
           </h2>
           <p className="mt-5 max-w-lg text-base leading-relaxed text-white/85 sm:text-lg">
-            Not every problem needs a pharmacy trip. Describe your symptoms in the app and get
-            initial home-care consultation free. For a human-assisted
-            consultation, our executive can help for ₹200.
+            Not every problem needs a pharmacy trip. Register for free to explore consultation
+            options. Human-assisted consultation is <GeneralFee />; other consultation fees are confirmed
+            before booking.
           </p>
 
           <ul className="mt-7 space-y-3">
@@ -42,7 +43,7 @@ export function HomeRemedyBanner() {
 
           <div className="mt-8">
             <BookConsultationButton variant="white" size="lg">
-              Get Your App Consultation Free
+              Get yourself registered for free
             </BookConsultationButton>
           </div>
         </div>
