@@ -23,7 +23,7 @@ export function DoctorRegisterActions({
         className={`${OPTION_CLASSES} bg-primary text-white shadow-lg shadow-primary/25 hover:bg-primary-dark`}
       >
         <Phone className="h-5 w-5 shrink-0" />
-        Call us to get yourself register for free
+        Call us to Get yourself register for free
       </a>
 
       {showCallback ? (
@@ -45,7 +45,7 @@ export function DoctorRegisterActions({
         className={`${OPTION_CLASSES} border-2 border-primary-darker/15 bg-primary-light text-primary-darker hover:bg-primary-soft`}
       >
         <ClipboardList className="h-5 w-5 shrink-0" />
-        Fill form and get yourself register for free
+        Fill form and Get yourself register for free
       </a>
     </div>
   );

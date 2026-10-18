@@ -74,7 +74,7 @@ export function MedicalCostAwareness() {
             </div>
             <div className="mt-6">
               <BookConsultationButton size="lg" className="w-full">
-                get yourself register for free
+                Get yourself register for free
               </BookConsultationButton>
             </div>
           </div>

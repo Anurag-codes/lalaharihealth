@@ -21,7 +21,7 @@ const NAV_LINKS = [
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const onDoctorsPage = usePathname() === "/for-doctors";
-  const registerLabel = "get yourself register for free";
+  const registerLabel = "Get yourself register for free";
 
   return (
     <header className="sticky top-0 z-50 border-b border-black/5 bg-white/85 backdrop-blur-md">
