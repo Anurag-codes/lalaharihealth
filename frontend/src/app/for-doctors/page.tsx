@@ -12,10 +12,11 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
-import { Button } from "@/components/ui/Button";
 import { RegistrationTabs } from "@/components/sections/RegistrationTabs";
 import { FlashingBadge } from "@/components/ui/FlashingBadge";
 import { RegistrationOfferPopup } from "@/components/sections/RegistrationOfferPopup";
+import { DoctorRegisterActions } from "@/components/sections/DoctorRegisterActions";
+import { DoctorAimSection } from "@/components/sections/DoctorAimSection";
 import {
   GeneralDoctorPayout,
   GeneralFee,
@@ -116,8 +117,8 @@ export default function ForDoctorsPage() {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_85%_10%,rgba(0,167,167,0.12),transparent_45%)]" />
         <Container className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <div>
-            <Eyebrow>Golden opportunity for doctors, hospitals, clinics, labs and to earn through online consultation(Free for First 20 registrations).</Eyebrow>
-            <Eyebrow>Launching in Dec 2026</Eyebrow>
+            {/* <Eyebrow>Golden opportunity for doctors, hospitals, clinics, labs and to earn through online consultation(Free for First 20 registrations).</Eyebrow> */}
+            <Eyebrow>Launching soon</Eyebrow>
             <h1 className="mt-5 font-heading text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
               {/* Bring your expertise online.{" "} */}
               <span className="text-primary">Register free today.</span>
@@ -129,17 +130,11 @@ export default function ForDoctorsPage() {
               <strong className="text-ink">First 20 registrations free.</strong>
             </p>
             <div className="mt-8">
-              <div className="relative">
-                <FlashingBadge className="absolute -top-4 left-1/4 hidden -translate-x-1/4 sm:inline-flex">
+              <div className="relative max-w-[26rem]">
+                <FlashingBadge className="absolute -top-4 left-1/4 z-10 hidden -translate-x-1/4 sm:inline-flex">
                   Limited Time Offer
                 </FlashingBadge>
-                <Button
-                  href="#apply"
-                  size="lg"
-                  className="w-full max-w-[22rem] px-10 text-lg font-bold sm:max-w-[24rem] sm:px-12 sm:text-xl"
-                >
-                  Register Now
-                </Button>
+                <DoctorRegisterActions />
               </div>
             </div>
           </div>
@@ -158,7 +153,24 @@ export default function ForDoctorsPage() {
           </div>
         </Container>
       </section>
-
+      <section id="apply" className="scroll-mt-20 py-20">
+        <Container className="max-w-2xl">
+          <div className="text-center">
+            <Eyebrow>Doctor/Hospital registration</Eyebrow>
+            <h2 className="mt-5 font-heading text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+              Reserve your Priority Doctor/Hospital status
+            </h2>
+            <p className="mt-4 text-sm leading-relaxed text-ink/60 sm:text-base">
+              Takes about 2 minutes. Document upload is optional — you can add
+              it later.
+            </p>
+          </div>
+          <div className="mt-10">
+            <RegistrationTabs />
+          </div>
+        </Container>
+      </section>
+      <DoctorAimSection />
       <section className="bg-gradient-to-br from-primary-darker via-primary-dark to-primary py-14">
         <Container>
           <div className="mx-auto max-w-2xl text-center">
@@ -205,7 +217,7 @@ export default function ForDoctorsPage() {
             {[
               { label: "General consultation", amount: <GeneralFee /> },
               { label: "General doctor receives", amount: <GeneralDoctorPayout /> },
-              { label: "Specialist sets a fee", amount: <SpecialistFeeRange /> },
+              { label: "Specialist fees", amount: <SpecialistFeeRange /> },
             ].map((item) => (
               <div key={item.label} className="rounded-xl border border-black/5 bg-white p-5 text-center">
                 <p className="text-sm font-medium text-ink/60">{item.label}</p>
@@ -245,24 +257,6 @@ export default function ForDoctorsPage() {
                 </p>
               </div>
             ))}
-          </div>
-        </Container>
-      </section>
-
-      <section id="apply" className="scroll-mt-20 py-20">
-        <Container className="max-w-2xl">
-          <div className="text-center">
-            <Eyebrow>Doctor/Hospital registration</Eyebrow>
-            <h2 className="mt-5 font-heading text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-              Reserve your Priority Doctor/Hospital status
-            </h2>
-            <p className="mt-4 text-sm leading-relaxed text-ink/60 sm:text-base">
-              Takes about 2 minutes. Document upload is optional — you can add
-              it later.
-            </p>
-          </div>
-          <div className="mt-10">
-            <RegistrationTabs />
           </div>
         </Container>
       </section>

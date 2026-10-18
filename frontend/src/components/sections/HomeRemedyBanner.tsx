@@ -43,7 +43,7 @@ export function HomeRemedyBanner() {
 
           <div className="mt-8">
             <BookConsultationButton variant="white" size="lg">
-              Get yourself registered for free
+              get yourself register for free
             </BookConsultationButton>
           </div>
         </div>

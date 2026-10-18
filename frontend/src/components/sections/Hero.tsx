@@ -109,7 +109,7 @@ export function Hero({ media, howItWorksHref = "#how-it-works" }: {
                 Limited Time Offer
               </FlashingBadge>
               <BookConsultationButton className="w-full sm:w-auto">
-                Get yourself registered for free
+                get yourself register for free
               </BookConsultationButton>
             </div>
             <Button href={howItWorksHref} variant="outline" className="w-full sm:w-auto">

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Building2, Stethoscope, X } from "lucide-react";
 import { FlashingBadge } from "@/components/ui/FlashingBadge";
 import { useCloseAfterBottomScroll } from "@/hooks/useCloseAfterBottomScroll";
-import { formatAmount, usePricing } from "@/components/pricing/PricingContext";
+import { usePricing, formatAmount } from "@/components/pricing/PricingContext";
+import { DoctorRegisterActions } from "@/components/sections/DoctorRegisterActions";
 
 const POPUP_DISMISSED_EVENT = "lalahari:registration-offer-dismissed";
 
@@ -143,18 +144,12 @@ export function RegistrationOfferPopup() {
             </p>
           </div>
 
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <a
-              href="#apply"
-              onClick={closePopup}
-              className="inline-flex min-h-14 w-full items-center justify-center rounded-full bg-primary px-8 py-4 text-base font-semibold text-white shadow-lg shadow-primary/25 transition-colors hover:bg-primary-dark sm:w-auto sm:text-lg"
-            >
-              Register now
-            </a>
+          <div className="mt-7">
+            <DoctorRegisterActions onFormLinkClick={closePopup} className="sm:max-w-md" />
             <Link
               href="#apply"
               onClick={closePopup}
-              className="rounded-full px-5 py-3 text-center text-sm font-semibold text-primary-darker underline underline-offset-4 hover:bg-primary-light sm:ml-1"
+              className="mt-3 inline-block rounded-full px-5 py-3 text-sm font-semibold text-primary-darker underline underline-offset-4 hover:bg-primary-light"
             >
               Choose doctor or hospital registration
             </Link>

@@ -34,7 +34,7 @@ export function SexualHealth() {
         </ul>
 
         <div className="mt-8">
-          <BookConsultationButton size="lg">Get yourself registered for free</BookConsultationButton>
+          <BookConsultationButton size="lg">get yourself register for free</BookConsultationButton>
         </div>
       </Container>
     </section>

@@ -7,9 +7,16 @@ import { usePricing } from "@/components/pricing/PricingContext";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
-export function CallbackForm({ autoFocus = false }: { autoFocus?: boolean }) {
+export function CallbackForm({
+  autoFocus = false,
+  purpose = "consultation",
+}: {
+  autoFocus?: boolean;
+  purpose?: "consultation" | "doctor-registration";
+}) {
   const [status, setStatus] = useState<Status>("idle");
   const fee = usePricing().general_fee_display;
+  const forDoctor = purpose === "doctor-registration";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -23,8 +30,9 @@ export function CallbackForm({ autoFocus = false }: { autoFocus?: boolean }) {
         body: JSON.stringify({
           name: formData.get("name"),
           phone_number: formData.get("phone_number"),
-          message:
-            `Callback requested for a human-assisted consultation (${fee}). Executive to explain the fee and confirm the appointment.`,
+          message: forDoctor
+            ? "Doctor/Hospital registration callback: wants to register for free on LalahariHealth."
+            : `Callback requested for a human-assisted consultation (${fee}). Executive to explain the fee and confirm the appointment.`,
         }),
       });
       if (!response.ok) throw new Error("Request failed");
@@ -39,8 +47,9 @@ export function CallbackForm({ autoFocus = false }: { autoFocus?: boolean }) {
       <div role="status" className="flex flex-col items-center gap-2 rounded-2xl bg-primary-light px-4 py-6 text-center">
         <CheckCircle2 className="h-9 w-9 text-primary-darker" />
         <p className="text-sm font-semibold text-ink">
-          Callback requested. Our executive will explain the {fee} consultation and confirm
-          your appointment.
+          {forDoctor
+            ? "Callback requested. Our team will call you and get you registered for free."
+            : `Callback requested. Our executive will explain the ${fee} consultation and confirm your appointment.`}
         </p>
       </div>
     );
@@ -80,6 +89,8 @@ export function CallbackForm({ autoFocus = false }: { autoFocus?: boolean }) {
           <>
             <Loader2 className="h-5 w-5 animate-spin" /> Sending...
           </>
+        ) : forDoctor ? (
+          "Request a Callback"
         ) : (
           `Request a Callback — ${fee} consultation`
         )}

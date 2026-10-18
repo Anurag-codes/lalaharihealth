@@ -23,7 +23,7 @@ export function FinalCta() {
                 Limited Time Offer
               </FlashingBadge>
               <BookConsultationButton variant="white" size="lg">
-                Get yourself registered for free
+                get yourself register for free
               </BookConsultationButton>
             </div>
             <Button href="/for-doctors" variant="outline-white" size="lg">

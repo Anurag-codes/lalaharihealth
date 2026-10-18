@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { HeartPulse, Menu, Phone, X } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
+import { getButtonClasses } from "@/components/ui/Button";
 import { TextSizeControl } from "@/components/layout/TextSizeControl";
 
 const NAV_LINKS = [
@@ -18,6 +20,8 @@ const NAV_LINKS = [
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const onDoctorsPage = usePathname() === "/for-doctors";
+  const registerLabel = "get yourself register for free";
 
   return (
     <header className="sticky top-0 z-50 border-b border-black/5 bg-white/85 backdrop-blur-md">
@@ -52,7 +56,13 @@ export function Navbar() {
             <Phone className="h-4 w-4 text-primary" />
             1800-000-000
           </a>
-          <BookConsultationButton size="sm">Get yourself registered for free</BookConsultationButton>
+          {onDoctorsPage ? (
+            <a href="#apply" className={getButtonClasses("primary", "sm")}>
+              {registerLabel}
+            </a>
+          ) : (
+            <BookConsultationButton size="sm">{registerLabel}</BookConsultationButton>
+          )}
         </div>
 
         <div className="flex items-center gap-2 xl:hidden">
@@ -96,13 +106,23 @@ export function Navbar() {
                 <Phone className="h-4 w-4 text-primary" />
                 1800-000-000
               </a>
-              <BookConsultationButton
-                size="md"
-                className="w-full"
-                onBeforeOpen={() => setOpen(false)}
-              >
-                Get yourself registered for free
-              </BookConsultationButton>
+              {onDoctorsPage ? (
+                <a
+                  href="#apply"
+                  onClick={() => setOpen(false)}
+                  className={getButtonClasses("primary", "md", "w-full")}
+                >
+                  {registerLabel}
+                </a>
+              ) : (
+                <BookConsultationButton
+                  size="md"
+                  className="w-full"
+                  onBeforeOpen={() => setOpen(false)}
+                >
+                  {registerLabel}
+                </BookConsultationButton>
+              )}
             </div>
           </Container>
         </div>
