@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils.html import format_html
 
 from .models import DoctorApplication, DoctorApplicationDocument, DoctorDocument, DoctorProfile, Speciality
 
@@ -32,6 +33,7 @@ class DoctorApplicationDocumentInline(admin.TabularInline):
 @admin.register(DoctorApplication)
 class DoctorApplicationAdmin(admin.ModelAdmin):
     list_display = (
+        'photo_thumbnail',
         'full_name',
         'specialization',
         'consultation_category',
@@ -44,6 +46,21 @@ class DoctorApplicationAdmin(admin.ModelAdmin):
         'is_priority',
         'created_at',
     )
+    list_display_links = ('photo_thumbnail', 'full_name')
     list_filter = ('status', 'is_priority')
+    list_editable = ('status',)
     search_fields = ('full_name', 'email', 'phone_number', 'specialization')
+    readonly_fields = ('photo_preview',)
     inlines = [DoctorApplicationDocumentInline]
+
+    @admin.display(description='Photo')
+    def photo_thumbnail(self, obj):
+        if not obj.photo:
+            return '-'
+        return format_html('<img src="{}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:50%">', obj.photo.url)
+
+    @admin.display(description='Photo preview')
+    def photo_preview(self, obj):
+        if not obj.photo:
+            return 'No photo uploaded. The website shows the default image.'
+        return format_html('<img src="{}" alt="" style="max-width:240px;max-height:240px;border-radius:12px">', obj.photo.url)

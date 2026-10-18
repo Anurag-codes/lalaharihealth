@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   AlertCircle,
+  Camera,
   CheckCircle2,
   Loader2,
   Sparkles,
@@ -22,6 +23,8 @@ const TREATMENT_OPTIONS = [
 ];
 
 const MAX_FILES = 5;
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 type Status = "idle" | "submitting" | "success" | "error";
 
@@ -30,9 +33,11 @@ export function DoctorOnboardingForm() {
   const [consultationCategory, setConsultationCategory] = useState("");
   const [consultationFee, setConsultationFee] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [photo, setPhoto] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const pricing = usePricing();
   const money = (amount: number) => {
     const value = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
@@ -62,6 +67,27 @@ export function DoctorOnboardingForm() {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const photoPreview = useMemo(() => (photo ? URL.createObjectURL(photo) : ""), [photo]);
+  useEffect(() => () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
+
+  const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const picked = event.target.files?.[0];
+    event.target.value = "";
+    if (!picked) return;
+    if (!PHOTO_TYPES.includes(picked.type)) {
+      setErrorMessage("Please upload a JPG, PNG or WEBP photo.");
+      return;
+    }
+    if (picked.size > MAX_PHOTO_BYTES) {
+      setErrorMessage("Photo must be 5 MB or smaller.");
+      return;
+    }
+    setErrorMessage("");
+    setPhoto(picked);
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage("");
@@ -75,6 +101,7 @@ export function DoctorOnboardingForm() {
     const formData = new FormData(form);
     systems.forEach((system) => formData.append("treatment_systems", system));
     files.forEach((file) => formData.append("documents", file));
+    if (photo) formData.append("photo", photo);
 
     setStatus("submitting");
     try {
@@ -87,6 +114,15 @@ export function DoctorOnboardingForm() {
       );
 
       if (!response.ok) {
+        const data: unknown = await response.json().catch(() => null);
+        const photoError = typeof data === "object" && data !== null && "photo" in data
+          ? [(data as { photo: unknown }).photo].flat().find((item) => typeof item === "string")
+          : undefined;
+        if (photoError) {
+          setStatus("error");
+          setErrorMessage(`Photo: ${photoError}`);
+          return;
+        }
         throw new Error("Submission failed");
       }
 
@@ -346,6 +382,50 @@ export function DoctorOnboardingForm() {
           rows={3}
           placeholder="Registration number, clinic details, availability, etc."
           className="mt-1.5 w-full resize-none rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+
+      <div>
+        <p className="text-sm font-medium text-ink/70">
+          Profile photo{" "}
+          <span className="text-ink/40">(optional, shown on our website)</span>
+        </p>
+        <div className="mt-2 flex items-center gap-4">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-primary/30 bg-primary-soft">
+            {photoPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element -- local blob preview
+              <img src={photoPreview} alt="Selected profile photo" className="h-full w-full object-cover" />
+            ) : (
+              <Camera className="h-7 w-7 text-primary-darker/50" />
+            )}
+          </div>
+          <div className="flex flex-col items-start gap-1.5">
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="rounded-full border border-primary/30 bg-white px-4 py-2 text-sm font-medium text-primary-darker transition-colors hover:border-primary/60"
+            >
+              {photo ? "Change photo" : "Upload photo"}
+            </button>
+            {photo ? (
+              <button
+                type="button"
+                onClick={() => setPhoto(null)}
+                className="text-xs text-ink/50 hover:text-ink"
+              >
+                Remove photo
+              </button>
+            ) : (
+              <span className="text-xs text-ink/45">JPG, PNG or WEBP, up to 5 MB</span>
+            )}
+          </div>
+        </div>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handlePhotoChange}
+          className="hidden"
         />
       </div>
 

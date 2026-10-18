@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Star } from "lucide-react";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
@@ -5,17 +6,28 @@ import { Button } from "@/components/ui/Button";
 import { BookConsultationButton } from "@/components/ui/BookConsultationButton";
 import { SiteImage } from "@/components/ui/SiteImage";
 import { GeneralFee } from "@/components/pricing/PricingContext";
+import { getFeaturedDoctors, type FeaturedDoctor } from "@/lib/doctors";
 
-// Sample/template doctor cards — swap for real onboarded doctor data once the
-// doctors API + onboarding flow is live.
-const DOCTORS = [
+const DEFAULT_DOCTOR_IMAGE = "/imge_8_9_10.png";
+
+// Same labels doctors pick from on the /for-doctors form.
+const SYSTEM_LABELS: Record<string, string> = {
+  allopathy: "Allopathic",
+  homeopathy: "Homeopathic",
+  ayurveda: "Ayurvedic",
+  unani: "Unani",
+  home_remedy: "Naturopathy",
+};
+
+// Sample cards, shown (first two only) until a registered doctor is approved in admin.
+const SAMPLE_DOCTORS = [
   {
     name: "Dr. Ananya Sharma",
     specialization: "General Physician",
     systems: ["Allopathy", "Home Remedy"],
     experience: "12 yrs experience",
     rating: "4.9",
-    image: "/imge_8_9_10.png",
+    image: DEFAULT_DOCTOR_IMAGE,
   },
   {
     name: "Dr. Surbhi Nair",
@@ -23,7 +35,7 @@ const DOCTORS = [
     systems: ["Ayurveda", "Home Remedy"],
     experience: "9 yrs experience",
     rating: "4.8",
-    image: "/imge_8_9_10.png",
+    image: DEFAULT_DOCTOR_IMAGE,
   },
   {
     name: "Dr. Sana Khan",
@@ -31,7 +43,7 @@ const DOCTORS = [
     systems: ["Homeopathy"],
     experience: "10 yrs experience",
     rating: "4.9",
-    image: "/imge_8_9_10.png",
+    image: DEFAULT_DOCTOR_IMAGE,
   },
   {
     name: "Dr. Imrani Siddiqui",
@@ -39,11 +51,55 @@ const DOCTORS = [
     systems: ["Unani", "Home Remedy"],
     experience: "8 yrs experience",
     rating: "4.7",
-    image: "/imge_8_9_10.png",
+    image: DEFAULT_DOCTOR_IMAGE,
   },
 ];
 
-export function DoctorsShowcase() {
+type DoctorCard = {
+  key: string;
+  name: string;
+  specialization: string;
+  systems: string[];
+  experience: string;
+  rating?: string;
+  image: string;
+  isUploadedPhoto: boolean;
+  fee: ReactNode;
+};
+
+function toCard(doctor: FeaturedDoctor): DoctorCard {
+  const years = doctor.experience_years;
+  return {
+    key: `doctor-${doctor.id}`,
+    name: doctor.name,
+    specialization: doctor.specialization,
+    systems: doctor.treatment_systems.map((system) => SYSTEM_LABELS[system] ?? system),
+    experience: `${years} ${years === 1 ? "yr" : "yrs"} experience`,
+    image: doctor.photo_url ?? DEFAULT_DOCTOR_IMAGE,
+    isUploadedPhoto: doctor.photo_url !== null,
+    fee: doctor.consultation_category === "specialist" ? doctor.fee_display : <GeneralFee />,
+  };
+}
+
+// Full class names so Tailwind keeps them; fewer cards stay centred.
+const GRID_BY_COUNT: Record<number, string> = {
+  1: "mx-auto max-w-xs",
+  2: "mx-auto max-w-2xl sm:grid-cols-2",
+  3: "mx-auto max-w-5xl sm:grid-cols-2 lg:grid-cols-3",
+};
+
+export async function DoctorsShowcase() {
+  const registered = await getFeaturedDoctors();
+  const doctors: DoctorCard[] = registered.length > 0
+    ? registered.map(toCard)
+    : SAMPLE_DOCTORS.slice(0, 2).map((doctor) => ({
+      ...doctor,
+      key: doctor.name,
+      isUploadedPhoto: false,
+      fee: <GeneralFee />,
+    }));
+  const gridClass = GRID_BY_COUNT[doctors.length] ?? "sm:grid-cols-2 lg:grid-cols-4";
+
   return (
     <section id="doctors" className="scroll-mt-20 py-20 sm:py-28">
       <Container>
@@ -54,10 +110,10 @@ export function DoctorsShowcase() {
           </h2>
         </div>
 
-        <div className="mt-14 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {DOCTORS.map((doctor) => (
+        <div className={`mt-14 grid grid-cols-1 gap-6 ${gridClass}`}>
+          {doctors.map((doctor) => (
             <div
-              key={doctor.name}
+              key={doctor.key}
               className="overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm"
             >
               <div className="p-3">
@@ -66,6 +122,7 @@ export function DoctorsShowcase() {
                   alt={`Portrait of ${doctor.name}`}
                   aspect="aspect-square"
                   rounded="rounded-xl"
+                  unoptimized={doctor.isUploadedPhoto}
                 />
               </div>
               <div className="px-5 pb-5">
@@ -73,10 +130,12 @@ export function DoctorsShowcase() {
                   <h3 className="font-heading text-base font-semibold text-ink">
                     {doctor.name}
                   </h3>
-                  <span className="flex items-center gap-1 text-xs font-bold text-primary-darker">
-                    <Star className="h-3.5 w-3.5" fill="currentColor" />
-                    {doctor.rating}
-                  </span>
+                  {doctor.rating && (
+                    <span className="flex items-center gap-1 text-xs font-bold text-primary-darker">
+                      <Star className="h-3.5 w-3.5" fill="currentColor" />
+                      {doctor.rating}
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-sm text-ink/60">
                   {doctor.specialization}
@@ -94,7 +153,7 @@ export function DoctorsShowcase() {
                 </div>
                 <div className="mt-4 flex items-center justify-between">
                   <span className="font-heading text-lg font-bold text-ink">
-                    <GeneralFee />
+                    {doctor.fee}
                   </span>
                   <BookConsultationButton size="sm">
                     Book

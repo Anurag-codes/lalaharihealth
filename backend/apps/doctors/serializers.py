@@ -5,6 +5,21 @@ from apps.treatments.models import TreatmentSystem
 from .models import Speciality, DoctorApplication, DoctorApplicationDocument
 
 
+MAX_PHOTO_BYTES = 5 * 1024 * 1024
+PHOTO_FORMATS = {'JPEG', 'PNG', 'WEBP'}
+
+
+def validate_photo(photo):
+    if photo is None:
+        return photo
+    if photo.size > MAX_PHOTO_BYTES:
+        raise serializers.ValidationError('Photo must be 5 MB or smaller.')
+    image = getattr(photo, 'image', None)
+    if image is None or image.format not in PHOTO_FORMATS:
+        raise serializers.ValidationError('Upload a JPG, PNG or WEBP photo.')
+    return photo
+
+
 class DoctorApplicationDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = DoctorApplicationDocument
@@ -34,6 +49,10 @@ class DoctorApplicationSubmissionSerializer(serializers.Serializer):
     )
     city = serializers.CharField(max_length=100, required=False, allow_blank=True)
     message = serializers.CharField(required=False, allow_blank=True)
+    photo = serializers.ImageField(
+        required=False,
+        help_text='Optional profile photo (JPG, PNG or WEBP, up to 5 MB). Shown on the website after approval.',
+    )
     documents = serializers.ListField(
         child=serializers.FileField(),
         required=False,
@@ -66,6 +85,7 @@ class DoctorApplicationSerializer(serializers.ModelSerializer):
             'treatment_systems',
             'city',
             'message',
+            'photo',
             'is_priority',
             'status',
             'created_at',
@@ -73,6 +93,9 @@ class DoctorApplicationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'is_priority', 'status', 'created_at', 'documents', 'currency']
         extra_kwargs = {'country_code': {'required': False}}
+
+    def validate_photo(self, value):
+        return validate_photo(value)
 
     def validate_country_code(self, value):
         from apps.pricing.service import active_pricing
@@ -106,6 +129,36 @@ class DoctorApplicationSerializer(serializers.ModelSerializer):
             })
 
         return attrs
+
+
+class FeaturedDoctorSerializer(serializers.ModelSerializer):
+    """Public card data for an approved doctor. Contact details and documents are never exposed."""
+
+    name = serializers.CharField(source='full_name', read_only=True)
+    treatment_systems = serializers.ListField(child=serializers.CharField(), read_only=True)
+    fee_display = serializers.SerializerMethodField(help_text='Specialist fee with currency symbol, e.g. "\u20b9500"')
+    photo_url = serializers.SerializerMethodField(help_text='Absolute photo URL, or null when no photo was uploaded')
+
+    class Meta:
+        model = DoctorApplication
+        fields = [
+            'id', 'name', 'qualification', 'specialization', 'experience_years', 'consultation_category',
+            'treatment_systems', 'consultation_fee', 'currency', 'fee_display', 'photo_url',
+        ]
+        read_only_fields = fields
+
+    def get_fee_display(self, obj) -> str:
+        from apps.pricing.service import format_amount, pricing_for
+
+        pricing = pricing_for(obj.country_code)
+        symbol = pricing.currency_symbol if pricing.currency == obj.currency else obj.currency
+        return format_amount(obj.consultation_fee, symbol)
+
+    def get_photo_url(self, obj) -> str | None:
+        if not obj.photo:
+            return None
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
 
 
 class SpecialitySerializer(serializers.ModelSerializer):

@@ -8,6 +8,7 @@ type SiteImageProps = {
   rounded?: string;
   className?: string;
   priority?: boolean;
+  unoptimized?: boolean;
 };
 
 // Fills its parent with a real photo/illustration, replacing the old
@@ -19,10 +20,11 @@ export function SiteImage({
   rounded = "rounded-3xl",
   className,
   priority = false,
+  unoptimized = false,
 }: SiteImageProps) {
   return (
     <div className={clsx("relative w-full overflow-hidden", aspect, rounded, className)}>
-      <Image src={src} alt={alt} fill sizes="100vw" className="object-cover" priority={priority} />
+      <Image src={src} alt={alt} fill sizes="100vw" className="object-cover" priority={priority} unoptimized={unoptimized} />
     </div>
   );
 }

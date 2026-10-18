@@ -2008,6 +2008,7 @@
    "consultation_fee": 200,
    "country_code": "IN",
    "city": "Delhi",
+   "photo": "<file: profile-photo.jpg>",
    "documents": [
     "<file: registration-certificate.pdf>"
    ]
@@ -2038,12 +2039,16 @@
      "file": "https://api.lalaharihealth.com/media/doctor_applications/registration-certificate.pdf",
      "uploaded_at": "2026-10-18T18:37:25+05:30"
     }
-   ]
+   ],
+   "photo": "https://api.lalaharihealth.com/media/doctor_applications/photos/3f2a9c1e5b7d4e8f9a0b1c2d3e4f5a6b.jpg"
   },
   "errors": {
    "400": {
     "consultation_fee": [
      "General Physician / General Doctor consultations are fixed at ₹200."
+    ],
+    "photo": [
+     "Upload a JPG, PNG or WEBP photo."
     ]
    }
   }

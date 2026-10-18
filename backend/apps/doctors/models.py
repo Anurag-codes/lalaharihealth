@@ -1,3 +1,6 @@
+import uuid
+from pathlib import Path
+
 from django.conf import settings
 from django.db import models
 
@@ -90,6 +93,12 @@ class DoctorDocument(models.Model):
         return f'{self.doctor} - {self.get_document_type_display()}'
 
 
+def doctor_application_photo_path(instance, filename):
+    """Random public file name so photos of unapproved applicants cannot be guessed."""
+    extension = Path(filename).suffix.lower()[:5]
+    return f'doctor_applications/photos/{uuid.uuid4().hex}{extension}'
+
+
 class DoctorApplication(models.Model):
     """Pre-launch interest/lead-capture form submitted from the public 'For Doctors' page.
 
@@ -125,6 +134,10 @@ class DoctorApplication(models.Model):
     treatment_systems = models.JSONField(default=list, help_text='Selected TreatmentSystem values')
     city = models.CharField(max_length=100, blank=True)
     message = models.TextField(blank=True)
+    photo = models.ImageField(
+        upload_to=doctor_application_photo_path, blank=True,
+        help_text='Optional profile photo. Shown on the website once the application is approved.',
+    )
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
     is_priority = models.BooleanField(default=True, help_text='Pre-launch registrants get priority status')
     created_at = models.DateTimeField(auto_now_add=True)

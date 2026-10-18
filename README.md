@@ -337,6 +337,13 @@ The response includes `country_code`, `currency`, `currency_symbol`, `general_fe
 - **Doctor applications:** the fee is validated against the pricing of `country_code`. A general doctor's fee must equal the general fee, and a specialist's fee must fall within min/max on the step.
 - **Website:** on load, the site asks for location ("Location is required to show you correct doctors of your area"). Every price is then shown in the visitor's currency. If permission is denied, ?200 is shown.
 
+### Doctor photos & homepage doctors
+
+- The /for-doctors form (general doctors and specialists) accepts an optional `photo` (JPG, PNG or WEBP, up to 5 MB) on `POST /api/v1/doctors/applications/`.
+- To show a doctor on the homepage, set the application's status to **Approved** in Django admin → **Doctor applications**. The status can be edited directly in the list, which also shows a photo thumbnail.
+- `GET /api/v1/doctors/featured/` is public. It returns up to 8 approved doctors, newest first, with only public fields; `photo_url` is `null` when no photo was uploaded.
+- The homepage refreshes this list every 60 seconds. It uses the default doctor image when there is no photo. While no doctor is approved, it shows two sample doctors instead.
+
 ### Frontend (Next.js)
 
 ```powershell

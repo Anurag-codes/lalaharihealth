@@ -18,7 +18,7 @@ export function SexualHealth() {
           We also help with sex-related problems
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-ink/65 sm:text-lg">
-          Don&apos;t hesitate. Consult a doctor privately, from home.
+          Don&apos;t hesitate. Consult a doctor privately, for healthy matrimonial life and happy family, from home.
         </p>
         <p className="mt-2 font-devanagari text-lg font-semibold text-primary-darker">
           शर्माएं नहीं, घर बैठे सलाह लें।

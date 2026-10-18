@@ -2703,9 +2703,11 @@ paths:
     post:
       operationId: doctors_applications_create
       description: 'Submit multipart form data with up to five optional supporting
-        documents. The fee is checked against the pricing of country_code (GET /api/v1/pricing/;
-        default India): general doctors use the country general fee, specialists a
-        fee within the country range and step. The response includes the currency.'
+        documents and an optional `photo` (JPG, PNG or WEBP, up to 5 MB) that is shown
+        on the website once staff approve the application. The fee is checked against
+        the pricing of country_code (GET /api/v1/pricing/; default India): general
+        doctors use the country general fee, specialists a fee within the country
+        range and step. The response includes the currency.'
       summary: Submit a doctor application
       tags:
       - Doctors
@@ -2729,6 +2731,7 @@ paths:
                   consultation_fee: 200
                   country_code: IN
                   city: Delhi
+                  photo: '<file: profile-photo.jpg>'
                   documents:
                   - '<file: registration-certificate.pdf>'
           application/x-www-form-urlencoded:
@@ -2749,6 +2752,7 @@ paths:
                   consultation_fee: 200
                   country_code: IN
                   city: Delhi
+                  photo: '<file: profile-photo.jpg>'
                   documents:
                   - '<file: registration-certificate.pdf>'
         required: true
@@ -2787,6 +2791,7 @@ paths:
                     - id: 1
                       file: https://api.lalaharihealth.com/media/doctor_applications/registration-certificate.pdf
                       uploaded_at: '2026-10-18T18:37:25+05:30'
+                    photo: https://api.lalaharihealth.com/media/doctor_applications/photos/3f2a9c1e5b7d4e8f9a0b1c2d3e4f5a6b.jpg
           description: ''
         '400':
           description: Validation error. Body maps each invalid field to a list of
@@ -2801,6 +2806,60 @@ paths:
                     consultation_fee:
                     - General Physician / General Doctor consultations are fixed at
                       ₹200.
+                    photo:
+                    - Upload a JPG, PNG or WEBP photo.
+  /api/v1/doctors/featured/:
+    get:
+      operationId: doctors_featured_list
+      description: 'Public. Doctors who registered through the For Doctors form and
+        were marked Approved by staff in admin, newest first, at most 8. Not paginated.
+        `photo_url` is null when no photo was uploaded: show a default image. General
+        doctors (`consultation_category` general) charge the country general fee (GET
+        /api/v1/pricing/); specialists show `fee_display`. Contact details are never
+        returned.'
+      summary: Doctors shown on the website and app
+      tags:
+      - Doctors
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeaturedDoctor'
+              examples:
+                ApprovedDoctors:
+                  value:
+                  - id: 12
+                    name: Dr. Ananya Sharma
+                    qualification: MBBS, MD
+                    specialization: General Physician
+                    experience_years: 12
+                    consultation_category: general
+                    treatment_systems:
+                    - allopathy
+                    - home_remedy
+                    consultation_fee: 200
+                    currency: INR
+                    fee_display: ₹200
+                    photo_url: https://api.lalaharihealth.com/media/doctor_applications/photos/3f2a9c1e5b7d4e8f9a0b1c2d3e4f5a6b.jpg
+                  - id: 9
+                    name: Dr. Rohan Mehta
+                    qualification: MBBS, MD
+                    specialization: Dermatologist
+                    experience_years: 9
+                    consultation_category: specialist
+                    treatment_systems:
+                    - allopathy
+                    consultation_fee: 500
+                    currency: INR
+                    fee_display: ₹500
+                    photo_url: null
+                  summary: Approved doctors
+          description: ''
   /api/v1/doctors/me/consultations/:
     get:
       operationId: doctors_me_consultations_list
@@ -6679,6 +6738,12 @@ components:
           maxLength: 100
         message:
           type: string
+        photo:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional profile photo. Shown on the website once the application
+            is approved.
         is_priority:
           type: boolean
           readOnly: true
@@ -6772,6 +6837,12 @@ components:
           maxLength: 100
         message:
           type: string
+        photo:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional profile photo (JPG, PNG or WEBP, up to 5 MB). Shown
+            on the website after approval.
         documents:
           type: array
           items:
@@ -7127,6 +7198,64 @@ components:
       - relation
       - relation_label
       - updated_at
+    FeaturedDoctor:
+      type: object
+      description: Public card data for an approved doctor. Contact details and documents
+        are never exposed.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        qualification:
+          type: string
+          readOnly: true
+          description: e.g. MBBS, BAMS, MD (Ayurveda)
+        specialization:
+          type: string
+          readOnly: true
+        experience_years:
+          type: integer
+          readOnly: true
+        consultation_category:
+          allOf:
+          - $ref: '#/components/schemas/ConsultationCategoryEnum'
+          readOnly: true
+        treatment_systems:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        consultation_fee:
+          type: integer
+          readOnly: true
+          description: Consultation fee in whole units of currency
+        currency:
+          type: string
+          readOnly: true
+        fee_display:
+          type: string
+          readOnly: true
+          description: Specialist fee with currency symbol, e.g. "₹500"
+        photo_url:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Absolute photo URL, or null when no photo was uploaded
+      required:
+      - consultation_category
+      - consultation_fee
+      - currency
+      - experience_years
+      - fee_display
+      - id
+      - name
+      - photo_url
+      - qualification
+      - specialization
+      - treatment_systems
     FirebasePhone:
       type: object
       properties:
