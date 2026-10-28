@@ -74,10 +74,12 @@ function toCard(doctor: FeaturedDoctor): DoctorCard {
     name: doctor.name,
     specialization: doctor.specialization,
     systems: doctor.treatment_systems.map((system) => SYSTEM_LABELS[system] ?? system),
-    experience: `${years} ${years === 1 ? "yr" : "yrs"} experience`,
+    experience: years === null ? "" : `${years} ${years === 1 ? "yr" : "yrs"} experience`,
     image: doctor.photo_url ?? DEFAULT_DOCTOR_IMAGE,
     isUploadedPhoto: doctor.photo_url !== null,
-    fee: doctor.consultation_category === "specialist" ? doctor.fee_display : <GeneralFee />,
+    fee: doctor.consultation_fee === null
+      ? null
+      : doctor.consultation_category === "general" ? <GeneralFee /> : doctor.fee_display,
   };
 }
 

@@ -117,21 +117,22 @@ class DoctorApplication(models.Model):
         GENERAL = 'general', 'General Physician / General Doctor'
         SPECIALIST = 'specialist', 'Specialist'
 
-    full_name = models.CharField(max_length=150)
+    full_name = models.CharField(max_length=150, blank=True)
     email = models.EmailField(blank=True)
-    phone_number = models.CharField(max_length=15)
-    qualification = models.CharField(max_length=255, help_text='e.g. MBBS, BAMS, MD (Ayurveda)')
-    experience_years = models.PositiveSmallIntegerField()
-    specialization = models.CharField(max_length=150)
+    phone_number = models.CharField(max_length=15, blank=True)
+    qualification = models.CharField(max_length=255, blank=True, help_text='e.g. MBBS, BAMS, MD (Ayurveda)')
+    experience_years = models.PositiveSmallIntegerField(blank=True, null=True)
+    specialization = models.CharField(max_length=150, blank=True)
     consultation_category = models.CharField(
         max_length=12,
         choices=ConsultationCategory.choices,
-        default=ConsultationCategory.GENERAL,
+        blank=True,
+        default='',
     )
-    consultation_fee = models.PositiveIntegerField(default=200, help_text='Consultation fee in whole units of currency')
+    consultation_fee = models.PositiveIntegerField(blank=True, null=True, help_text='Consultation fee in whole units of currency')
     country_code = models.CharField(max_length=2, default='IN', help_text='Pricing country used to validate the fee')
     currency = models.CharField(max_length=3, default='INR')
-    treatment_systems = models.JSONField(default=list, help_text='Selected TreatmentSystem values')
+    treatment_systems = models.JSONField(default=list, blank=True, help_text='Selected TreatmentSystem values')
     city = models.CharField(max_length=100, blank=True)
     message = models.TextField(blank=True)
     photo = models.ImageField(

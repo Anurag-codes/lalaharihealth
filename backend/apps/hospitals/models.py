@@ -53,11 +53,11 @@ class HospitalApplication(models.Model):
         APPROVED = 'approved', 'Approved'
         REJECTED = 'rejected', 'Rejected'
 
-    facility_name = models.CharField(max_length=200)
-    contact_person_name = models.CharField(max_length=150)
+    facility_name = models.CharField(max_length=200, blank=True)
+    contact_person_name = models.CharField(max_length=150, blank=True)
     email = models.EmailField(blank=True)
-    phone_number = models.CharField(max_length=15)
-    city = models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=15, blank=True)
+    city = models.CharField(max_length=100, blank=True)
     address = models.TextField(blank=True)
     specialties = models.CharField(max_length=255, blank=True, help_text='Comma separated specialties')
     bed_count = models.PositiveIntegerField(blank=True, null=True)

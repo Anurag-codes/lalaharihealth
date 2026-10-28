@@ -8,6 +8,7 @@ import { MobileStickyCta } from "@/components/layout/MobileStickyCta";
 import { FloatingCallButton } from "@/components/layout/FloatingCallButton";
 import { BookingModalProvider } from "@/components/booking/BookingModalContext";
 import { PricingProvider } from "@/components/pricing/PricingContext";
+import { SITE_URL } from "@/lib/site";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -27,9 +28,13 @@ const notoDevanagari = Noto_Sans_Devanagari({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "LalahariHealth | Consult Doctors, Compare Treatments, Save Money",
   description:
     "Register for free with LalahariHealth. Compare Allopathic and Natural(home-care) options, with human-assisted consultation available for ₹200. Other consultation fees are confirmed before booking.",
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

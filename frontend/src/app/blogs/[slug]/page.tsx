@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Container } from "@/components/ui/Container";
 import { BlogContent, BlogVideoPlayer } from "@/components/blogs/BlogContent";
 import { blogDate, getBlog } from "@/lib/blogs";
@@ -10,11 +11,13 @@ import { blogDate, getBlog } from "@/lib/blogs";
 type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const post = await getBlog((await params).slug);
+  const slug = (await params).slug;
+  const post = await getBlog(slug);
   if (!post) return { title: "Blog not found | LalahariHealth" };
   return {
     title: `${post.title} | LalahariHealth`,
     description: post.description,
+    alternates: { canonical: `/blogs/${slug}` },
     openGraph: {
       type: "article",
       title: post.title,
@@ -26,12 +29,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function BlogPage({ params }: Props) {
-  const post = await getBlog((await params).slug);
+  const { slug } = await params;
+  const post = await getBlog(slug);
   if (!post) notFound();
 
   return (
     <Container className="max-w-4xl py-10 sm:py-16">
-      <Link href="/blogs" className="inline-flex min-h-11 items-center text-sm font-semibold text-primary-darker underline underline-offset-4">Back to all blogs</Link>
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Blogs", href: "/blogs" }, { label: post.title, href: `/blogs/${slug}` }]} />
+      <Link href="/blogs" className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-primary-darker underline underline-offset-4">Back to all blogs</Link>
       <article className="mt-5">
         <header>
           <p className="text-sm font-semibold text-primary-darker">{post.kind === "external" ? "From around the web" : "LalahariHealth article"}</p>

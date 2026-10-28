@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+// import { useEffect, useMemo, useRef, type ChangeEvent } from "react";
 import {
   AlertCircle,
-  Camera,
+  // Camera,
   CheckCircle2,
   Loader2,
   Sparkles,
-  Upload,
-  X,
+  // Upload,
+  // X,
 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api";
 import { FlashingBadge } from "../ui/FlashingBadge";
 import { usePricing } from "@/components/pricing/PricingContext";
 
+/* Temporarily disabled along with the additional application fields.
 const TREATMENT_OPTIONS = [
   { value: "allopathy", label: "Allopathic" },
   // { value: "homeopathy", label: "Homeopathic" },
@@ -25,25 +27,31 @@ const TREATMENT_OPTIONS = [
 const MAX_FILES = 5;
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+*/
 
 type Status = "idle" | "submitting" | "success" | "error";
 
 export function DoctorOnboardingForm() {
+  /*
   const [systems, setSystems] = useState<string[]>([]);
   const [consultationCategory, setConsultationCategory] = useState("");
   const [consultationFee, setConsultationFee] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [photo, setPhoto] = useState<File | null>(null);
+  */
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  /*
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  */
   const pricing = usePricing();
   const money = (amount: number) => {
     const value = Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
     const symbol = pricing.currency_symbol;
     return /^[A-Za-z]+$/.test(symbol) ? `${symbol} ${value}` : `${symbol}${value}`;
   };
+  /*
   const specialistFees = Array.from(
     { length: Math.floor((pricing.specialist_fee_max - pricing.specialist_fee_min) / pricing.specialist_fee_step) + 1 },
     (_, index) => pricing.specialist_fee_min + index * pricing.specialist_fee_step,
@@ -87,21 +95,26 @@ export function DoctorOnboardingForm() {
     setErrorMessage("");
     setPhoto(picked);
   };
+  */
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage("");
 
+    /*
     if (systems.length === 0) {
       setErrorMessage("Please select at least one treatment category.");
       return;
     }
+    */
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+    /*
     systems.forEach((system) => formData.append("treatment_systems", system));
     files.forEach((file) => formData.append("documents", file));
     if (photo) formData.append("photo", photo);
+    */
 
     setStatus("submitting");
     try {
@@ -155,7 +168,7 @@ export function DoctorOnboardingForm() {
       onSubmit={handleSubmit}
       className="space-y-6 rounded-3xl border border-black/5 bg-white p-6 shadow-lg shadow-black/[0.03] sm:p-8"
     >
-      <input type="hidden" name="country_code" value={pricing.country_code} />
+      {/* <input type="hidden" name="country_code" value={pricing.country_code} /> */}
       <div className="flex items-start gap-3 rounded-2xl bg-primary-light px-4 py-3">
         <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary-darker" />
         <p className="text-sm font-medium text-primary-darker">
@@ -189,7 +202,7 @@ export function DoctorOnboardingForm() {
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div>
+        {/* <div>
           <label
             htmlFor="specialization"
             className="text-sm font-medium text-ink/70"
@@ -204,7 +217,7 @@ export function DoctorOnboardingForm() {
             placeholder="e.g. General Physician"
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-        </div>
+        </div> */}
         {/* <div>
           <label htmlFor="email" className="text-sm font-medium text-ink/70">
             Email <span className="text-ink/40">(optional)</span>
@@ -249,7 +262,7 @@ export function DoctorOnboardingForm() {
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div>
+        {/* <div>
           <label
             htmlFor="experience_years"
             className="text-sm font-medium text-ink/70"
@@ -343,10 +356,10 @@ export function DoctorOnboardingForm() {
             placeholder="e.g. Lucknow"
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-        </div>
+        </div> */}
       </div>
 
-      <div>
+      {/* <div>
         <p className="text-sm font-medium text-ink/70">
           Treatment categories you practice
         </p>
@@ -471,7 +484,7 @@ export function DoctorOnboardingForm() {
             ))}
           </ul>
         )}
-      </div>
+      </div> */}
 
       {errorMessage && (
         <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">

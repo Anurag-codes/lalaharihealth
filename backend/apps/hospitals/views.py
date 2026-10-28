@@ -21,7 +21,7 @@ class HospitalApplicationCreateView(APIView):
     @extend_schema(
         tags=['Hospitals'],
         summary='Submit a hospital / clinic application',
-        description='Public multipart form for hospitals, clinics and labs with up to five optional supporting documents.',
+        description='Public multipart form for hospitals, clinics and labs. All application fields are optional, including up to five supporting documents.',
         request=HospitalApplicationSubmissionSerializer,
         responses={201: HospitalApplicationSerializer},
     )

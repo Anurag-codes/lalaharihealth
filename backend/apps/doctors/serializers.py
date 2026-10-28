@@ -29,23 +29,26 @@ class DoctorApplicationDocumentSerializer(serializers.ModelSerializer):
 class DoctorApplicationSubmissionSerializer(serializers.Serializer):
     """Request body for the public doctor application endpoint."""
 
-    full_name = serializers.CharField(max_length=150)
+    full_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     email = serializers.EmailField(required=False, allow_blank=True)
-    phone_number = serializers.CharField(max_length=15)
-    qualification = serializers.CharField(max_length=255)
-    experience_years = serializers.IntegerField(min_value=0)
-    specialization = serializers.CharField(max_length=150)
-    consultation_category = serializers.ChoiceField(choices=DoctorApplication.ConsultationCategory.choices)
+    phone_number = serializers.CharField(max_length=15, required=False, allow_blank=True)
+    qualification = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    experience_years = serializers.IntegerField(min_value=0, required=False, allow_null=True)
+    specialization = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    consultation_category = serializers.ChoiceField(
+        choices=DoctorApplication.ConsultationCategory.choices, required=False, allow_blank=True,
+    )
     consultation_fee = serializers.IntegerField(
-        min_value=1, help_text='General: the country general fee. Specialist: within the country range and step (GET /api/v1/pricing/).',
+        min_value=1, required=False, allow_null=True,
+        help_text='Optional. General: the country general fee. Specialist: within the country range and step (GET /api/v1/pricing/).',
     )
     country_code = serializers.RegexField(
-        r'^[A-Za-z]{2}$', required=False,
+        r'^[A-Za-z]{2}$', required=False, allow_blank=True,
         help_text='country_code from GET /api/v1/pricing/ for the doctor\'s location. Omit for India (INR).',
     )
     treatment_systems = serializers.ListField(
         child=serializers.ChoiceField(choices=TreatmentSystem.choices),
-        allow_empty=False,
+        required=False, allow_empty=True,
     )
     city = serializers.CharField(max_length=100, required=False, allow_blank=True)
     message = serializers.CharField(required=False, allow_blank=True)
@@ -64,7 +67,7 @@ class DoctorApplicationSubmissionSerializer(serializers.Serializer):
 class DoctorApplicationSerializer(serializers.ModelSerializer):
     treatment_systems = serializers.ListField(
         child=serializers.ChoiceField(choices=TreatmentSystem.choices),
-        allow_empty=False,
+        required=False, allow_empty=True,
     )
     documents = DoctorApplicationDocumentSerializer(many=True, read_only=True)
 
@@ -92,7 +95,10 @@ class DoctorApplicationSerializer(serializers.ModelSerializer):
             'documents',
         ]
         read_only_fields = ['id', 'is_priority', 'status', 'created_at', 'documents', 'currency']
-        extra_kwargs = {'country_code': {'required': False}}
+        extra_kwargs = {
+            'country_code': {'required': False, 'allow_blank': True},
+            'consultation_fee': {'min_value': 1},
+        }
 
     def validate_photo(self, value):
         return validate_photo(value)
@@ -100,6 +106,8 @@ class DoctorApplicationSerializer(serializers.ModelSerializer):
     def validate_country_code(self, value):
         from apps.pricing.service import active_pricing
 
+        if not value:
+            return value
         value = value.upper()
         if active_pricing(value) is None:
             raise serializers.ValidationError('Pricing is not available for this country.')
@@ -115,13 +123,13 @@ class DoctorApplicationSerializer(serializers.ModelSerializer):
         attrs['currency'] = pricing.currency
         money = lambda amount: format_amount(amount, pricing.currency_symbol)  # noqa: E731
 
-        if category == DoctorApplication.ConsultationCategory.GENERAL and fee != pricing.general_fee:
+        if fee is not None and category == DoctorApplication.ConsultationCategory.GENERAL and fee != pricing.general_fee:
             raise serializers.ValidationError({
                 'consultation_fee': f'General Physician / General Doctor consultations are fixed at {money(pricing.general_fee)}.'
             })
 
         low, high, step = pricing.specialist_fee_min, pricing.specialist_fee_max, pricing.specialist_fee_step
-        if category == DoctorApplication.ConsultationCategory.SPECIALIST and (fee < low or fee > high or (fee - low) % step):
+        if fee is not None and category == DoctorApplication.ConsultationCategory.SPECIALIST and (fee < low or fee > high or (fee - low) % step):
             raise serializers.ValidationError({
                 'consultation_fee': (
                     f'Specialist consultation fees must be between {money(low)} and {money(high)} in {money(step)} steps.'
@@ -147,9 +155,11 @@ class FeaturedDoctorSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_fee_display(self, obj) -> str:
+    def get_fee_display(self, obj) -> str | None:
         from apps.pricing.service import format_amount, pricing_for
 
+        if obj.consultation_fee is None:
+            return None
         pricing = pricing_for(obj.country_code)
         symbol = pricing.currency_symbol if pricing.currency == obj.currency else obj.currency
         return format_amount(obj.consultation_fee, symbol)

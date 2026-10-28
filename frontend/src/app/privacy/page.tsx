@@ -1,17 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | LalahariHealth",
   description: "How LalahariHealth handles personal information and how to contact us about privacy.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {
   return (
     <Container className="max-w-3xl py-12 sm:py-20">
-      <Eyebrow>Your information matters</Eyebrow>
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Privacy Policy", href: "/privacy" }]} />
+      <div className="mt-6">
+        <Eyebrow>Your information matters</Eyebrow>
+      </div>
       <h1 className="mt-5 font-heading text-3xl font-bold text-ink sm:text-4xl">Privacy Policy</h1>
       <p className="mt-3 text-sm text-ink/60">Last updated: 18 October 2026</p>
 

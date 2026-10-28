@@ -7,7 +7,6 @@ const FOOTER_LINKS: { title: string; links: { label: string; href: string }[] }[
     title: "Company",
     links: [
       { label: "How It Works", href: "/get-started#how-it-works" },
-      { label: "Compare Treatments", href: "/get-started#compare-treatments" },
       { label: "Hospital Support", href: "/get-started#hospital-support" },
       { label: "Patient Stories", href: "/get-started#testimonials" },
       { label: "Blogs", href: "/blogs" },
@@ -17,8 +16,8 @@ const FOOTER_LINKS: { title: string; links: { label: string; href: string }[] }[
     title: "For Doctors",
     links: [
       { label: "Join as a Doctor", href: "/for-doctors" },
-      { label: "Verification Process", href: "/for-doctors#verification" },
-      { label: "Earnings & Payouts", href: "/for-doctors#earnings" },
+      { label: "Verification Process", href: "/for-doctors#apply" },
+      { label: "Earnings & Payouts", href: "/for-doctors#apply" },
     ],
   },
   {

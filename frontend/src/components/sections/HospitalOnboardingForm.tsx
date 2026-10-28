@@ -1,25 +1,27 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+// import { useRef, type ChangeEvent } from "react";
 import {
   AlertCircle,
   Building2,
   CheckCircle2,
   Loader2,
-  Upload,
-  X,
+  // Upload,
+  // X,
 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api";
 import { FlashingBadge } from "../ui/FlashingBadge";
 
-const MAX_FILES = 5;
+// const MAX_FILES = 5;
 
 type Status = "idle" | "submitting" | "success" | "error";
 
 export function HospitalOnboardingForm() {
-  const [files, setFiles] = useState<File[]>([]);
+  // const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  /*
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -31,6 +33,7 @@ export function HospitalOnboardingForm() {
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
+  */
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -38,7 +41,7 @@ export function HospitalOnboardingForm() {
 
     const form = event.currentTarget;
     const formData = new FormData(form);
-    files.forEach((file) => formData.append("documents", file));
+    // files.forEach((file) => formData.append("documents", file));
 
     setStatus("submitting");
     try {
@@ -99,7 +102,7 @@ export function HospitalOnboardingForm() {
             htmlFor="facility_name"
             className="text-sm font-medium text-ink/70"
           >
-            Hospital / clinic name
+            Hospital / clinic / lab name
           </label>
           <input
             id="facility_name"
@@ -126,7 +129,7 @@ export function HospitalOnboardingForm() {
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div>
+        {/* <div>
           <label htmlFor="email" className="text-sm font-medium text-ink/70">
             Email <span className="text-ink/40">(optional)</span>
           </label>
@@ -137,7 +140,7 @@ export function HospitalOnboardingForm() {
             placeholder="you@example.com"
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-        </div>
+        </div> */}
         <div>
           <label
             htmlFor="phone_number"
@@ -154,7 +157,7 @@ export function HospitalOnboardingForm() {
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div>
+        {/* <div>
           <label htmlFor="city" className="text-sm font-medium text-ink/70">
             City
           </label>
@@ -209,10 +212,10 @@ export function HospitalOnboardingForm() {
             placeholder="Street, area, city"
             className="mt-1.5 w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-ink outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
-        </div>
+        </div> */}
       </div>
 
-      <div>
+      {/* <div>
         <label htmlFor="message" className="text-sm font-medium text-ink/70">
           Anything you&apos;d like us to know? (optional)
         </label>
@@ -267,7 +270,7 @@ export function HospitalOnboardingForm() {
             ))}
           </ul>
         )}
-      </div>
+      </div> */}
 
       {errorMessage && (
         <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">

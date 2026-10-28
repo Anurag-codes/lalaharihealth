@@ -2702,12 +2702,14 @@ paths:
   /api/v1/doctors/applications/:
     post:
       operationId: doctors_applications_create
-      description: 'Submit multipart form data with up to five optional supporting
-        documents and an optional `photo` (JPG, PNG or WEBP, up to 5 MB) that is shown
-        on the website once staff approve the application. The fee is checked against
-        the pricing of country_code (GET /api/v1/pricing/; default India): general
-        doctors use the country general fee, specialists a fee within the country
-        range and step. The response includes the currency.'
+      description: 'All application fields are optional; omitted experience and consultation
+        fee are stored as null. Submit multipart form data with up to five optional
+        supporting documents and an optional `photo` (JPG, PNG or WEBP, up to 5 MB)
+        that is shown on the website once staff approve the application. The fee is
+        checked against the pricing of country_code when both fee and category are
+        supplied (GET /api/v1/pricing/; default India): general doctors use the country
+        general fee, specialists a fee within the country range and step. The response
+        includes the currency.'
       summary: Submit a doctor application
       tags:
       - Doctors
@@ -2755,7 +2757,6 @@ paths:
                   photo: '<file: profile-photo.jpg>'
                   documents:
                   - '<file: registration-certificate.pdf>'
-        required: true
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -2813,10 +2814,11 @@ paths:
       operationId: doctors_featured_list
       description: 'Public. Doctors who registered through the For Doctors form and
         were marked Approved by staff in admin, newest first, at most 8. Not paginated.
-        `photo_url` is null when no photo was uploaded: show a default image. General
-        doctors (`consultation_category` general) charge the country general fee (GET
-        /api/v1/pricing/); specialists show `fee_display`. Contact details are never
-        returned.'
+        `photo_url` is null when no photo was uploaded: show a default image. Missing
+        experience, consultation fee and fee_display are null; an unset category is
+        an empty string. General doctors (`consultation_category` general) charge
+        the country general fee (GET /api/v1/pricing/); specialists show `fee_display`.
+        Contact details are never returned.'
       summary: Doctors shown on the website and app
       tags:
       - Doctors
@@ -3543,8 +3545,8 @@ paths:
   /api/v1/hospitals/applications/:
     post:
       operationId: hospitals_applications_create
-      description: Public multipart form for hospitals, clinics and labs with up to
-        five optional supporting documents.
+      description: Public multipart form for hospitals, clinics and labs. All application
+        fields are optional, including up to five supporting documents.
       summary: Submit a hospital / clinic application
       tags:
       - Hospitals
@@ -3584,7 +3586,6 @@ paths:
                   message: We would like to list our lab.
                   documents:
                   - '<file: clinic-registration.pdf>'
-        required: true
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -6711,16 +6712,20 @@ components:
           maximum: 9223372036854775807
           minimum: 0
           format: int64
+          nullable: true
         specialization:
           type: string
           maxLength: 150
         consultation_category:
-          $ref: '#/components/schemas/ConsultationCategoryEnum'
+          oneOf:
+          - $ref: '#/components/schemas/ConsultationCategoryEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         consultation_fee:
           type: integer
           maximum: 9223372036854775807
-          minimum: 0
+          minimum: 1
           format: int64
+          nullable: true
           description: Consultation fee in whole units of currency
         country_code:
           type: string
@@ -6765,15 +6770,9 @@ components:
       - created_at
       - currency
       - documents
-      - experience_years
-      - full_name
       - id
       - is_priority
-      - phone_number
-      - qualification
-      - specialization
       - status
-      - treatment_systems
     DoctorApplicationDocument:
       type: object
       properties:
@@ -6813,21 +6812,28 @@ components:
         experience_years:
           type: integer
           minimum: 0
+          nullable: true
         specialization:
           type: string
           maxLength: 150
         consultation_category:
-          $ref: '#/components/schemas/ConsultationCategoryEnum'
+          oneOf:
+          - $ref: '#/components/schemas/ConsultationCategoryEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         consultation_fee:
           type: integer
           minimum: 1
-          description: 'General: the country general fee. Specialist: within the country
-            range and step (GET /api/v1/pricing/).'
+          nullable: true
+          description: 'Optional. General: the country general fee. Specialist: within
+            the country range and step (GET /api/v1/pricing/).'
         country_code:
-          type: string
           description: country_code from GET /api/v1/pricing/ for the doctor's location.
             Omit for India (INR).
-          pattern: ^[A-Za-z]{2}$
+          oneOf:
+          - type: string
+            pattern: ^[A-Za-z]{2}$
+          - type: string
+            maxLength: 0
         treatment_systems:
           type: array
           items:
@@ -6850,15 +6856,6 @@ components:
             format: uri
           description: Optional supporting documents; submit at most five files.
           maxItems: 5
-      required:
-      - consultation_category
-      - consultation_fee
-      - experience_years
-      - full_name
-      - phone_number
-      - qualification
-      - specialization
-      - treatment_systems
     DoctorAssignment:
       type: object
       properties:
@@ -7219,6 +7216,7 @@ components:
         experience_years:
           type: integer
           readOnly: true
+          nullable: true
         consultation_category:
           allOf:
           - $ref: '#/components/schemas/ConsultationCategoryEnum'
@@ -7231,12 +7229,14 @@ components:
         consultation_fee:
           type: integer
           readOnly: true
+          nullable: true
           description: Consultation fee in whole units of currency
         currency:
           type: string
           readOnly: true
         fee_display:
           type: string
+          nullable: true
           readOnly: true
           description: Specialist fee with currency symbol, e.g. "₹500"
         photo_url:
@@ -7468,14 +7468,10 @@ components:
             $ref: '#/components/schemas/HospitalApplicationDocument'
           readOnly: true
       required:
-      - city
-      - contact_person_name
       - created_at
       - documents
-      - facility_name
       - id
       - is_priority
-      - phone_number
       - status
     HospitalApplicationDocument:
       type: object
@@ -7538,11 +7534,6 @@ components:
             type: string
             format: uri
           description: Optional supporting documents; submit at most five files.
-      required:
-      - city
-      - contact_person_name
-      - facility_name
-      - phone_number
     KeyEnum:
       enum:
       - submitted

@@ -65,6 +65,25 @@ python manage.py runserver
 
 API root: `http://127.0.0.1:8000/api/v1/health/` · Admin: `http://127.0.0.1:8000/admin/`
 
+### Simplified partner registration
+
+The `/for-doctors` page currently shows only name, phone number and education for
+doctors, and facility name, contact person and phone number for hospitals/clinics/labs.
+Other input fields and their frontend submission logic are commented out for now;
+the visible fields retain their existing frontend required validation.
+
+All application fields are optional in the backend endpoints
+`POST /api/v1/doctors/applications/` and `POST /api/v1/hospitals/applications/`.
+Supplied values still undergo validation. Existing full submissions, photos and
+document uploads remain supported. Run `python manage.py migrate` when deploying
+this change, then rebuild the frontend.
+
+Omitted doctor experience and consultation fee are stored and returned as `null`,
+and an unspecified consultation category is an empty string. The featured-doctors
+endpoint also returns `fee_display: null` for an unspecified fee; clients must not
+display missing experience or invent a consultation price. Existing records keep
+their stored values. Staff still approve applications before they appear publicly.
+
 ### Patient mobile authentication
 
 Patient authentication uses **Gmail SMTP email OTP** or **Firebase Phone Auth**.

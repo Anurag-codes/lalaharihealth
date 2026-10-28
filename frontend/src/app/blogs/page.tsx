@@ -2,15 +2,27 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BlogCard } from "@/components/blogs/BlogCard";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { BlogApiError, getBlogs } from "@/lib/blogs";
 import { BlogSection } from "@/components/sections/BlogSection";
 
-export const metadata: Metadata = {
-  title: "Blogs | LalahariHealth",
-  description: "Read LalahariHealth articles and discover healthcare resources and videos.",
-};
+const BLOGS_TITLE = "Blogs | LalahariHealth";
+const BLOGS_DESCRIPTION = "Read LalahariHealth articles and discover healthcare resources and videos.";
+
+export async function generateMetadata({ searchParams }: {
+  searchParams: Promise<{ page?: string | string[] }>;
+}): Promise<Metadata> {
+  const { page } = await searchParams;
+  const pageNumber = typeof page === "string" ? Number(page) : 1;
+  const pagePath = Number.isSafeInteger(pageNumber) && pageNumber > 1 ? `/blogs?page=${pageNumber}` : "/blogs";
+  return {
+    title: BLOGS_TITLE,
+    description: BLOGS_DESCRIPTION,
+    alternates: { canonical: pagePath },
+  };
+}
 
 export default async function BlogsPage({ searchParams }: {
   searchParams: Promise<{ page?: string | string[] }>;
@@ -31,7 +43,10 @@ export default async function BlogsPage({ searchParams }: {
 
   return (
     <Container className="py-12 sm:py-20">
-      <Eyebrow>Insights and resources</Eyebrow>
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Blogs", href: "/blogs" }]} />
+      <div className="mt-6">
+        <Eyebrow>Insights and resources</Eyebrow>
+      </div>
       <h1 className="mt-5 font-heading text-3xl font-bold text-ink sm:text-5xl">Our blogs</h1>
       <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink/70 sm:text-lg">
         Explore our original articles alongside selected blogs and videos from around the web.

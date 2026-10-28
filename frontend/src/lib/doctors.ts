@@ -5,12 +5,12 @@ export type FeaturedDoctor = {
   name: string;
   qualification: string;
   specialization: string;
-  experience_years: number;
-  consultation_category: "general" | "specialist";
+  experience_years: number | null;
+  consultation_category: "general" | "specialist" | "";
   treatment_systems: string[];
-  consultation_fee: number;
+  consultation_fee: number | null;
   currency: string;
-  fee_display: string;
+  fee_display: string | null;
   photo_url: string | null;
 };
 
@@ -31,11 +31,11 @@ function isPhotoUrl(value: unknown): value is string | null {
 function isFeaturedDoctor(value: unknown): value is FeaturedDoctor {
   return isRecord(value) && Number.isSafeInteger(value.id) &&
     typeof value.name === "string" && typeof value.qualification === "string" &&
-    typeof value.specialization === "string" && Number.isSafeInteger(value.experience_years) &&
-    (value.consultation_category === "general" || value.consultation_category === "specialist") &&
+    typeof value.specialization === "string" && (value.experience_years === null || Number.isSafeInteger(value.experience_years)) &&
+    (value.consultation_category === "general" || value.consultation_category === "specialist" || value.consultation_category === "") &&
     Array.isArray(value.treatment_systems) && value.treatment_systems.every((item) => typeof item === "string") &&
-    typeof value.consultation_fee === "number" && typeof value.currency === "string" &&
-    typeof value.fee_display === "string" && isPhotoUrl(value.photo_url);
+    (value.consultation_fee === null || typeof value.consultation_fee === "number") && typeof value.currency === "string" &&
+    (value.fee_display === null || typeof value.fee_display === "string") && isPhotoUrl(value.photo_url);
 }
 
 // Approved doctors registered through /for-doctors. Returns [] when the API is

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Container } from "@/components/ui/Container";
 import { Eyebrow } from "@/components/ui/Eyebrow";
 import { GrievanceForm } from "@/components/sections/GrievanceForm";
@@ -6,12 +7,14 @@ import { GrievanceForm } from "@/components/sections/GrievanceForm";
 export const metadata: Metadata = {
   title: "Grievance Support | LalahariHealth",
   description: "Report a service, booking, billing or privacy concern to LalahariHealth.",
+  alternates: { canonical: "/grievance" },
 };
 
 export default function GrievancePage() {
   return (
     <Container className="py-12 sm:py-20">
-      <div className="max-w-3xl">
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Grievance Support", href: "/grievance" }]} />
+      <div className="mt-6 max-w-3xl">
         <Eyebrow>We are here to listen</Eyebrow>
         <h1 className="mt-5 font-heading text-3xl font-bold text-ink sm:text-4xl">Grievance Support</h1>
         <p className="mt-4 text-base leading-relaxed text-ink/75 sm:text-lg">

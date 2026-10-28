@@ -27,9 +27,10 @@ class DoctorApplicationCreateView(APIView):
         tags=['Doctors'],
         summary='Submit a doctor application',
         description=(
+            'All application fields are optional; omitted experience and consultation fee are stored as null. '
             'Submit multipart form data with up to five optional supporting documents and an optional `photo` '
             '(JPG, PNG or WEBP, up to 5 MB) that is shown on the website once staff approve the application. The fee is checked against the '
-            'pricing of country_code (GET /api/v1/pricing/; default India): general doctors use the country general fee, '
+            'pricing of country_code when both fee and category are supplied (GET /api/v1/pricing/; default India): general doctors use the country general fee, '
             'specialists a fee within the country range and step. The response includes the currency.'
         ),
         request=DoctorApplicationSubmissionSerializer,
@@ -62,7 +63,8 @@ FEATURED_DOCTOR_EXAMPLE = {
     description=(
         'Public. Doctors who registered through the For Doctors form and were marked Approved by staff in admin, '
         f'newest first, at most {MAX_FEATURED_DOCTORS}. Not paginated. `photo_url` is null when no photo was uploaded: '
-        'show a default image. General doctors (`consultation_category` general) charge the country general fee '
+        'show a default image. Missing experience, consultation fee and fee_display are null; an unset category is an empty string. '
+        'General doctors (`consultation_category` general) charge the country general fee '
         '(GET /api/v1/pricing/); specialists show `fee_display`. Contact details are never returned.'
     ),
     examples=[OpenApiExample('Approved doctors', response_only=True, value=[
