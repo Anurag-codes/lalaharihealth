@@ -1,6 +1,7 @@
 """Country pricing lookup: location -> country -> general physician fee in local currency."""
 import logging
 import threading
+from collections import Counter
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -58,6 +59,47 @@ def active_pricing(country_code):
 def pricing_for(country_code):
     """Active pricing for this country, else the default (India)."""
     return active_pricing(country_code) or default_pricing()
+
+
+def speciality_fee(speciality):
+    """Fixed INR fee for a speciality and where it came from.
+
+    The mode (most common value) of the consultation fees of active, verified doctors of this speciality; on a tie the
+    highest of the tied fees. With no such doctors, the fee stored on the speciality. Returns (fee, source) where
+    source is "mode" or "speciality_fee".
+    """
+    from apps.doctors.models import DoctorProfile
+
+    fees = Counter(
+        DoctorProfile.objects.filter(
+            speciality=speciality, is_active=True, verification_status=DoctorProfile.VerificationStatus.VERIFIED,
+            user__is_active=True, user__role='doctor', currency='INR', consultation_fee__gt=0,
+        ).values_list('consultation_fee', flat=True)
+    )
+    if not fees:
+        return speciality.fee, 'speciality_fee'
+    top = max(fees.values())
+    return max(fee for fee, count in fees.items() if count == top), 'mode'
+
+
+def consultation_fee_payload(speciality=None, country_code=None):
+    """Fixed fee for a booking category: a speciality, or general (None) in the given country."""
+    if speciality is not None:
+        fee, source = speciality_fee(speciality)
+        return {
+            'category': speciality.slug, 'speciality_id': speciality.pk, 'speciality_name': speciality.name,
+            'consultation_title': speciality.title, 'country_code': 'IN', 'fee': fee, 'currency': 'INR',
+            'currency_symbol': '\u20b9', 'fee_display': format_amount(fee, '\u20b9'), 'source': source,
+        }
+    from apps.consultations.models import GENERAL_CONSULTATION_TITLE
+
+    pricing = pricing_for(country_code)
+    return {
+        'category': 'general', 'speciality_id': None, 'speciality_name': None,
+        'consultation_title': GENERAL_CONSULTATION_TITLE, 'country_code': pricing.country_code,
+        'fee': pricing.general_fee, 'currency': pricing.currency, 'currency_symbol': pricing.currency_symbol,
+        'fee_display': format_amount(pricing.general_fee, pricing.currency_symbol), 'source': 'general_fee',
+    }
 
 
 _geocoder_lock = threading.Lock()

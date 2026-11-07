@@ -173,7 +173,9 @@ class FeaturedDoctorSerializer(serializers.ModelSerializer):
 
 class SpecialitySerializer(serializers.ModelSerializer):
     title = serializers.CharField(read_only=True, help_text='Consultation title shown on cards, e.g. "Skin Consultation"')
-    fee = serializers.IntegerField(read_only=True, help_text='INR rupees per consultation (all countries)')
+    fee = serializers.SerializerMethodField(
+        help_text='INR rupees per consultation (all countries): the most common fee of this speciality\'s verified doctors',
+    )
     currency = serializers.SerializerMethodField()
     fee_display = serializers.SerializerMethodField(help_text='e.g. "\u20b9400"')
 
@@ -182,10 +184,15 @@ class SpecialitySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'short_name', 'title', 'description', 'fee', 'currency', 'fee_display']
         read_only_fields = fields
 
+    def get_fee(self, obj) -> int:
+        from apps.pricing.service import speciality_fee
+
+        return speciality_fee(obj)[0]
+
     def get_currency(self, obj) -> str:
         return 'INR'
 
     def get_fee_display(self, obj) -> str:
         from apps.pricing.service import format_amount
 
-        return format_amount(obj.fee, '\u20b9')
+        return format_amount(self.get_fee(obj), '\u20b9')

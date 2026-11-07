@@ -298,18 +298,29 @@ Examples for every request and response are in Swagger under **Mobile intake**,
 | Select Patient (logged in) | `GET /api/v1/patients/booking-patients/` returns Myself, then family members. `POST /api/v1/consultations/` with `{"family_member_id": null or id, "mode": "video"}` fills in the details. A 400 that lists missing fields means the app should show Patient Details. "+ Add family member" uses `POST /api/v1/patients/family-members/`. |
 | Symptoms (Known Disease → Specific Type → Sub-condition/Variant) | `GET /api/v1/consultations/conditions/` returns the tree. Send `PUT /api/v1/consultations/{id}/history/` with `condition`, `condition_type`, `condition_variant`, `condition_details`, `duration_value`, `duration_unit`, `ongoing_medication` and `treatment_details`. The type and variant are required whenever that level has options. Manage the list in Django admin under Conditions / Condition types. |
 | Upload Documents | `POST /api/v1/consultations/{id}/documents/` (optional) |
-| Schedule Appointment | `GET /api/v1/appointments/slot-dates/?days=7` returns the date strip. `GET /api/v1/appointments/slots/?date=YYYY-MM-DD` returns the 15-minute times. "Request Appointment" only opens Case Preview. |
-| Case Preview | `GET /api/v1/consultations/{id}/preview/?slot_id=`. "Submit Case" sends `POST /api/v1/appointments/` with `{"consultation_id", "slot_id", "information_confirmed": true}`. This reserves the slot. If that doctor was just booked, it uses another doctor who is free at the same time. |
+| Schedule Appointment | `GET /api/v1/appointments/slot-dates/?days=7` returns the date strip. `GET /api/v1/appointments/slots/?date=YYYY-MM-DD` returns every 15-minute time from 08:00 AM to 11:45 PM (past times left out), for any category. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" only opens Case Preview. |
+| Case Preview | `GET /api/v1/consultations/{id}/preview/?starts_at=` (URL-encode the `+` of the offset). "Submit Case" sends `POST /api/v1/appointments/` with `{"consultation_id", "starts_at", "information_confirmed": true}`. This creates the appointment without a doctor and locks the fixed category fee. |
 | Checkout | `GET /api/v1/appointments/{id}/` returns `appointment_number`, `schedule_date`, `schedule_time` and `amount`. Then `POST /api/v1/payments/orders/` → Razorpay SDK → `POST /api/v1/payments/verify/`. |
 | Finding Your Doctor | Poll `GET /api/v1/appointments/{id}/`. `finding_doctor` means payment succeeded. `confirmed` adds `doctor_name`. |
 
-Verified doctors open their time from the doctor app:
+**Fixed fee per category.** `GET /api/v1/pricing/consultation-fee/?category=general` (optional `&country=US`) returns the
+general physician fee stored for the country. `?category=<speciality id or slug>` returns the specialist fee in INR: the
+mode (most common value) of the `consultation_fee` of that speciality's active, verified doctors, the highest one on a
+tie, or the speciality's own fee when it has no verified doctors yet. The same amount is shown in the speciality list and
+Case Preview, and is locked on Submit Case, so later fee changes do not affect submitted appointments.
+
+**Doctor assignment after payment.** Staff call `POST /api/v1/appointments/{id}/assign-doctor/` with `{"doctor_id"}` once
+the appointment is `finding_doctor`. Any active, verified doctor of the booking's category can be assigned (a general
+physician for general bookings, the same speciality for specialist bookings), whatever their own fee. A doctor who
+already has an appointment at that time is rejected.
+
+Verified doctors can still mark when they are free from the doctor app:
 `POST /api/v1/doctors/me/slots/` with `{"date": "2026-10-18", "start_time": "19:00"}`. This creates
 15-minute slots from that time until 23:45 (or until the optional `end_time`). Each slot holds one patient.
 `GET /api/v1/doctors/me/slots/?date=` lists the slots and shows which are booked, and
 `DELETE /api/v1/doctors/me/slots/{id}/` removes a slot that is not booked.
-Patients see each time once, as long as any verified doctor is free then. When staff assign a doctor after
-payment (`/api/v1/appointments/{id}/assign-doctor/`), the booking moves to that doctor's slot at the same time.
+Patients do not see these slots. When staff assign a doctor who has a slot at the appointment time, that slot is
+linked to the appointment and shows as booked in the doctor app.
 
 ### Home screen APIs
 
@@ -319,7 +330,7 @@ Examples are in Swagger under **Home**, **My Cases**, **Notifications** and **Ap
 | --- | --- |
 | Welcome Back, avatar, EN toggle, bell red dot, "Prefer to book by call?", Upcoming appointments, My Cases badge | `GET /api/v1/patients/home/`. Change the language with `PATCH /api/v1/patients/profile/` and `{"preferred_language": "hi"}`. |
 | General Physician → Book Appointment | The normal booking flow (fee from the country pricing table, target `DOCTOR_MATCH_TARGET_MINUTES`). |
-| Expert Care → Book Specialist | `GET /api/v1/doctors/specialities/`. Send `speciality` in `POST /api/v1/consultations/` and `speciality_id` to `slot-dates/` and `slots/`. The fee comes from the speciality. |
+| Expert Care → Book Specialist | `GET /api/v1/doctors/specialities/`. Send `speciality` in `POST /api/v1/consultations/`. The fee is the speciality's fixed fee (see `GET /api/v1/pricing/consultation-fee/`); times are the same as for general bookings. |
 | Bell / notification list | `GET /api/v1/notifications/` (`?unread=true`), `unread-count/`, `POST {id}/read/`, `POST read-all/` |
 | Push | After login, `POST /api/v1/notifications/devices/` with `{"token": "<FCM token>", "platform": "android"}`. On logout, `POST /api/v1/notifications/devices/remove/`. |
 | My Cases (Track history) | `GET /api/v1/patients/cases/?status=active` (or `closed`) and `GET /api/v1/patients/cases/{consultation_id}/`. Each case has `stage`, `next_action` and a 4-step `tracker`. |
@@ -332,9 +343,10 @@ Admins can send a broadcast from Django admin → Announcements → "Send now".
 Operations:
 
 - **Specialities.** Manage them in Django admin → Specialities. Cardiology, Orthopaedics and Dermatology are seeded as
-  *inactive* with a placeholder fee of ₹500. Set the real fee, then tick Active. Set each specialist's
-  **Speciality** on their Doctor profile. A doctor without one is a general physician. Staff can assign a doctor
-  only when the doctor's speciality matches the booking and their `consultation_fee` equals the fee paid.
+  *inactive* with a placeholder fee of ₹500. The speciality fee is only used until the speciality has verified
+  doctors; after that patients pay the most common fee among them. Set each specialist's
+  **Speciality** on their Doctor profile. A doctor without one is a general physician. Staff can assign any verified
+  doctor whose speciality matches the booking, whatever their own `consultation_fee`.
 - **Reminders.** Run `python manage.py send_appointment_reminders` every 5 minutes (cron or Task Scheduler).
   It notifies confirmed appointments starting within `APPOINTMENT_REMINDER_MINUTES`, once per appointment.
 - **Push.** Push uses the same `FIREBASE_*` service-account settings as phone login. Set
@@ -348,10 +360,11 @@ The general physician fee depends on the user's country. Rates are stored in the
 | --- | --- |
 | `GET /api/v1/pricing/?lat=28.61&lng=77.20` | Public. Finds the country offline from GPS coordinates (`reverse_geocode`, coordinates are not stored) and returns its pricing. |
 | `GET /api/v1/pricing/?country=US` | Same, but by ISO country code. With no parameters it returns the default (India). |
+| `GET /api/v1/pricing/consultation-fee/?category=` | Public. The fixed fee charged for a category: `general` (with optional `country`) or a speciality id/slug. |
 
 The response includes `country_code`, `currency`, `currency_symbol`, `general_fee`, `general_fee_display`, `general_doctor_payout_display` (75%), the specialist range, `source` (`location`/`country`/`default`) and `is_fallback`.
 
-- **App booking:** send the returned `country_code` in step 1 (`POST /api/v1/consultations/`). General bookings are charged that country's fee in its currency. Razorpay orders use minor units (cents, paise...), so enable international currencies in Razorpay. Specialist bookings always use the INR speciality fee.
+- **App booking:** send the returned `country_code` in step 1 (`POST /api/v1/consultations/`). General bookings are charged that country's fee in its currency. Razorpay orders use minor units (cents, paise...), so enable international currencies in Razorpay. Specialist bookings always use the INR speciality fee from `GET /api/v1/pricing/consultation-fee/`.
 - **Home screen:** `GET /api/v1/patients/home/?lat=&lng=` (or `?country=`) returns the localised `general_care` fee.
 - **Doctor applications:** the fee is validated against the pricing of `country_code`. A general doctor's fee must equal the general fee, and a specialist's fee must fall within min/max on the step.
 - **Website:** on load, the site asks for location ("Location is required to show you correct doctors of your area"). Every price is then shown in the visitor's currency. If permission is denied, ?200 is shown.

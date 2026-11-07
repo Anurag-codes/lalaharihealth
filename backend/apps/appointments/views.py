@@ -1,4 +1,4 @@
-from datetime import time, timedelta
+from datetime import timedelta
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -13,15 +13,15 @@ from apps.doctors.models import DoctorProfile
 from apps.notifications.models import Notification
 from apps.notifications.service import notify_appointment
 from apps.payments.models import Payment
-from .availability import bookable_slots, free_slots_for_date, in_booking_hours, local_datetime, lock_free_slot
+from .availability import booking_times_for_date
 from .models import Appointment, AppointmentSlot
 from .serializers import (
 	AppointmentRequestSerializer, AppointmentSerializer, AppointmentSlotSerializer,
-	DoctorAssignmentSerializer, PatientSlotQuerySerializer, SlotDateSerializer, SlotDatesQuerySerializer,
+	DoctorAssignmentSerializer, SlotDateSerializer, SlotDatesQuerySerializer, SlotQuerySerializer,
 )
 
 APPOINTMENT_EXAMPLE = {
-	'id': 12345, 'appointment_number': 'APT-12345', 'consultation': 42, 'slot': 318,
+	'id': 12345, 'appointment_number': 'APT-12345', 'consultation': 42, 'slot': None,
 	'slot_time': '2026-10-18T10:00:00+05:30', 'schedule_date': '2026-10-18', 'schedule_time': '10:00 AM',
 	'status': 'awaiting_payment', 'status_label': 'Awaiting payment', 'patient_name': 'Rahul Sharma',
 	'consultation_title': 'General Consultation', 'speciality': None,
@@ -36,23 +36,25 @@ class SlotsView(generics.GenericAPIView):
 	pagination_class = None
 
 	@extend_schema(
-		tags=['Mobile scheduling'], summary='Schedule Appointment: free time slots for a date',
+		tags=['Mobile scheduling'], summary='Schedule Appointment: selectable times for a date',
 		description=(
-			'Times are 15-minute slots opened by verified doctors from the doctor app, between 08:00 and 23:59 India time. '
-			'Each time appears once; `remaining_capacity` is how many doctors are still free then. '
-			'Tapping "Request Appointment" only opens Case Preview - nothing is reserved until "Submit Case".'
+			'Every 15-minute time from 08:00 AM to 11:45 PM India time on that date, for any category. Past times are left out; '
+			'dates before today or more than 30 days ahead return an empty list. The patient only picks a preferred time - '
+			'no doctor is chosen; staff assign a doctor after payment. '
+			'Tapping "Request Appointment" only opens Case Preview with this `starts_at` - nothing is reserved until "Submit Case".'
 		),
-		parameters=[PatientSlotQuerySerializer], responses=AppointmentSlotSerializer(many=True),
-		examples=[OpenApiExample('Slots', response_only=True, value=[
-			{'id': 318, 'starts_at': '2026-10-18T08:00:00+05:30', 'time_display': '08:00 AM', 'remaining_capacity': 2},
-			{'id': 319, 'starts_at': '2026-10-18T08:15:00+05:30', 'time_display': '08:15 AM', 'remaining_capacity': 1},
+		parameters=[SlotQuerySerializer], responses=AppointmentSlotSerializer(many=True),
+		examples=[OpenApiExample('Times', response_only=True, value=[
+			{'starts_at': '2026-10-18T08:00:00+05:30', 'time_display': '08:00 AM'},
+			{'starts_at': '2026-10-18T08:15:00+05:30', 'time_display': '08:15 AM'},
+			{'starts_at': '2026-10-18T08:30:00+05:30', 'time_display': '08:30 AM'},
 		])],
 	)
 	def get(self, request):
-		query = PatientSlotQuerySerializer(data=request.query_params)
+		query = SlotQuerySerializer(data=request.query_params)
 		query.is_valid(raise_exception=True)
-		data = query.validated_data
-		return Response(self.get_serializer(free_slots_for_date(data['date'], data.get('speciality_id')), many=True).data)
+		times = booking_times_for_date(query.validated_data['date'])
+		return Response(self.get_serializer([{'starts_at': starts_at} for starts_at in times], many=True).data)
 
 
 class SlotDatesView(generics.GenericAPIView):
@@ -62,12 +64,15 @@ class SlotDatesView(generics.GenericAPIView):
 
 	@extend_schema(
 		tags=['Mobile scheduling'], summary='Schedule Appointment: date strip (Today and the next days)',
-		description='Returns one entry per day starting today with the number of free times, so the app can grey out days with none.',
+		description=(
+			'One entry per day starting today with the number of selectable times (64 for a full day, fewer today as times pass), '
+			'so the app can grey out days with none.'
+		),
 		parameters=[SlotDatesQuerySerializer], responses=SlotDateSerializer(many=True),
 		examples=[OpenApiExample('Date strip', response_only=True, value=[
-			{'date': '2026-10-16', 'day_label': 'Today', 'day_number': 16, 'available_slot_count': 6},
-			{'date': '2026-10-17', 'day_label': 'Sat', 'day_number': 17, 'available_slot_count': 0},
-			{'date': '2026-10-18', 'day_label': 'Sun', 'day_number': 18, 'available_slot_count': 24},
+			{'date': '2026-10-16', 'day_label': 'Today', 'day_number': 16, 'available_slot_count': 18},
+			{'date': '2026-10-17', 'day_label': 'Sat', 'day_number': 17, 'available_slot_count': 64},
+			{'date': '2026-10-18', 'day_label': 'Sun', 'day_number': 18, 'available_slot_count': 64},
 		])],
 	)
 	def get(self, request):
@@ -75,20 +80,12 @@ class SlotDatesView(generics.GenericAPIView):
 		query.is_valid(raise_exception=True)
 		days = query.validated_data.get('days') or 7
 		today = timezone.localdate()
-		counts = {}
-		start = local_datetime(today, time(0))
-		slots = bookable_slots(query.validated_data.get('speciality_id')).filter(starts_at__lt=start + timedelta(days=days))
-		for slot in slots:
-			if slot.occupied >= slot.capacity or not in_booking_hours(slot.starts_at):
-				continue
-			day = timezone.localtime(slot.starts_at).date()
-			counts.setdefault(day, set()).add(slot.starts_at)
 		result = []
 		for offset in range(days):
 			day = today + timedelta(days=offset)
 			result.append({
 				'date': day, 'day_label': 'Today' if offset == 0 else day.strftime('%a'),
-				'day_number': day.day, 'available_slot_count': len(counts.get(day, ())),
+				'day_number': day.day, 'available_slot_count': len(booking_times_for_date(day)),
 			})
 		return Response(self.get_serializer(result, many=True).data)
 
@@ -98,16 +95,23 @@ class AppointmentListCreateView(generics.GenericAPIView):
 	serializer_class = AppointmentRequestSerializer
 
 	@extend_schema(
-		tags=['Mobile scheduling'], summary='Submit Case: reserve the selected slot',
+		tags=['Mobile scheduling'], summary='Submit Case: create the appointment at the chosen time',
 		description=(
 			'Call from Case Preview after the patient ticks "I confirm the information provided above is correct." '
-			'`information_confirmed` must be true. If the exact slot was just taken but another doctor is free at the same time, '
-			'that slot is used instead. Fee is server-set: the general physician fee of the step 1 country_code (default INR 200), or the INR speciality fee. Repeating the same request returns the existing appointment. '
-			'Next: create a payment order for the returned appointment (Checkout).'
+			'`information_confirmed` must be true. `starts_at` is the time picked on Schedule Appointment: a future 15-minute '
+			'time from 08:00 AM to 11:45 PM India time within 30 days. No doctor is chosen here.\n\n'
+			'The fee is fixed and server-set (same as `GET /api/v1/pricing/consultation-fee/`): the general physician fee of the '
+			'step 1 country_code (default INR 200), or for a speciality the INR mode of its verified doctors\' fees. It is locked '
+			'now and does not change later. Repeating the same request returns the existing appointment.\n\n'
+			'Next: create a payment order for the returned appointment (Checkout). After payment the status is `finding_doctor` '
+			'until staff assign a doctor (`confirmed`).'
 		),
 		request=AppointmentRequestSerializer, responses={201: AppointmentSerializer, 200: AppointmentSerializer},
 		examples=[
-			OpenApiExample('Submit case', request_only=True, value={'consultation_id': 42, 'slot_id': 318, 'information_confirmed': True}),
+			OpenApiExample(
+				'Submit case', request_only=True,
+				value={'consultation_id': 42, 'starts_at': '2026-10-18T10:00:00+05:30', 'information_confirmed': True},
+			),
 			OpenApiExample('Appointment created', response_only=True, status_codes=['201'], value=APPOINTMENT_EXAMPLE),
 			OpenApiExample('Same request repeated: existing appointment', response_only=True, status_codes=['200'], value=APPOINTMENT_EXAMPLE),
 		],
@@ -116,34 +120,29 @@ class AppointmentListCreateView(generics.GenericAPIView):
 		serializer = self.get_serializer(data=request.data)
 		serializer.is_valid(raise_exception=True)
 		data = serializer.validated_data
+		starts_at = data['starts_at']
 		with transaction.atomic():
 			consultation = get_object_or_404(Consultation.objects.select_for_update(), pk=data['consultation_id'], patient=request.user)
 			existing = Appointment.objects.filter(consultation=consultation).first()
 			if existing:
-				if existing.slot_id != data['slot_id'] and (not existing.slot or existing.slot_time != _slot_time(data['slot_id'])):
+				if existing.slot_time != starts_at:
 					raise serializers.ValidationError('This consultation already has an appointment.')
 				return Response(AppointmentSerializer(existing).data)
 			if consultation.status != Consultation.Status.DRAFT or not consultation.history_completed:
 				raise serializers.ValidationError('Complete the draft health-history step before scheduling.')
 			if not all([consultation.patient_name, consultation.patient_age is not None, consultation.patient_gender, consultation.patient_phone]):
 				raise serializers.ValidationError('Complete patient details before scheduling.')
-			selected = get_object_or_404(AppointmentSlot, pk=data['slot_id'], is_active=True)
-			if selected.starts_at <= timezone.now() or not in_booking_hours(selected.starts_at):
-				raise serializers.ValidationError('Select a future slot between 08:00 and 23:59 India time.')
 			if consultation.speciality_id and not consultation.speciality.is_active:
 				raise serializers.ValidationError('This speciality is not available right now. Please choose another.')
-			slot = lock_free_slot(selected.starts_at, preferred_id=selected.pk, speciality_id=consultation.speciality_id)
-			if slot is None:
-				raise serializers.ValidationError('This slot is no longer available. Please choose another time.')
 			now = timezone.now()
 			consultation.status = Consultation.Status.REQUESTED
 			consultation.fee_charged = consultation.expected_fee
 			consultation.currency = consultation.expected_currency
-			consultation.scheduled_at = slot.starts_at
+			consultation.scheduled_at = starts_at
 			consultation.information_confirmed_at = now
 			consultation.save(update_fields=['status', 'fee_charged', 'currency', 'scheduled_at', 'information_confirmed_at'])
 			appointment = Appointment.objects.create(
-				consultation=consultation, patient=request.user, slot=slot, slot_time=slot.starts_at,
+				consultation=consultation, patient=request.user, slot=None, slot_time=starts_at,
 				status=Appointment.Status.AWAITING_PAYMENT,
 			)
 		return Response(AppointmentSerializer(appointment).data, status=201)
@@ -153,10 +152,6 @@ class AppointmentListCreateView(generics.GenericAPIView):
 		queryset = Appointment.objects.filter(patient=request.user).select_related('consultation', 'doctor__doctor_profile').order_by('-created_at')
 		page = self.paginate_queryset(queryset)
 		return self.get_paginated_response(AppointmentSerializer(page, many=True).data)
-
-
-def _slot_time(slot_id):
-	return AppointmentSlot.objects.filter(pk=slot_id).values_list('starts_at', flat=True).first()
 
 
 class AppointmentDetailView(generics.GenericAPIView):
@@ -185,9 +180,10 @@ class AssignDoctorView(generics.GenericAPIView):
 	@extend_schema(
 		tags=['Staff matching'], summary='Staff only: assign a verified doctor to a paid appointment',
 		description=(
-			"The doctor must be a general physician for general bookings, or of the booking's speciality with "
-			"consultation_fee and currency equal to the fee paid. "
-			"If the doctor differs from the slot's doctor, the booking moves to that doctor's free slot at the same time."
+			"The doctor must be active and verified, and a general physician for general bookings or of the booking's "
+			"speciality. The doctor's own consultation_fee does not matter: the patient paid the fixed category fee. "
+			'400 if the doctor already has another appointment at the same time. If the doctor opened an availability slot '
+			'at that time in the doctor app, it is linked (shown as booked there).'
 		),
 		responses=AppointmentSerializer,
 		examples=[OpenApiExample('Assign', request_only=True, value={'doctor_id': 7})],
@@ -206,24 +202,18 @@ class AssignDoctorView(generics.GenericAPIView):
 				is_active=True, user__is_active=True, user__role='doctor', verification_status='verified',
 				speciality_id=consultation.speciality_id,
 			)
-			if consultation.speciality_id:
-				# General physician fees are fixed per country, so only specialists must match the fee paid.
-				doctors = doctors.filter(consultation_fee=consultation.fee_charged, currency=consultation.currency)
 			profile = get_object_or_404(doctors, user_id=serializer.validated_data['doctor_id'])
 			if Appointment.objects.filter(doctor=profile.user, slot_time=appointment.slot_time).exclude(pk=appointment.pk).exclude(status=Appointment.Status.CANCELLED).exists():
 				raise serializers.ValidationError('Doctor already has an appointment at this time.')
-			update_fields = ['doctor']
-			current = appointment.slot
-			if current is not None and current.doctor_id is not None and current.doctor_id != profile.user_id:
-				target = AppointmentSlot.objects.select_for_update().filter(
-					doctor=profile.user, starts_at=appointment.slot_time, is_active=True,
-				).first()
-				if target is None or target.appointments.exclude(status=Appointment.Status.CANCELLED).count() >= target.capacity:
-					raise serializers.ValidationError('This doctor has no free slot at the appointment time.')
-				appointment.slot = target
-				update_fields.append('slot')
+			# Link the doctor's own free slot at this time, if any, so the doctor app shows it as booked.
+			slot = AppointmentSlot.objects.select_for_update().filter(
+				doctor=profile.user, starts_at=appointment.slot_time, is_active=True,
+			).first()
+			if slot is not None and slot.appointments.exclude(pk=appointment.pk).exclude(status=Appointment.Status.CANCELLED).count() >= slot.capacity:
+				slot = None
+			appointment.slot = slot
 			appointment.doctor = profile.user
-			update_fields += appointment.set_status(Appointment.Status.CONFIRMED)
+			update_fields = ['doctor', 'slot'] + appointment.set_status(Appointment.Status.CONFIRMED)
 			appointment.save(update_fields=update_fields)
 			appointment.consultation.doctor = profile.user
 			appointment.consultation.save(update_fields=['doctor'])

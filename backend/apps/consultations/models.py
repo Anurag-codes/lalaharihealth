@@ -103,8 +103,12 @@ class Consultation(models.Model):
 
     @property
     def expected_fee(self):
-        """Speciality fee (always INR) or the general physician fee of the booking country."""
-        return self.speciality.fee if self.speciality_id else self.pricing.general_fee
+        """Specialist: the speciality's fixed INR fee (mode of its doctors' fees). General: the booking country's fee."""
+        if self.speciality_id:
+            from apps.pricing.service import speciality_fee
+
+            return speciality_fee(self.speciality)[0]
+        return self.pricing.general_fee
 
     @property
     def expected_currency(self):

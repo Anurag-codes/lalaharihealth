@@ -1,7 +1,9 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from .availability import BOOKING_WINDOW_DAYS, DAY_START, LAST_SLOT_START, SLOT_MINUTES, display_date, display_time
+from .availability import (
+    BOOKING_WINDOW_DAYS, DAY_START, LAST_SLOT_START, SLOT_MINUTES, booking_time_error, display_date, display_time,
+)
 from .models import Appointment, AppointmentSlot
 
 
@@ -9,23 +11,13 @@ class SlotQuerySerializer(serializers.Serializer):
     date = serializers.DateField(help_text='Local India date, YYYY-MM-DD')
 
 
-SPECIALITY_QUERY_HELP = 'Speciality of the booking (Book Specialist). Omit for a general physician.'
-
-
-class PatientSlotQuerySerializer(SlotQuerySerializer):
-    speciality_id = serializers.IntegerField(min_value=1, required=False, help_text=SPECIALITY_QUERY_HELP)
-
-
 class SlotDatesQuerySerializer(serializers.Serializer):
     days = serializers.IntegerField(min_value=1, max_value=BOOKING_WINDOW_DAYS, default=7, required=False)
-    speciality_id = serializers.IntegerField(min_value=1, required=False, help_text=SPECIALITY_QUERY_HELP)
 
 
 class AppointmentSlotSerializer(serializers.Serializer):
-    id = serializers.IntegerField(help_text='Send this as slot_id when submitting the case')
-    starts_at = serializers.DateTimeField()
+    starts_at = serializers.DateTimeField(help_text='Send this as starts_at to Case Preview and Submit Case')
     time_display = serializers.SerializerMethodField(help_text='e.g. 07:00 PM')
-    remaining_capacity = serializers.IntegerField(help_text='Number of doctors still free at this time')
 
     def get_time_display(self, obj) -> str:
         return display_time(obj['starts_at'])
@@ -35,12 +27,26 @@ class SlotDateSerializer(serializers.Serializer):
     date = serializers.DateField()
     day_label = serializers.CharField(help_text='"Today" or a short weekday such as "Mon"')
     day_number = serializers.IntegerField()
-    available_slot_count = serializers.IntegerField()
+    available_slot_count = serializers.IntegerField(help_text='Number of times still selectable that day')
+
+
+class BookingTimeField(serializers.DateTimeField):
+    """A preferred appointment start time: future, 15-minute aligned, 08:00-23:45 India time, within the booking window."""
+
+    def to_internal_value(self, value):
+        starts_at = super().to_internal_value(value)
+        error = booking_time_error(starts_at)
+        if error:
+            raise serializers.ValidationError(error)
+        return starts_at
 
 
 class AppointmentRequestSerializer(serializers.Serializer):
     consultation_id = serializers.IntegerField(min_value=1)
-    slot_id = serializers.IntegerField(min_value=1)
+    starts_at = BookingTimeField(
+        help_text='Preferred time chosen on Schedule Appointment (a starts_at from GET /api/v1/appointments/slots/), '
+        'e.g. 2026-10-18T19:00:00+05:30',
+    )
     information_confirmed = serializers.BooleanField(
         help_text='The "I confirm the information provided above is correct." tick on Case Preview. Must be true.',
     )
@@ -82,6 +88,11 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'amount', 'currency', 'payment_status', 'created_at',
         ]
         read_only_fields = fields
+        extra_kwargs = {
+            'slot': {'help_text': 'The assigned doctor\'s availability slot at this time, if they opened one; null before a doctor is assigned'},
+            'slot_time': {'help_text': 'Appointment time chosen by the patient'},
+            'doctor': {'help_text': 'Assigned by staff after payment; null until then'},
+        }
 
     def get_appointment_number(self, obj) -> str:
         return f'APT-{obj.pk:05d}'

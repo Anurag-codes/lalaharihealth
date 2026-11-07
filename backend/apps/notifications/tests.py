@@ -43,8 +43,11 @@ class HomeTestBase(APITestCase):
         )
         return doctor
 
+    def at(self, hour, minute=0, day=None):
+        return local_datetime(day or self.day, time(hour, minute))
+
     def slot(self, doctor, hour, minute=0, day=None):
-        return AppointmentSlot.objects.create(doctor=doctor, starts_at=local_datetime(day or self.day, time(hour, minute)))
+        return AppointmentSlot.objects.create(doctor=doctor, starts_at=self.at(hour, minute, day))
 
     def draft(self, speciality=None, history=True):
         self.client.force_authenticate(self.patient)
@@ -62,15 +65,16 @@ class HomeTestBase(APITestCase):
             self.assertEqual(response.status_code, 200, response.data)
         return consultation_id
 
-    def submit(self, consultation_id, slot):
+    def submit(self, consultation_id, starts_at):
         self.client.force_authenticate(self.patient)
         return self.client.post(
-            '/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': slot.pk, 'information_confirmed': True},
+            '/api/v1/appointments/',
+            {'consultation_id': consultation_id, 'starts_at': starts_at.isoformat(), 'information_confirmed': True},
             format='json',
         )
 
-    def book_and_pay(self, speciality=None, doctor=None, hour=10):
-        response = self.submit(self.draft(speciality), self.slot(doctor or self.doctor, hour))
+    def book_and_pay(self, speciality=None, hour=10):
+        response = self.submit(self.draft(speciality), self.at(hour))
         self.assertEqual(response.status_code, 201, response.data)
         appointment = Appointment.objects.get(pk=response.data['id'])
         fee = appointment.consultation.fee_charged
@@ -131,7 +135,7 @@ class NotificationEventTests(HomeTestBase):
         from django.contrib.admin.sites import site
         from django.test import RequestFactory
 
-        response = self.submit(self.draft(), self.slot(self.doctor, 11))
+        response = self.submit(self.draft(), self.at(11))
         appointment = Appointment.objects.get(pk=response.data['id'])
         model_admin = site._registry[Appointment]
         request = RequestFactory().post('/')
@@ -234,39 +238,52 @@ class SpecialityBookingTests(HomeTestBase):
         self.assertIn('Dermatology (test)', names)
         self.assertNotIn('Hidden', names)
 
-    def test_specialist_booking_uses_speciality_fee_slots_and_doctors(self):
-        dermatologist = self.make_doctor('derm', speciality=self.derma, fee=400)
-        general_slot = self.slot(self.doctor, 10)
-        derm_slot = self.slot(dermatologist, 11)
-        self.client.force_authenticate(self.patient)
-        day = self.day.isoformat()
-        general = self.client.get('/api/v1/appointments/slots/', {'date': day}).data
-        special = self.client.get('/api/v1/appointments/slots/', {'date': day, 'speciality_id': self.derma.pk}).data
-        self.assertEqual([row['id'] for row in general], [general_slot.pk])
-        self.assertEqual([row['id'] for row in special], [derm_slot.pk])
-        counts = {
-            row['date']: row['available_slot_count']
-            for row in self.client.get('/api/v1/appointments/slot-dates/', {'speciality_id': self.derma.pk}).data
-        }
-        self.assertEqual(counts[day], 1)
-        general_counts = {row['date']: row['available_slot_count'] for row in self.client.get('/api/v1/appointments/slot-dates/').data}
-        self.assertEqual(general_counts[day], 1)
-
+    def test_specialist_fee_is_mode_of_verified_doctor_fees_and_locked_at_submit(self):
+        # No dermatologists yet: the fee stored on the speciality.
         consultation_id = self.draft(self.derma)
-        self.assertEqual(self.submit(consultation_id, general_slot).status_code, 400)
-        preview = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/', {'slot_id': derm_slot.pk}).data
-        self.assertEqual((preview['fee'], preview['consultation_title']), (400, 'Skin Consultation'))
-        response = self.submit(consultation_id, derm_slot)
-        self.assertEqual(response.status_code, 201, response.data)
-        self.assertEqual((response.data['amount'], response.data['consultation_title']), (400, 'Skin Consultation'))
-        self.assertEqual(response.data['speciality'], 'Dermatology (test)')
+        preview = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/', {'starts_at': self.at(11).isoformat()}).data
+        self.assertEqual((preview['fee'], preview['currency'], preview['consultation_title']), (400, 'INR', 'Skin Consultation'))
 
-    def test_assign_requires_matching_speciality(self):
-        appointment = self.book_and_pay()
-        dermatologist = self.make_doctor('derm', speciality=self.derma, fee=200)
-        self.slot(dermatologist, 10)
-        self.assertEqual(self.assign(appointment, dermatologist).status_code, 404)
-        self.assertEqual(self.assign(appointment, self.doctor).status_code, 200)
+        for index, fee in enumerate([500, 500, 700, 300]):
+            self.make_doctor(f'derm{index}', speciality=self.derma, fee=fee)
+        pending = self.make_doctor('derm-pending', speciality=self.derma, fee=900)
+        DoctorProfile.objects.filter(user=pending).update(verification_status='pending')
+        for index in range(3):
+            self.make_doctor(f'derm-inactive{index}', speciality=self.derma, fee=800)
+        DoctorProfile.objects.filter(user__username__startswith='derm-inactive').update(is_active=False)
+        self.make_doctor('general-expensive', fee=600)
+
+        self.client.force_authenticate(None)
+        listed = next(row for row in self.client.get('/api/v1/doctors/specialities/').data if row['id'] == self.derma.pk)
+        self.assertEqual((listed['fee'], listed['fee_display']), (500, '\u20b9500'))
+        self.client.force_authenticate(self.patient)
+        self.assertEqual(self.client.get(f'/api/v1/consultations/{consultation_id}/').data['fee'], 500)
+        response = self.submit(consultation_id, self.at(11))
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual((response.data['amount'], response.data['currency']), (500, 'INR'))
+        self.assertEqual((response.data['speciality'], response.data['consultation_title']), ('Dermatology (test)', 'Skin Consultation'))
+        self.assertIsNone(response.data['doctor'])
+
+        # Later fee changes do not alter an appointment that was already submitted.
+        DoctorProfile.objects.filter(speciality=self.derma).update(consultation_fee=1000)
+        self.assertEqual(Consultation.objects.get(pk=consultation_id).fee_charged, 500)
+        self.assertEqual(self.client.get(f'/api/v1/appointments/{response.data["id"]}/').data['amount'], 500)
+        self.assertEqual(self.client.get(f'/api/v1/consultations/{consultation_id}/preview/').data['fee'], 500)
+
+    def test_assign_requires_matching_speciality_but_not_fee(self):
+        general = self.book_and_pay()
+        dermatologist = self.make_doctor('derm', speciality=self.derma, fee=900)
+        self.assertEqual(self.assign(general, dermatologist).status_code, 404)
+        self.assertEqual(self.assign(general, self.doctor).status_code, 200)
+
+        self.make_doctor('derm2', speciality=self.derma, fee=400)
+        self.make_doctor('derm3', speciality=self.derma, fee=400)
+        special = self.book_and_pay(speciality=self.derma, hour=12)
+        self.assertEqual(special.consultation.fee_charged, 400)
+        self.assertEqual(self.assign(special, self.doctor).status_code, 404)
+        response = self.assign(special, dermatologist)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual((response.data['status'], response.data['amount']), ('confirmed', 400))
 
 
 class HomeAndCasesTests(HomeTestBase):
@@ -274,8 +291,8 @@ class HomeAndCasesTests(HomeTestBase):
         Notification.objects.create(user=self.patient, kind='announcement', title='Hi', body='There')
         confirmed = self.book_and_pay(hour=10)
         self.assign(confirmed, self.doctor)
-        dermatologist = self.make_doctor('derm', speciality=self.derma, fee=400)
-        self.book_and_pay(speciality=self.derma, doctor=dermatologist, hour=12)
+        self.make_doctor('derm', speciality=self.derma, fee=400)
+        self.book_and_pay(speciality=self.derma, hour=12)
         self.draft()
 
         self.client.force_authenticate(self.patient)
@@ -299,7 +316,7 @@ class HomeAndCasesTests(HomeTestBase):
     def test_cases_tracker_and_filters(self):
         paid = self.book_and_pay()
         draft_id = self.draft(history=False)
-        unpaid = self.submit(self.draft(), self.slot(self.doctor, 13)).data
+        unpaid = self.submit(self.draft(), self.at(13)).data
         done = self.book_and_pay(hour=14)
         Appointment.objects.filter(pk=done.pk).update(status='completed', completed_at=timezone.now())
 

@@ -404,7 +404,6 @@ class CasePreviewPatientSerializer(serializers.Serializer):
 
 
 class CasePreviewScheduleSerializer(serializers.Serializer):
-    slot_id = serializers.IntegerField(allow_null=True)
     starts_at = serializers.DateTimeField(allow_null=True)
     date_display = serializers.CharField(help_text='e.g. 18 Oct 2026')
     time_display = serializers.CharField(help_text='e.g. 07:00 PM')

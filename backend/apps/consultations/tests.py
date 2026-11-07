@@ -13,7 +13,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from apps.appointments.models import Appointment, AppointmentSlot
+from apps.appointments.models import Appointment
 from apps.doctors.models import DoctorProfile
 from apps.payments.models import Payment
 from .models import Consultation, ConsultationDocument
@@ -33,8 +33,7 @@ class MobileConsultationFlowTests(APITestCase):
 			'patient_gender': 'female', 'patient_phone': '9876543210', 'mode': 'audio',
 		}
 		self.history = {'duration_value': 5, 'duration_unit': 'days', 'ongoing_medication': False}
-		starts_at = (timezone.localtime() + timedelta(days=2)).replace(hour=13, minute=0, second=0, microsecond=0)
-		self.slot = AppointmentSlot.objects.create(starts_at=starts_at)
+		self.starts_at = (timezone.localtime() + timedelta(days=2)).replace(hour=13, minute=0, second=0, microsecond=0)
 		self.storage_directory = tempfile.TemporaryDirectory()
 		self.addCleanup(self.storage_directory.cleanup)
 		storage_patch = patch.object(
@@ -56,9 +55,13 @@ class MobileConsultationFlowTests(APITestCase):
 		self.assertEqual(response.status_code, 200, response.data)
 		return consultation_id
 
+	def submit(self, consultation_id, starts_at=None):
+		starts_at = starts_at or self.starts_at
+		return self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'starts_at': starts_at.isoformat(), 'information_confirmed': True}, format='json')
+
 	def book(self):
 		consultation_id = self.create_draft()
-		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
+		response = self.submit(consultation_id)
 		self.assertEqual(response.status_code, 201, response.data)
 		return response.data
 
@@ -93,31 +96,29 @@ class MobileConsultationFlowTests(APITestCase):
 		self.assertEqual(appointment['currency'], 'INR')
 		self.assertEqual(appointment['status'], 'awaiting_payment')
 		self.assertIsNone(appointment['doctor'])
-		repeated = self.client.post('/api/v1/appointments/', {'consultation_id': appointment['consultation'], 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
+		repeated = self.submit(appointment['consultation'])
 		self.assertEqual(repeated.status_code, 200)
 		self.assertEqual(repeated.data['id'], appointment['id'])
 		self.assertEqual(Appointment.objects.count(), 1)
 
 	def test_draft_requires_history_before_booking(self):
 		draft = self.client.post('/api/v1/consultations/', self.patient_details).data
-		response = self.client.post('/api/v1/appointments/', {'consultation_id': draft['id'], 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
+		response = self.submit(draft['id'])
 		self.assertEqual(response.status_code, 400)
 
-	def test_full_slot_is_hidden_and_rejected(self):
+	def test_booked_time_stays_open_for_other_patients(self):
 		self.book()
-		response = self.client.get('/api/v1/appointments/slots/', {'date': timezone.localdate(self.slot.starts_at).isoformat()})
-		self.assertEqual(response.data, [])
+		response = self.client.get('/api/v1/appointments/slots/', {'date': timezone.localdate(self.starts_at).isoformat()})
+		self.assertIn('01:00 PM', [item['time_display'] for item in response.data])
 		self.client.force_authenticate(self.other)
-		consultation_id = self.create_draft()
-		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
-		self.assertEqual(response.status_code, 400)
+		self.assertEqual(self.submit(self.create_draft()).status_code, 201)
 
-	def test_past_slot_rejected(self):
-		self.slot.starts_at = timezone.now() - timedelta(hours=1)
-		self.slot.save()
+	def test_past_time_rejected(self):
 		consultation_id = self.create_draft()
-		response = self.client.post('/api/v1/appointments/', {'consultation_id': consultation_id, 'slot_id': self.slot.pk, 'information_confirmed': True}, format='json')
+		past = (timezone.localtime() - timedelta(days=1)).replace(hour=13, minute=0, second=0, microsecond=0)
+		response = self.submit(consultation_id, past)
 		self.assertEqual(response.status_code, 400)
+		self.assertIn('starts_at', response.data)
 
 	def test_cross_account_access_is_hidden(self):
 		appointment = self.book()

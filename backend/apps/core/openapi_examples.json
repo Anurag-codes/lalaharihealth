@@ -435,14 +435,14 @@
   "status": 201,
   "request": {
    "consultation_id": 1,
-   "slot_id": 1,
+   "starts_at": "2026-10-20T10:00:00+05:30",
    "information_confirmed": true
   },
   "response": {
    "id": 1,
    "appointment_number": "APT-00001",
    "consultation": 1,
-   "slot": 1,
+   "slot": null,
    "slot_time": "2026-10-20T10:00:00+05:30",
    "schedule_date": "2026-10-20",
    "schedule_time": "10:00 AM",
@@ -463,8 +463,8 @@
   },
   "errors": {
    "400": {
-    "information_confirmed": [
-     "Please confirm the information is correct."
+    "starts_at": [
+     "This time has passed. Please choose a future time."
     ]
    }
   }
@@ -499,7 +499,7 @@
   },
   "errors": {
    "400": [
-    "This doctor has no free slot at the appointment time."
+    "Doctor already has an appointment at this time."
    ],
    "403": {
     "detail": "You do not have permission to perform this action."
@@ -513,10 +513,16 @@
   "status": 200,
   "response": [
    {
-    "id": 1,
-    "starts_at": "2026-10-20T10:00:00+05:30",
-    "time_display": "10:00 AM",
-    "remaining_capacity": 1
+    "starts_at": "2026-10-20T08:00:00+05:30",
+    "time_display": "08:00 AM"
+   },
+   {
+    "starts_at": "2026-10-20T08:15:00+05:30",
+    "time_display": "08:15 AM"
+   },
+   {
+    "starts_at": "2026-10-20T08:30:00+05:30",
+    "time_display": "08:30 AM"
    }
   ]
  },
@@ -543,7 +549,6 @@
    "treatment_details": "",
    "mode": "video",
    "schedule": {
-    "slot_id": 1,
     "starts_at": "2026-10-20T19:00:00+05:30",
     "date_display": "20 Oct 2026",
     "time_display": "07:00 PM",
@@ -713,19 +718,19 @@
     "date": "2026-10-18",
     "day_label": "Today",
     "day_number": 18,
-    "available_slot_count": 0
+    "available_slot_count": 18
    },
    {
     "date": "2026-10-19",
     "day_label": "Mon",
     "day_number": 19,
-    "available_slot_count": 0
+    "available_slot_count": 64
    },
    {
     "date": "2026-10-20",
     "day_label": "Tue",
     "day_number": 20,
-    "available_slot_count": 2
+    "available_slot_count": 64
    }
   ]
  },
@@ -2078,6 +2083,28 @@
    "400": {
     "non_field_errors": [
      "Send both lat and lng, or neither."
+    ]
+   }
+  }
+ },
+ "GET /api/v1/pricing/consultation-fee/": {
+  "status": 200,
+  "response": {
+   "category": "dermatology",
+   "speciality_id": 2,
+   "speciality_name": "Dermatology",
+   "consultation_title": "Skin Consultation",
+   "country_code": "IN",
+   "fee": 500,
+   "currency": "INR",
+   "currency_symbol": "₹",
+   "fee_display": "₹500",
+   "source": "mode"
+  },
+  "errors": {
+   "400": {
+    "category": [
+     "Unknown category. Use \"general\" or an active speciality id or slug."
     ]
    }
   }

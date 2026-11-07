@@ -48,7 +48,8 @@ class DoctorSlotListCreateView(generics.GenericAPIView):
         tags=['Doctor schedule'], summary='Doctor app: open 15-minute slots from a chosen time',
         description=(
             'Creates 15-minute slots on `date` starting at `start_time` until `end_time` (or until 23:45, the last slot of the day). '
-            'Patients see these in Schedule Appointment. Past times and slots that already exist are skipped. Verified doctors only.'
+            'Patients pick any 15-minute time themselves; these slots tell staff when you are free, and a slot is marked booked '
+            'when staff assign you a paid appointment at that time. Past times and slots that already exist are skipped. Verified doctors only.'
         ),
         request=DoctorAvailabilitySerializer, responses={201: DoctorAvailabilityResultSerializer},
         examples=[

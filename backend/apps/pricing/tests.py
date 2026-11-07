@@ -6,12 +6,13 @@ from rest_framework.test import APITestCase
 
 from apps.appointments.models import Appointment
 from apps.consultations.models import Consultation
+from apps.doctors.models import DoctorProfile, Speciality
 from apps.notifications.models import Notification
 from apps.notifications.tests import HomeTestBase
 from apps.payments.gateway import record_capture
 from apps.payments.models import Payment
 from .models import CountryPricing
-from .service import format_amount, to_minor_units
+from .service import format_amount, speciality_fee, to_minor_units
 
 User = get_user_model()
 
@@ -98,10 +99,9 @@ class CountryBookingTests(HomeTestBase):
 
     def test_us_booking_is_charged_in_usd(self):
         consultation_id = self.us_draft()
-        slot = self.slot(self.doctor, 10)
-        preview = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/', {'slot_id': slot.pk}).data
+        preview = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/', {'starts_at': self.at(10).isoformat()}).data
         self.assertEqual((preview['fee'], preview['currency']), (10, 'USD'))
-        appointment = self.submit(consultation_id, slot).data
+        appointment = self.submit(consultation_id, self.at(10)).data
         self.assertEqual((appointment['amount'], appointment['currency']), (10, 'USD'))
 
         gateway = patch('apps.payments.views.gateway_client').start()
@@ -135,6 +135,77 @@ class CountryBookingTests(HomeTestBase):
         self.client.force_authenticate(self.patient)
         care = self.client.get('/api/v1/patients/home/', NEW_YORK).data['general_care']
         self.assertEqual((care['country_code'], care['fee_display'], care['currency']), ('US', '$10', 'USD'))
+
+
+class ConsultationFeeTests(HomeTestBase):
+    url = '/api/v1/pricing/consultation-fee/'
+
+    def fee(self, **params):
+        self.client.force_authenticate(None)
+        return self.client.get(self.url, params)
+
+    def test_general_fee_comes_from_country_pricing(self):
+        add_us()
+        response = self.fee(category='general')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data, {
+            'category': 'general', 'speciality_id': None, 'speciality_name': None,
+            'consultation_title': 'General Consultation', 'country_code': 'IN', 'fee': 200, 'currency': 'INR',
+            'currency_symbol': '\u20b9', 'fee_display': '\u20b9200', 'source': 'general_fee',
+        })
+        us = self.fee(category='General', country='us').data
+        self.assertEqual((us['country_code'], us['fee'], us['currency'], us['fee_display']), ('US', 10, 'USD', '$10'))
+        # General doctors' own fees never change the general price.
+        self.make_doctor('pricey', fee=900)
+        self.make_doctor('pricey2', fee=900)
+        self.assertEqual(self.fee(category='general').data['fee'], 200)
+
+    def test_speciality_fee_is_mode_with_highest_on_tie(self):
+        self.assertEqual(speciality_fee(self.derma), (400, 'speciality_fee'))
+        self.make_doctor('a', speciality=self.derma, fee=300)
+        self.make_doctor('b', speciality=self.derma, fee=600)
+        self.assertEqual(speciality_fee(self.derma), (600, 'mode'))
+        self.make_doctor('c', speciality=self.derma, fee=300)
+        self.assertEqual(speciality_fee(self.derma), (300, 'mode'))
+        self.make_doctor('d', speciality=self.derma, fee=600)
+        self.assertEqual(speciality_fee(self.derma), (600, 'mode'))
+
+        by_id = self.fee(category=str(self.derma.pk))
+        self.assertEqual(by_id.status_code, 200, by_id.data)
+        self.assertEqual(by_id.data, {
+            'category': 'dermatology-test', 'speciality_id': self.derma.pk, 'speciality_name': 'Dermatology (test)',
+            'consultation_title': 'Skin Consultation', 'country_code': 'IN', 'fee': 600, 'currency': 'INR',
+            'currency_symbol': '\u20b9', 'fee_display': '\u20b9600', 'source': 'mode',
+        })
+        # Specialities are INR everywhere, so the country is ignored.
+        self.assertEqual(self.fee(category='dermatology-test', country='US').data['fee'], 600)
+
+    def test_only_active_verified_inr_doctors_count(self):
+        self.make_doctor('counted', speciality=self.derma, fee=500)
+        excluded = []
+        for name, change in [
+            ('pending', {'verification_status': 'pending'}), ('rejected', {'verification_status': 'rejected'}),
+            ('inactive-profile', {'is_active': False}), ('usd', {'currency': 'USD'}), ('zero', {'consultation_fee': 0}),
+        ]:
+            for copy in range(2):
+                doctor = self.make_doctor(f'{name}{copy}', speciality=self.derma, fee=900)
+                DoctorProfile.objects.filter(user=doctor).update(**change)
+                excluded.append(doctor)
+        disabled = self.make_doctor('disabled', speciality=self.derma, fee=900)
+        disabled2 = self.make_doctor('disabled2', speciality=self.derma, fee=900)
+        User.objects.filter(pk__in=[disabled.pk, disabled2.pk]).update(is_active=False)
+        other = Speciality.objects.create(name='Cardiology (test)', slug='cardiology-test', fee=800)
+        self.make_doctor('cardio', speciality=other, fee=900)
+        self.make_doctor('cardio2', speciality=other, fee=900)
+        self.assertEqual(speciality_fee(self.derma), (500, 'mode'))
+        self.assertEqual(speciality_fee(other), (900, 'mode'))
+
+    def test_unknown_or_inactive_category_is_rejected(self):
+        Speciality.objects.create(name='Hidden', slug='hidden', fee=900, is_active=False)
+        for params in [{}, {'category': 'unknown'}, {'category': '99999'}, {'category': 'hidden'}, {'category': 'general', 'country': 'USA'}]:
+            response = self.fee(**params)
+            self.assertEqual(response.status_code, 400, params)
+        self.assertIn('category', self.fee(category='hidden').data)
 
 
 class DoctorApplicationPricingTests(APITestCase):

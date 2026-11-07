@@ -1,4 +1,4 @@
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import override_settings
@@ -49,11 +49,24 @@ class BookingFlowTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         return consultation_id
 
-    def submit(self, consultation_id, slot_id, confirmed=True):
+    def submit(self, consultation_id, starts_at, confirmed=True):
         return self.client.post(
             '/api/v1/appointments/',
-            {'consultation_id': consultation_id, 'slot_id': slot_id, 'information_confirmed': confirmed}, format='json',
+            {'consultation_id': consultation_id, 'starts_at': starts_at.isoformat(), 'information_confirmed': confirmed}, format='json',
         )
+
+    def pay(self, appointment_id):
+        appointment = Appointment.objects.get(pk=appointment_id)
+        appointment.save(update_fields=appointment.set_status(Appointment.Status.FINDING_DOCTOR))
+        Payment.objects.create(
+            user=appointment.patient, consultation=appointment.consultation, amount=appointment.consultation.fee_charged,
+            status=Payment.Status.SUCCESS,
+        )
+        return appointment
+
+    def assign(self, appointment_id, doctor):
+        self.client.force_authenticate(User.objects.get_or_create(username='staff', defaults={'is_staff': True})[0])
+        return self.client.post(f'/api/v1/appointments/{appointment_id}/assign-doctor/', {'doctor_id': doctor.pk}, format='json')
 
     # Symptoms dropdowns
 
@@ -123,10 +136,12 @@ class BookingFlowTests(APITestCase):
         booked = self.slot(self.doctor, 10)
         free = self.slot(self.doctor, 10, 15)
         foreign = self.slot(self.doctor2, 10, 30)
-        self.assertEqual(self.submit(self.draft(), booked.pk).status_code, 201)
+        appointment_id = self.submit(self.draft(), self.at(10)).data['id']
+        self.pay(appointment_id)
+        self.assertEqual(self.assign(appointment_id, self.doctor).status_code, 200)
         self.client.force_authenticate(self.doctor)
         listing = self.client.get('/api/v1/doctors/me/slots/', {'date': self.day.isoformat()}).data
-        self.assertTrue(listing[0]['is_booked'])
+        self.assertEqual((listing[0]['is_booked'], listing[0]['appointment_id']), (True, appointment_id))
         self.assertEqual(self.client.delete(f'/api/v1/doctors/me/slots/{booked.pk}/').status_code, 400)
         self.assertEqual(self.client.delete(f'/api/v1/doctors/me/slots/{foreign.pk}/').status_code, 404)
         self.assertEqual(self.client.delete(f'/api/v1/doctors/me/slots/{free.pk}/').status_code, 204)
@@ -134,44 +149,55 @@ class BookingFlowTests(APITestCase):
 
     # Patient Schedule Appointment
 
-    def test_patient_sees_each_time_once_from_verified_doctors(self):
-        self.slot(self.doctor, 10)
-        self.slot(self.doctor2, 10)
-        self.slot(self.doctor, 10, 15)
-        self.slot(self.make_doctor('pending', verified=False), 11)
+    def test_patient_sees_every_15_minute_time_without_doctor_slots(self):
+        self.assertFalse(AppointmentSlot.objects.exists())
         self.client.force_authenticate(self.patient)
         response = self.client.get('/api/v1/appointments/slots/', {'date': self.day.isoformat()})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([(item['time_display'], item['remaining_capacity']) for item in response.data], [('10:00 AM', 2), ('10:15 AM', 1)])
+        self.assertEqual(len(response.data), 64)
+        self.assertEqual(set(response.data[0]), {'starts_at', 'time_display'})
+        self.assertEqual((response.data[0]['time_display'], response.data[1]['time_display']), ('08:00 AM', '08:15 AM'))
+        self.assertEqual(response.data[-1]['time_display'], '11:45 PM')
+
+        today = self.client.get('/api/v1/appointments/slots/', {'date': timezone.localdate().isoformat()}).data
+        self.assertTrue(all(datetime.fromisoformat(item['starts_at']) > timezone.now() for item in today))
+        for day in [timezone.localdate() - timedelta(days=1), timezone.localdate() + timedelta(days=31)]:
+            self.assertEqual(self.client.get('/api/v1/appointments/slots/', {'date': day.isoformat()}).data, [])
+        self.assertEqual(self.client.get('/api/v1/appointments/slots/').status_code, 400)
+
         dates = self.client.get('/api/v1/appointments/slot-dates/', {'days': 7}).data
         self.assertEqual(len(dates), 7)
-        self.assertEqual(dates[0]['day_label'], 'Today')
-        self.assertEqual(dates[2]['available_slot_count'], 2)
-        self.assertEqual(dates[1]['available_slot_count'], 0)
+        self.assertEqual((dates[0]['day_label'], dates[0]['available_slot_count']), ('Today', len(today)))
+        self.assertEqual([row['available_slot_count'] for row in dates[1:]], [64] * 6)
 
     # Case Preview and Submit Case
 
     def test_case_preview_then_submit_requires_confirmation(self):
-        slot = self.slot(self.doctor, 19)
+        starts_at = self.at(19)
         consultation_id = self.draft()
-        response = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/', {'slot_id': slot.pk})
+        response = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/', {'starts_at': starts_at.isoformat()})
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(response.data['ready_to_submit'])
         self.assertEqual(response.data['chief_complaint'], 'General Consultation')
         self.assertEqual(response.data['schedule']['time_display'], '07:00 PM')
+        self.assertNotIn('slot_id', response.data['schedule'])
         self.assertEqual(response.data['patient']['relation_label'], 'You')
         self.assertEqual(response.data['duration_display'], '5 Days')
         self.assertEqual((response.data['fee'], response.data['document_count']), (200, 0))
         self.assertFalse(Appointment.objects.exists())
 
-        self.assertEqual(self.submit(consultation_id, slot.pk, confirmed=False).status_code, 400)
-        response = self.submit(consultation_id, slot.pk)
+        self.assertEqual(self.submit(consultation_id, starts_at, confirmed=False).status_code, 400)
+        response = self.submit(consultation_id, starts_at)
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual((response.data['schedule_time'], response.data['amount']), ('07:00 PM', 200))
+        self.assertEqual((response.data['slot'], response.data['doctor'], response.data['status']), (None, None, 'awaiting_payment'))
         self.assertEqual(response.data['appointment_number'], f'APT-{response.data["id"]:05d}')
-        self.assertIsNotNone(Consultation.objects.get(pk=consultation_id).information_confirmed_at)
+        consultation = Consultation.objects.get(pk=consultation_id)
+        self.assertIsNotNone(consultation.information_confirmed_at)
+        self.assertEqual(consultation.scheduled_at, starts_at)
         preview = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/').data
         self.assertFalse(preview['ready_to_submit'])
+        self.assertEqual(preview['schedule']['time_display'], '07:00 PM')
 
     def test_preview_flags_missing_steps(self):
         self.client.force_authenticate(self.patient)
@@ -181,39 +207,70 @@ class BookingFlowTests(APITestCase):
         self.assertEqual(response.data['missing_steps'], ['history', 'schedule'])
         self.assertFalse(response.data['ready_to_submit'])
 
-    def test_taken_slot_falls_back_to_another_doctor_at_same_time(self):
-        first = self.slot(self.doctor, 10)
-        self.slot(self.doctor2, 10)
-        self.assertEqual(self.submit(self.draft(), first.pk).status_code, 201)
+    def test_preview_accepts_unencoded_offset_and_flags_unselectable_times(self):
+        consultation_id = self.draft()
+        url = f'/api/v1/consultations/{consultation_id}/preview/'
+        unencoded = self.client.get(f'{url}?starts_at={self.day.isoformat()}T19:00:00+05:30')
+        self.assertEqual(unencoded.status_code, 200, unencoded.data)
+        self.assertEqual(unencoded.data['schedule']['time_display'], '07:00 PM')
+        self.assertTrue(unencoded.data['ready_to_submit'])
+        for starts_at in [self.at(10, 10), self.at(7, 45), timezone.now() - timedelta(hours=1)]:
+            response = self.client.get(url, {'starts_at': starts_at.isoformat()})
+            self.assertFalse(response.data['schedule']['is_available'], starts_at)
+            self.assertEqual(response.data['missing_steps'], ['schedule'])
+        self.assertEqual(self.client.get(url, {'starts_at': 'tomorrow'}).status_code, 400)
+
+    def test_submit_rejects_times_patients_cannot_pick(self):
+        consultation_id = self.draft()
+        far = timezone.localdate() + timedelta(days=31)
+        for starts_at in [
+            self.at(10, 10), self.at(7, 45), self.at(10, 0).replace(second=30),
+            local_datetime(timezone.localdate() - timedelta(days=1), time(10)), local_datetime(far, time(10)),
+        ]:
+            response = self.submit(consultation_id, starts_at)
+            self.assertEqual(response.status_code, 400, starts_at)
+            self.assertIn('starts_at', response.data)
+        self.assertEqual(self.submit(consultation_id, self.at(23, 45)).status_code, 201)
+        self.assertFalse(Appointment.objects.filter(slot__isnull=False).exists())
+
+    def test_same_time_is_open_to_every_patient_and_repeat_is_idempotent(self):
+        first = self.submit(self.draft(), self.at(10))
+        self.assertEqual(first.status_code, 201, first.data)
+        repeated = self.submit(first.data['consultation'], self.at(10))
+        self.assertEqual((repeated.status_code, repeated.data['id']), (200, first.data['id']))
+        self.assertEqual(self.submit(first.data['consultation'], self.at(11)).status_code, 400)
         other = User.objects.create_user(username='other', role='patient')
-        response = self.submit(self.draft(user=other), first.pk)
-        self.assertEqual(response.status_code, 201, response.data)
-        self.assertNotEqual(response.data['slot'], first.pk)
-        third = User.objects.create_user(username='third', role='patient')
-        consultation_id = self.draft(user=third)
-        preview = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/', {'slot_id': first.pk}).data
-        self.assertFalse(preview['schedule']['is_available'])
-        self.assertEqual(self.submit(consultation_id, first.pk).status_code, 400)
+        self.assertEqual(self.submit(self.draft(user=other), self.at(10)).status_code, 201)
+        self.assertEqual(Appointment.objects.filter(slot_time=self.at(10)).count(), 2)
 
     # Staff matching after payment
 
-    def test_assign_doctor_moves_booking_to_that_doctors_slot(self):
-        slot = self.slot(self.doctor, 10)
-        target = self.slot(self.doctor2, 10)
-        appointment_id = self.submit(self.draft(), slot.pk).data['id']
-        appointment = Appointment.objects.get(pk=appointment_id)
-        appointment.status = Appointment.Status.FINDING_DOCTOR
-        appointment.save(update_fields=['status'])
-        Payment.objects.create(user=self.patient, consultation=appointment.consultation, amount=200, status=Payment.Status.SUCCESS)
-        self.client.force_authenticate(User.objects.create_user(username='staff', is_staff=True))
-        no_slot = self.make_doctor('doc3')
+    def test_assign_any_verified_doctor_and_link_their_slot(self):
+        appointment_id = self.submit(self.draft(), self.at(10)).data['id']
+        self.assertEqual(self.assign(appointment_id, self.doctor).status_code, 400)  # not paid yet
+        self.pay(appointment_id)
         url = f'/api/v1/appointments/{appointment_id}/assign-doctor/'
-        self.assertEqual(self.client.post(url, {'doctor_id': no_slot.pk}, format='json').status_code, 400)
-        response = self.client.post(url, {'doctor_id': self.doctor2.pk}, format='json')
+        self.assertEqual(self.client.post(url, {'doctor_id': self.make_doctor('pending', verified=False).pk}, format='json').status_code, 404)
+        expensive = self.make_doctor('doc3')
+        DoctorProfile.objects.filter(user=expensive).update(consultation_fee=900)
+        target = self.slot(expensive, 10)
+        response = self.client.post(url, {'doctor_id': expensive.pk}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual((response.data['slot'], response.data['status']), (target.pk, 'confirmed'))
-        self.assertEqual(response.data['doctor_name'], 'Dr. Ananya doc2')
+        self.assertEqual((response.data['slot'], response.data['status'], response.data['amount']), (target.pk, 'confirmed', 200))
+        self.assertEqual(response.data['doctor_name'], 'Dr. Ananya doc3')
+        self.assertEqual(Consultation.objects.get(pk=response.data['consultation']).doctor, expensive)
+        self.assertEqual(self.client.post(url, {'doctor_id': self.doctor.pk}, format='json').status_code, 400)
 
-        self.client.force_authenticate(self.patient)
-        free = self.client.get('/api/v1/appointments/slots/', {'date': self.day.isoformat()}).data
-        self.assertEqual(free, [{'id': slot.pk, 'starts_at': free[0]['starts_at'], 'time_display': '10:00 AM', 'remaining_capacity': 1}])
+    def test_assign_without_doctor_slot_and_rejects_double_booking(self):
+        first = self.submit(self.draft(), self.at(10)).data['id']
+        other = User.objects.create_user(username='other', role='patient')
+        second = self.submit(self.draft(user=other), self.at(10)).data['id']
+        self.pay(first)
+        self.pay(second)
+        response = self.assign(first, self.doctor)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data['slot'])
+        clash = self.assign(second, self.doctor)
+        self.assertEqual(clash.status_code, 400)
+        self.assertIn('already has an appointment', str(clash.data))
+        self.assertEqual(self.assign(second, self.doctor2).status_code, 200)

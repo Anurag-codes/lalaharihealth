@@ -10,11 +10,11 @@ info:
     2. Select Patient: GET /api/v1/patients/booking-patients/ lists Myself and family members (add one with POST /api/v1/patients/family-members/). POST /api/v1/consultations/ with family_member_id (null = Myself), mode and, for Book Specialist, speciality (id from GET /api/v1/doctors/specialities/); blank patient fields are auto-filled. A 400 listing missing fields means show the Patient Details form and send patient_name, patient_age, patient_gender and patient_phone.
     3. Symptoms: GET /api/v1/consultations/conditions/ returns disease -> type -> variant. PUT /api/v1/consultations/{id}/history/ with condition, condition_type and condition_variant (required when that level has options), condition_details, duration_value, duration_unit, ongoing_medication and treatment_details.
     4. Optional POST /api/v1/consultations/{id}/documents/ as multipart with one file per request. PDF/PNG/JPG up to 10 MB. Skip means no upload call; private downloads require authentication.
-    5. Schedule Appointment: GET /api/v1/appointments/slot-dates/?days=7 for the date strip and GET /api/v1/appointments/slots/?date=YYYY-MM-DD (add speciality_id= for specialists) for 15-minute times (Asia/Kolkata, 08:00-23:59) opened by verified doctors through /api/v1/doctors/me/slots/. "Request Appointment" reserves nothing.
-    6. Case Preview: GET /api/v1/consultations/{id}/preview/?slot_id=. "Submit Case": POST /api/v1/appointments/ with consultation_id, slot_id and information_confirmed=true. General fee is the country rate from the pricing table (default India INR 200) using the country_code sent in step 1; specialists always use the INR speciality fee. An appointment is reserved, not doctor-confirmed; pending reservations consume the slot.
+    5. Schedule Appointment: GET /api/v1/appointments/slot-dates/?days=7 for the date strip and GET /api/v1/appointments/slots/?date=YYYY-MM-DD for every 15-minute time (Asia/Kolkata, 08:00-23:45), the same for all categories. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" reserves nothing.
+    6. Case Preview: GET /api/v1/consultations/{id}/preview/?starts_at=. "Submit Case": POST /api/v1/appointments/ with consultation_id, starts_at and information_confirmed=true. The fee is fixed per category (GET /api/v1/pricing/consultation-fee/?category=): general = the country rate from the pricing table (default India INR 200) using the country_code sent in step 1; specialists = INR, the most common fee of that speciality's verified doctors. It is locked when the case is submitted. The appointment is created without a doctor.
     7. Checkout: POST /api/v1/payments/orders/ with appointment_id and method (card/upi). Use returned order id, public key, amount in minor units of the currency (paise, cents...) and currency with Razorpay mobile Checkout. Never submit card numbers, CVVs or UPI credentials to this API. Configure automatic capture in Razorpay.
     8. POST /api/v1/payments/verify/ with payment_id, razorpay_payment_id and razorpay_signature. Only gateway-confirmed captured payments succeed; signed webhooks also reconcile capture.
-    9. Finding Your Doctor: poll GET /api/v1/appointments/{id}/. Status moves awaiting_payment -> finding_doctor -> confirmed when staff assign a verified doctor of that speciality. The 30-minute match is a staff target, not guaranteed. Each change also creates a notification and an FCM push.
+    9. Finding Your Doctor: poll GET /api/v1/appointments/{id}/. Status moves awaiting_payment -> finding_doctor -> confirmed when staff assign any verified doctor of that category (POST /api/v1/appointments/{id}/assign-doctor/). The 30-minute match is a staff target, not guaranteed. Each change also creates a notification and an FCM push.
 
     Location pricing: GET /api/v1/pricing/?lat=&lng= (or ?country=US) is public and returns the general physician fee for the country of the user, falling back to India INR 200 when the country has no active rate. Send its country_code in booking step 1. Appointment summary prices are whole units of the appointment currency; checkout order amounts are minor units. Payment gateway configuration is required for live checkout. Private medical files must never be served through a public /media/ alias. Use PostgreSQL for production scheduling locks.
 
@@ -91,14 +91,13 @@ paths:
         JWT from login).'
     post:
       operationId: appointments_create
-      description: 'Call from Case Preview after the patient ticks "I confirm the
-        information provided above is correct." `information_confirmed` must be true.
-        If the exact slot was just taken but another doctor is free at the same time,
-        that slot is used instead. Fee is server-set: the general physician fee of
-        the step 1 country_code (default INR 200), or the INR speciality fee. Repeating
-        the same request returns the existing appointment. Next: create a payment
-        order for the returned appointment (Checkout).'
-      summary: 'Submit Case: reserve the selected slot'
+      description: |-
+        Call from Case Preview after the patient ticks "I confirm the information provided above is correct." `information_confirmed` must be true. `starts_at` is the time picked on Schedule Appointment: a future 15-minute time from 08:00 AM to 11:45 PM India time within 30 days. No doctor is chosen here.
+
+        The fee is fixed and server-set (same as `GET /api/v1/pricing/consultation-fee/`): the general physician fee of the step 1 country_code (default INR 200), or for a speciality the INR mode of its verified doctors' fees. It is locked now and does not change later. Repeating the same request returns the existing appointment.
+
+        Next: create a payment order for the returned appointment (Checkout). After payment the status is `finding_doctor` until staff assign a doctor (`confirmed`).
+      summary: 'Submit Case: create the appointment at the chosen time'
       tags:
       - Mobile scheduling
       requestBody:
@@ -110,7 +109,7 @@ paths:
               SubmitCase:
                 value:
                   consultation_id: 42
-                  slot_id: 318
+                  starts_at: '2026-10-18T10:00:00+05:30'
                   information_confirmed: true
                 summary: Submit case
           application/x-www-form-urlencoded:
@@ -120,7 +119,7 @@ paths:
               Example:
                 value:
                   consultation_id: 1
-                  slot_id: 1
+                  starts_at: '2026-10-20T10:00:00+05:30'
                   information_confirmed: true
           multipart/form-data:
             schema:
@@ -129,7 +128,7 @@ paths:
               Example:
                 value:
                   consultation_id: 1
-                  slot_id: 1
+                  starts_at: '2026-10-20T10:00:00+05:30'
                   information_confirmed: true
         required: true
       security:
@@ -147,7 +146,7 @@ paths:
                     id: 12345
                     appointment_number: APT-12345
                     consultation: 42
-                    slot: 318
+                    slot: null
                     slot_time: '2026-10-18T10:00:00+05:30'
                     schedule_date: '2026-10-18'
                     schedule_time: 10:00 AM
@@ -178,7 +177,7 @@ paths:
                     id: 12345
                     appointment_number: APT-12345
                     consultation: 42
-                    slot: 318
+                    slot: null
                     slot_time: '2026-10-18T10:00:00+05:30'
                     schedule_date: '2026-10-18'
                     schedule_time: 10:00 AM
@@ -208,8 +207,8 @@ paths:
               examples:
                 Error:
                   value:
-                    information_confirmed:
-                    - Please confirm the information is correct.
+                    starts_at:
+                    - This time has passed. Please choose a future time.
         '401':
           description: Missing, invalid or expired access token. Refresh the token
             and retry, or log in again.
@@ -251,7 +250,7 @@ paths:
                     id: 12345
                     appointment_number: APT-12345
                     consultation: 42
-                    slot: 318
+                    slot: null
                     slot_time: '2026-10-18T10:00:00+05:30'
                     schedule_date: '2026-10-18'
                     schedule_time: 10:00 AM
@@ -295,10 +294,12 @@ paths:
   /api/v1/appointments/{appointment_id}/assign-doctor/:
     post:
       operationId: appointments_assign_doctor_create
-      description: The doctor must be a general physician for general bookings, or
-        of the booking's speciality with consultation_fee and currency equal to the
-        fee paid. If the doctor differs from the slot's doctor, the booking moves
-        to that doctor's free slot at the same time.
+      description: 'The doctor must be active and verified, and a general physician
+        for general bookings or of the booking''s speciality. The doctor''s own consultation_fee
+        does not matter: the patient paid the fixed category fee. 400 if the doctor
+        already has another appointment at the same time. If the doctor opened an
+        availability slot at that time in the doctor app, it is linked (shown as booked
+        there).'
       summary: 'Staff only: assign a verified doctor to a paid appointment'
       parameters:
       - in: path
@@ -376,7 +377,7 @@ paths:
               examples:
                 Error:
                   value:
-                  - This doctor has no free slot at the appointment time.
+                  - Doctor already has an appointment at this time.
         '401':
           description: Missing, invalid or expired access token. Refresh the token
             and retry, or log in again.
@@ -411,8 +412,9 @@ paths:
   /api/v1/appointments/slot-dates/:
     get:
       operationId: appointments_slot_dates_list
-      description: Returns one entry per day starting today with the number of free
-        times, so the app can grey out days with none.
+      description: One entry per day starting today with the number of selectable
+        times (64 for a full day, fewer today as times pass), so the app can grey
+        out days with none.
       summary: 'Schedule Appointment: date strip (Today and the next days)'
       parameters:
       - in: query
@@ -422,13 +424,6 @@ paths:
           maximum: 30
           minimum: 1
           default: 7
-      - in: query
-        name: speciality_id
-        schema:
-          type: integer
-          minimum: 1
-        description: Speciality of the booking (Book Specialist). Omit for a general
-          physician.
       tags:
       - Mobile scheduling
       security:
@@ -448,15 +443,15 @@ paths:
                   - date: '2026-10-16'
                     day_label: Today
                     day_number: 16
-                    available_slot_count: 6
+                    available_slot_count: 18
                   - date: '2026-10-17'
                     day_label: Sat
                     day_number: 17
-                    available_slot_count: 0
+                    available_slot_count: 64
                   - date: '2026-10-18'
                     day_label: Sun
                     day_number: 18
-                    available_slot_count: 24
+                    available_slot_count: 64
                   summary: Date strip
           description: ''
         '400':
@@ -485,11 +480,13 @@ paths:
   /api/v1/appointments/slots/:
     get:
       operationId: appointments_slots_list
-      description: Times are 15-minute slots opened by verified doctors from the doctor
-        app, between 08:00 and 23:59 India time. Each time appears once; `remaining_capacity`
-        is how many doctors are still free then. Tapping "Request Appointment" only
-        opens Case Preview - nothing is reserved until "Submit Case".
-      summary: 'Schedule Appointment: free time slots for a date'
+      description: Every 15-minute time from 08:00 AM to 11:45 PM India time on that
+        date, for any category. Past times are left out; dates before today or more
+        than 30 days ahead return an empty list. The patient only picks a preferred
+        time - no doctor is chosen; staff assign a doctor after payment. Tapping "Request
+        Appointment" only opens Case Preview with this `starts_at` - nothing is reserved
+        until "Submit Case".
+      summary: 'Schedule Appointment: selectable times for a date'
       parameters:
       - in: query
         name: date
@@ -498,13 +495,6 @@ paths:
           format: date
         description: Local India date, YYYY-MM-DD
         required: true
-      - in: query
-        name: speciality_id
-        schema:
-          type: integer
-          minimum: 1
-        description: Speciality of the booking (Book Specialist). Omit for a general
-          physician.
       tags:
       - Mobile scheduling
       security:
@@ -519,16 +509,14 @@ paths:
                 items:
                   $ref: '#/components/schemas/AppointmentSlot'
               examples:
-                Slots:
+                Times:
                   value:
-                  - id: 318
-                    starts_at: '2026-10-18T08:00:00+05:30'
+                  - starts_at: '2026-10-18T08:00:00+05:30'
                     time_display: 08:00 AM
-                    remaining_capacity: 2
-                  - id: 319
-                    starts_at: '2026-10-18T08:15:00+05:30'
+                  - starts_at: '2026-10-18T08:15:00+05:30'
                     time_display: 08:15 AM
-                    remaining_capacity: 1
+                  - starts_at: '2026-10-18T08:30:00+05:30'
+                    time_display: 08:30 AM
           description: ''
         '400':
           description: Validation error. Body maps each invalid field to a list of
@@ -1766,7 +1754,7 @@ paths:
                   mode: video
                 summary: 'Book Specialist: Myself with Dermatology'
                 description: speciality id from GET /api/v1/doctors/specialities/.
-                  The fee and slots then follow that speciality.
+                  The fixed fee then follows that speciality (GET /api/v1/pricing/consultation-fee/).
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/PatientDetails'
@@ -2437,10 +2425,14 @@ paths:
   /api/v1/consultations/{consultation_id}/preview/:
     get:
       operationId: consultations_preview_retrieve
-      description: 'Open after "Request Appointment" with the chosen `slot_id`. Nothing
-        is reserved yet. `ready_to_submit` is false with `missing_steps` (patient_details,
-        history, schedule) when something is incomplete or the time was taken. Submit
-        with `POST /api/v1/appointments/` and `information_confirmed: true`.'
+      description: 'Open after "Request Appointment" with the chosen `starts_at` (from
+        `GET /api/v1/appointments/slots/`; URL-encode the "+" of the offset). Nothing
+        is reserved yet. `fee` is the fixed category fee that Submit Case will lock.
+        `ready_to_submit` is false with `missing_steps` (patient_details, history,
+        schedule) when something is incomplete or the time is no longer selectable
+        (passed, not on a 15-minute step, outside 08:00 AM-11:45 PM or beyond 30 days).
+        Submit with `POST /api/v1/appointments/`, the same `starts_at` and `information_confirmed:
+        true`.'
       summary: 'Case Preview: everything entered, before "Submit Case"'
       parameters:
       - in: path
@@ -2449,10 +2441,11 @@ paths:
           type: integer
         required: true
       - in: query
-        name: slot_id
+        name: starts_at
         schema:
-          type: integer
-        description: Slot chosen on Schedule Appointment
+          type: string
+          format: date-time
+        description: Time chosen on Schedule Appointment, e.g. 2026-10-18T19:00:00+05:30
       tags:
       - Mobile scheduling
       security:
@@ -2486,7 +2479,6 @@ paths:
                     treatment_details: Paracetamol 500mg when needed
                     mode: video
                     schedule:
-                      slot_id: 318
                       starts_at: '2026-10-18T19:00:00+05:30'
                       date_display: 18 Oct 2026
                       time_display: 07:00 PM
@@ -3341,9 +3333,10 @@ paths:
     post:
       operationId: doctors_me_slots_create
       description: Creates 15-minute slots on `date` starting at `start_time` until
-        `end_time` (or until 23:45, the last slot of the day). Patients see these
-        in Schedule Appointment. Past times and slots that already exist are skipped.
-        Verified doctors only.
+        `end_time` (or until 23:45, the last slot of the day). Patients pick any 15-minute
+        time themselves; these slots tell staff when you are free, and a slot is marked
+        booked when staff assign you a paid appointment at that time. Past times and
+        slots that already exist are skipped. Verified doctors only.
       summary: 'Doctor app: open 15-minute slots from a chosen time'
       tags:
       - Doctor schedule
@@ -5613,7 +5606,7 @@ paths:
       description: |-
         Public, no login. Send the device/browser location as `lat` and `lng` (the country is found offline on our server; coordinates are not stored), or an ISO `country` code. With neither, or when that country has no pricing yet, India prices are returned (`source: "default"`, ₹200).
 
-        App: call on the home screen and before booking, show `general_fee_display`, and send `country_code` in `POST /api/v1/consultations/` so checkout charges this amount in this currency. Specialist (Book Specialist) bookings are always charged in INR at the speciality fee.
+        App: call on the home screen and before booking, show `general_fee_display`, and send `country_code` in `POST /api/v1/consultations/` so checkout charges this amount in this currency. Specialist (Book Specialist) bookings are always charged in INR at the speciality's fixed fee; get the exact fee of any category from `GET /api/v1/pricing/consultation-fee/?category=`.
 
         For-doctors page: `specialist_fee_min/max/step` is the fee range a specialist may choose, and `general_doctor_payout_display` is what a general doctor receives after the platform fee.
       summary: General physician price for the user's location
@@ -5725,6 +5718,100 @@ paths:
                   value:
                     non_field_errors:
                     - Send both lat and lng, or neither.
+  /api/v1/pricing/consultation-fee/:
+    get:
+      operationId: pricing_consultation_fee_retrieve
+      description: |-
+        Public, no login. Call before booking to show the price; the same amount is locked when the case is submitted (`POST /api/v1/appointments/`) and charged at checkout. No doctor is chosen by the patient: staff assign a verified doctor of this category after payment.
+
+        - `category=general`: the general physician fee stored for the country (`country`, default India).
+        - `category=<speciality id or slug>`: always INR. The mode (most common value) of the consultation fees of the active, verified doctors of that speciality; on a tie the highest tied fee. If the speciality has no verified doctors yet, the fee stored on the speciality (`source: "speciality_fee"`).
+
+        400 if the category is unknown or inactive.
+      summary: Fixed consultation fee for a category (general or a speciality)
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+          maxLength: 120
+          minLength: 1
+        description: '"general" for a general physician, or a speciality id or slug
+          from GET /api/v1/doctors/specialities/'
+        required: true
+      - in: query
+        name: country
+        schema:
+          type: string
+          pattern: ^[A-Za-z]{2}$
+          minLength: 1
+        description: ISO country code for general bookings (the country_code from
+          GET /api/v1/pricing/). Default India. Ignored for specialities, which are
+          always INR.
+      tags:
+      - Pricing
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsultationFee'
+              examples:
+                GeneralPhysician,India:
+                  value:
+                    category: general
+                    speciality_id: null
+                    speciality_name: null
+                    consultation_title: General Consultation
+                    country_code: IN
+                    fee: 200
+                    currency: INR
+                    currency_symbol: ₹
+                    fee_display: ₹200
+                    source: general_fee
+                  summary: General physician, India
+                GeneralPhysician,UnitedStates(?country=US):
+                  value:
+                    category: general
+                    speciality_id: null
+                    speciality_name: null
+                    consultation_title: General Consultation
+                    country_code: US
+                    fee: 10
+                    currency: USD
+                    currency_symbol: $
+                    fee_display: $10
+                    source: general_fee
+                  summary: General physician, United States (?country=US)
+                Dermatology(modeOfDoctorFees):
+                  value:
+                    category: dermatology
+                    speciality_id: 2
+                    speciality_name: Dermatology
+                    consultation_title: Skin Consultation
+                    country_code: IN
+                    fee: 500
+                    currency: INR
+                    currency_symbol: ₹
+                    fee_display: ₹500
+                    source: mode
+                  summary: Dermatology (mode of doctor fees)
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    category:
+                    - Unknown category. Use "general" or an active speciality id or
+                      slug.
 components:
   schemas:
     ApplicationStatusEnum:
@@ -5755,10 +5842,13 @@ components:
           type: integer
           readOnly: true
           nullable: true
+          description: The assigned doctor's availability slot at this time, if they
+            opened one; null before a doctor is assigned
         slot_time:
           type: string
           format: date-time
           readOnly: true
+          description: Appointment time chosen by the patient
         schedule_date:
           type: string
           readOnly: true
@@ -5797,6 +5887,7 @@ components:
           type: integer
           readOnly: true
           nullable: true
+          description: Assigned by staff after payment; null until then
         doctor_name:
           type: string
           nullable: true
@@ -5847,9 +5938,11 @@ components:
         consultation_id:
           type: integer
           minimum: 1
-        slot_id:
-          type: integer
-          minimum: 1
+        starts_at:
+          type: string
+          format: date-time
+          description: Preferred time chosen on Schedule Appointment (a starts_at
+            from GET /api/v1/appointments/slots/), e.g. 2026-10-18T19:00:00+05:30
         information_confirmed:
           type: boolean
           description: The "I confirm the information provided above is correct."
@@ -5857,26 +5950,19 @@ components:
       required:
       - consultation_id
       - information_confirmed
-      - slot_id
+      - starts_at
     AppointmentSlot:
       type: object
       properties:
-        id:
-          type: integer
-          description: Send this as slot_id when submitting the case
         starts_at:
           type: string
           format: date-time
+          description: Send this as starts_at to Case Preview and Submit Case
         time_display:
           type: string
           readOnly: true
           description: e.g. 07:00 PM
-        remaining_capacity:
-          type: integer
-          description: Number of doctors still free at this time
       required:
-      - id
-      - remaining_capacity
       - starts_at
       - time_display
     AppointmentStatusEnum:
@@ -6308,9 +6394,6 @@ components:
     CasePreviewSchedule:
       type: object
       properties:
-        slot_id:
-          type: integer
-          nullable: true
         starts_at:
           type: string
           format: date-time
@@ -6326,7 +6409,6 @@ components:
       required:
       - date_display
       - is_available
-      - slot_id
       - starts_at
       - time_display
     CaseSchedule:
@@ -6591,6 +6673,66 @@ components:
       description: |-
         * `general` - General Physician / General Doctor
         * `specialist` - Specialist
+    ConsultationFee:
+      type: object
+      properties:
+        category:
+          type: string
+          description: '"general" or the speciality slug'
+        speciality_id:
+          type: integer
+          nullable: true
+          description: null for general
+        speciality_name:
+          type: string
+          nullable: true
+        consultation_title:
+          type: string
+          description: '"General Consultation" or e.g. "Skin Consultation"'
+        country_code:
+          type: string
+          description: Country whose general fee applies; IN for specialities
+        fee:
+          type: integer
+          description: Fixed amount charged, whole currency units
+        currency:
+          type: string
+          description: ISO 4217, e.g. INR, USD
+        currency_symbol:
+          type: string
+        fee_display:
+          type: string
+          description: e.g. "₹200", "$10"
+        source:
+          allOf:
+          - $ref: '#/components/schemas/ConsultationFeeSourceEnum'
+          description: |-
+            general_fee = country general physician fee; mode = most common fee of the verified doctors of this speciality (highest on a tie); speciality_fee = no verified doctors yet, so the fee stored on the speciality
+
+            * `general_fee` - general_fee
+            * `mode` - mode
+            * `speciality_fee` - speciality_fee
+      required:
+      - category
+      - consultation_title
+      - country_code
+      - currency
+      - currency_symbol
+      - fee
+      - fee_display
+      - source
+      - speciality_id
+      - speciality_name
+    ConsultationFeeSourceEnum:
+      enum:
+      - general_fee
+      - mode
+      - speciality_fee
+      type: string
+      description: |-
+        * `general_fee` - general_fee
+        * `mode` - mode
+        * `speciality_fee` - speciality_fee
     ConsultationRecordWrite:
       type: object
       properties:
@@ -8569,7 +8711,7 @@ components:
           description: Country found from the location or query; null if none
         source:
           allOf:
-          - $ref: '#/components/schemas/SourceEnum'
+          - $ref: '#/components/schemas/PricingSourceEnum'
           description: |-
             default = location unknown or that country has no pricing yet, so India prices are shown
 
@@ -8625,6 +8767,16 @@ components:
       - specialist_fee_min
       - specialist_fee_range_display
       - specialist_fee_step
+    PricingSourceEnum:
+      enum:
+      - location
+      - country
+      - default
+      type: string
+      description: |-
+        * `location` - location
+        * `country` - country
+        * `default` - default
     ProfilePhotoUpload:
       type: object
       properties:
@@ -8724,21 +8876,12 @@ components:
           type: integer
         available_slot_count:
           type: integer
+          description: Number of times still selectable that day
       required:
       - available_slot_count
       - date
       - day_label
       - day_number
-    SourceEnum:
-      enum:
-      - location
-      - country
-      - default
-      type: string
-      description: |-
-        * `location` - location
-        * `country` - country
-        * `default` - default
     Speciality:
       type: object
       properties:
@@ -8767,7 +8910,8 @@ components:
         fee:
           type: integer
           readOnly: true
-          description: INR rupees per consultation (all countries)
+          description: 'INR rupees per consultation (all countries): the most common
+            fee of this speciality''s verified doctors'
         currency:
           type: string
           readOnly: true

@@ -32,7 +32,7 @@ STEP1_EXAMPLES = [
 	),
 	OpenApiExample(
 		'Book Specialist: Myself with Dermatology', request_only=True,
-		description='speciality id from GET /api/v1/doctors/specialities/. The fee and slots then follow that speciality.',
+		description='speciality id from GET /api/v1/doctors/specialities/. The fixed fee then follows that speciality (GET /api/v1/pricing/consultation-fee/).',
 		value={'family_member_id': None, 'speciality': 2, 'mode': 'video'},
 	),
 ]
@@ -62,7 +62,7 @@ CASE_PREVIEW_EXAMPLE = {
 	'symptoms': 'Severe one-sided headache', 'duration_display': '5 Days', 'ongoing_medication': True,
 	'treatment_details': 'Paracetamol 500mg when needed', 'mode': 'video',
 	'schedule': {
-		'slot_id': 318, 'starts_at': '2026-10-18T19:00:00+05:30', 'date_display': '18 Oct 2026',
+		'starts_at': '2026-10-18T19:00:00+05:30', 'date_display': '18 Oct 2026',
 		'time_display': '07:00 PM', 'is_available': True,
 	},
 	'documents': [{
@@ -205,32 +205,36 @@ class CasePreviewView(generics.GenericAPIView):
 	@extend_schema(
 		tags=['Mobile scheduling'], summary='Case Preview: everything entered, before "Submit Case"',
 		description=(
-			'Open after "Request Appointment" with the chosen `slot_id`. Nothing is reserved yet. '
+			'Open after "Request Appointment" with the chosen `starts_at` (from `GET /api/v1/appointments/slots/`; URL-encode '
+			'the "+" of the offset). Nothing is reserved yet. `fee` is the fixed category fee that Submit Case will lock. '
 			'`ready_to_submit` is false with `missing_steps` (patient_details, history, schedule) when something is incomplete '
-			'or the time was taken. Submit with `POST /api/v1/appointments/` and `information_confirmed: true`.'
+			'or the time is no longer selectable (passed, not on a 15-minute step, outside 08:00 AM-11:45 PM or beyond 30 days). '
+			'Submit with `POST /api/v1/appointments/`, the same `starts_at` and `information_confirmed: true`.'
 		),
-		parameters=[OpenApiParameter('slot_id', int, description='Slot chosen on Schedule Appointment')],
+		parameters=[OpenApiParameter(
+			'starts_at', OpenApiTypes.DATETIME, description='Time chosen on Schedule Appointment, e.g. 2026-10-18T19:00:00+05:30',
+		)],
 		examples=[OpenApiExample('Case preview', response_only=True, value=CASE_PREVIEW_EXAMPLE)],
 	)
 	def get(self, request, consultation_id):
-		from django.utils import timezone
+		import re
 
-		from apps.appointments.availability import display_date, display_time, free_slots_for_date
-		from apps.appointments.models import AppointmentSlot
+		from apps.appointments.availability import booking_time_error, display_date, display_time
 
 		consultation = owned_consultation(request, consultation_id)
 		appointment = getattr(consultation, 'appointment', None)
 		schedule = None
-		slot_id = request.query_params.get('slot_id')
+		raw_starts_at = request.query_params.get('starts_at')
 		if appointment is not None:
-			schedule = {'slot_id': appointment.slot_id, 'starts_at': appointment.slot_time, 'is_available': True}
-		elif slot_id:
-			if not str(slot_id).isdigit():
-				raise serializers.ValidationError({'slot_id': 'A valid integer is required.'})
-			slot = get_object_or_404(AppointmentSlot, pk=int(slot_id))
-			free = free_slots_for_date(timezone.localtime(slot.starts_at).date(), consultation.speciality_id)
-			available = slot.is_active and any(item['starts_at'] == slot.starts_at for item in free)
-			schedule = {'slot_id': slot.pk, 'starts_at': slot.starts_at, 'is_available': available}
+			schedule = {'starts_at': appointment.slot_time, 'is_available': True}
+		elif raw_starts_at:
+			# An unencoded "+05:30" offset arrives as " 05:30".
+			raw_starts_at = re.sub(r' (\d{2}:?\d{2})$', r'+\1', raw_starts_at)
+			try:
+				starts_at = serializers.DateTimeField().to_internal_value(raw_starts_at)
+			except serializers.ValidationError as error:
+				raise serializers.ValidationError({'starts_at': error.detail})
+			schedule = {'starts_at': starts_at, 'is_available': booking_time_error(starts_at) is None}
 		if schedule:
 			schedule['date_display'] = display_date(schedule['starts_at'])
 			schedule['time_display'] = display_time(schedule['starts_at'])

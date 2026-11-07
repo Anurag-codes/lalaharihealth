@@ -1,10 +1,17 @@
 from drf_spectacular.utils import OpenApiExample, extend_schema
-from rest_framework import generics
+from rest_framework import generics, serializers
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from .serializers import PricingQuerySerializer, PricingSerializer
-from .service import pricing_payload, resolve_pricing
+from apps.doctors.models import Speciality
+from .serializers import ConsultationFeeQuerySerializer, ConsultationFeeSerializer, PricingQuerySerializer, PricingSerializer
+from .service import consultation_fee_payload, pricing_payload, resolve_pricing
+
+GENERAL_FEE_EXAMPLE = {
+    'category': 'general', 'speciality_id': None, 'speciality_name': None, 'consultation_title': 'General Consultation',
+    'country_code': 'IN', 'fee': 200, 'currency': 'INR', 'currency_symbol': '\u20b9', 'fee_display': '\u20b9200',
+    'source': 'general_fee',
+}
 
 INDIA_EXAMPLE = {
     'country_code': 'IN', 'country_name': 'India', 'detected_country_code': 'IN', 'source': 'location', 'is_fallback': False,
@@ -37,7 +44,8 @@ class PricingView(generics.GenericAPIView):
             'pricing yet, India prices are returned (`source: "default"`, \u20b9200).\n\n'
             'App: call on the home screen and before booking, show `general_fee_display`, and send `country_code` '
             'in `POST /api/v1/consultations/` so checkout charges this amount in this currency. '
-            'Specialist (Book Specialist) bookings are always charged in INR at the speciality fee.\n\n'
+            'Specialist (Book Specialist) bookings are always charged in INR at the speciality\'s fixed fee; get the exact '
+            'fee of any category from `GET /api/v1/pricing/consultation-fee/?category=`.\n\n'
             'For-doctors page: `specialist_fee_min/max/step` is the fee range a specialist may choose, and '
             '`general_doctor_payout_display` is what a general doctor receives after the platform fee.'
         ),
@@ -57,3 +65,49 @@ class PricingView(generics.GenericAPIView):
         data = query.validated_data
         result = resolve_pricing(data.get('country'), data.get('lat'), data.get('lng'))
         return Response(self.get_serializer(pricing_payload(result)).data)
+
+
+class ConsultationFeeView(generics.GenericAPIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = ConsultationFeeSerializer
+
+    @extend_schema(
+        tags=['Pricing'], summary='Fixed consultation fee for a category (general or a speciality)',
+        description=(
+            'Public, no login. Call before booking to show the price; the same amount is locked when the case is '
+            'submitted (`POST /api/v1/appointments/`) and charged at checkout. No doctor is chosen by the patient: staff '
+            'assign a verified doctor of this category after payment.\n\n'
+            '- `category=general`: the general physician fee stored for the country (`country`, default India).\n'
+            '- `category=<speciality id or slug>`: always INR. The mode (most common value) of the consultation fees of '
+            'the active, verified doctors of that speciality; on a tie the highest tied fee. If the speciality has no '
+            'verified doctors yet, the fee stored on the speciality (`source: "speciality_fee"`).\n\n'
+            '400 if the category is unknown or inactive.'
+        ),
+        parameters=[ConsultationFeeQuerySerializer],
+        examples=[
+            OpenApiExample('General physician, India', response_only=True, value=GENERAL_FEE_EXAMPLE),
+            OpenApiExample('General physician, United States (?country=US)', response_only=True, value={
+                **GENERAL_FEE_EXAMPLE, 'country_code': 'US', 'fee': 10, 'currency': 'USD', 'currency_symbol': '$',
+                'fee_display': '$10',
+            }),
+            OpenApiExample('Dermatology (mode of doctor fees)', response_only=True, value={
+                'category': 'dermatology', 'speciality_id': 2, 'speciality_name': 'Dermatology',
+                'consultation_title': 'Skin Consultation', 'country_code': 'IN', 'fee': 500, 'currency': 'INR',
+                'currency_symbol': '\u20b9', 'fee_display': '\u20b9500', 'source': 'mode',
+            }),
+        ],
+    )
+    def get(self, request):
+        query = ConsultationFeeQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        category = query.validated_data['category'].strip().lower()
+        if category == 'general':
+            payload = consultation_fee_payload(country_code=query.validated_data.get('country'))
+        else:
+            lookup = {'pk': int(category)} if category.isdigit() else {'slug': category}
+            speciality = Speciality.objects.filter(is_active=True, **lookup).first()
+            if speciality is None:
+                raise serializers.ValidationError({'category': ['Unknown category. Use "general" or an active speciality id or slug.']})
+            payload = consultation_fee_payload(speciality)
+        return Response(self.get_serializer(payload).data)
