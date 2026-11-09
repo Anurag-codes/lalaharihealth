@@ -14,6 +14,7 @@ from apps.appointments.models import Appointment, AppointmentSlot
 from apps.consultations.models import Consultation
 from apps.doctors.models import DoctorProfile, Speciality
 from apps.patients.models import PatientProfile
+from apps.treatments.models import Condition
 from apps.payments.gateway import record_capture
 from apps.payments.models import Payment
 from .models import Announcement, DeviceToken, Notification
@@ -49,20 +50,27 @@ class HomeTestBase(APITestCase):
     def slot(self, doctor, hour, minute=0, day=None):
         return AppointmentSlot.objects.create(doctor=doctor, starts_at=self.at(hour, minute, day))
 
+    def mapped_condition(self, speciality):
+        """A disease without types that staff mapped to this speciality."""
+        condition, _ = Condition.objects.get_or_create(
+            slug=f'mapped-{speciality.slug}', defaults={'name': f'Mapped to {speciality.name}', 'speciality': speciality},
+        )
+        return condition
+
     def draft(self, speciality=None, history=True):
         self.client.force_authenticate(self.patient)
         details = {'patient_name': 'Rahul Sharma', 'patient_age': 25, 'patient_gender': 'male', 'mode': 'video'}
-        if speciality is not None:
-            details['speciality'] = speciality.pk
         response = self.client.post('/api/v1/consultations/', details, format='json')
         self.assertEqual(response.status_code, 201, response.data)
         consultation_id = response.data['id']
+        assert history or speciality is None, 'The speciality is set by the Symptoms step.'
         if history:
-            response = self.client.put(
-                f'/api/v1/consultations/{consultation_id}/history/',
-                {'duration_value': 2, 'duration_unit': 'days', 'ongoing_medication': False}, format='json',
-            )
+            symptoms = {'duration_value': 2, 'duration_unit': 'days', 'ongoing_medication': False}
+            if speciality is not None:
+                symptoms['condition'] = self.mapped_condition(speciality).pk
+            response = self.client.put(f'/api/v1/consultations/{consultation_id}/history/', symptoms, format='json')
             self.assertEqual(response.status_code, 200, response.data)
+            self.assertEqual(response.data['speciality'], getattr(speciality, 'pk', None))
         return consultation_id
 
     def submit(self, consultation_id, starts_at):

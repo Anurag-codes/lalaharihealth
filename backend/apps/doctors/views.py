@@ -89,8 +89,9 @@ class FeaturedDoctorListView(generics.ListAPIView):
     tags=['Appointment booking'],
     summary='Specialities for Book Specialist',
     description=(
-        'Active specialities with their per-consultation fee, for the "Expert Care" card. Send the chosen `id` as '
-        '`speciality` in step 1 (`POST /api/v1/consultations/`) and as `speciality_id` when listing slots. '
+        'Active specialities with their per-consultation fee, for the "Expert Care" card (information only) and the '
+        'doctor app profile. Patients do not pick a speciality when booking: it is set automatically from the disease '
+        'chosen in the Symptoms step (see `GET /api/v1/consultations/conditions/`). '
         'Public, not paginated. Specialist fees are in INR for every country.'
     ),
     examples=[OpenApiExample('Specialities', response_only=True, value=[

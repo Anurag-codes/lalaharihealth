@@ -3,8 +3,8 @@ from pathlib import Path
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.doctors.models import Speciality
 from apps.patients.models import FamilyMember
+from apps.treatments.models import booking_speciality
 from .models import Consultation, ConsultationDocument, PrescriptionItem
 
 
@@ -57,22 +57,19 @@ class PatientDetailsSerializer(serializers.ModelSerializer):
     patient_age = serializers.IntegerField(min_value=0, max_value=120, required=False)
     patient_gender = serializers.ChoiceField(choices=Consultation._meta.get_field('patient_gender').choices, required=False)
     patient_phone = serializers.RegexField(r'^\+?[0-9]{10,15}$', max_length=16, required=False)
-    speciality = serializers.PrimaryKeyRelatedField(
-        queryset=Speciality.objects.filter(is_active=True), required=False, allow_null=True,
-        help_text='Book Specialist: id from GET /api/v1/doctors/specialities/. Omit or null for Book Appointment (general physician).',
-    )
     country_code = serializers.RegexField(
         r'^[A-Za-z]{2}$', required=False, allow_blank=True,
         help_text=(
             'country_code from GET /api/v1/pricing/ for the user\'s location. Sets the general physician fee and '
-            'currency charged at checkout. Omit for India (INR). Specialist bookings are always INR.'
+            'currency charged at checkout. Omit for India (INR). Specialist bookings are always INR. The speciality '
+            'is not chosen here: it is set automatically from the disease picked in the Symptoms step.'
         ),
     )
 
     class Meta:
         model = Consultation
         fields = [
-            'family_member_id', 'speciality', 'country_code', 'patient_name', 'patient_age', 'patient_gender',
+            'family_member_id', 'country_code', 'patient_name', 'patient_age', 'patient_gender',
             'patient_phone', 'mode',
         ]
 
@@ -155,6 +152,7 @@ class HistorySerializer(serializers.ModelSerializer):
         attrs.setdefault('condition_type', None)
         attrs.setdefault('condition_variant', None)
         attrs['chief_complaint'] = ' - '.join(item.name for item in [condition, condition_type, variant] if item)
+        attrs['speciality'] = booking_speciality(condition, condition_type)
         return attrs
 
 

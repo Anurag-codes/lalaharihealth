@@ -7,8 +7,8 @@ info:
 
     1. Request and verify Gmail email OTP through /api/v1/auth/patient/email/request-otp/ and /api/v1/auth/patient/email/verify-otp/, or verify phone OTP in the app with Firebase and exchange its ID token at /api/v1/auth/patient/phone/firebase/. New verified patients are registered automatically. Use the returned access JWT as a Bearer token. Refresh through /api/v1/auth/patient/token/refresh/. Signed-in patients can link another verified contact through /api/v1/auth/patient/link/. Legacy password endpoints remain available.
     Logged-out users fill Patient Details first, then log in with phone OTP, then continue at step 2.
-    2. Select Patient: GET /api/v1/patients/booking-patients/ lists Myself and family members (add one with POST /api/v1/patients/family-members/). POST /api/v1/consultations/ with family_member_id (null = Myself), mode and, for Book Specialist, speciality (id from GET /api/v1/doctors/specialities/); blank patient fields are auto-filled. A 400 listing missing fields means show the Patient Details form and send patient_name, patient_age, patient_gender and patient_phone.
-    3. Symptoms: GET /api/v1/consultations/conditions/ returns the whole disease -> type -> variant tree as one array (not paginated). PUT /api/v1/consultations/{id}/history/ with condition, condition_type and condition_variant (required when that level has options), condition_details, duration_value, duration_unit, ongoing_medication and treatment_details.
+    2. Select Patient: GET /api/v1/patients/booking-patients/ lists Myself and family members (add one with POST /api/v1/patients/family-members/). POST /api/v1/consultations/ with family_member_id (null = Myself) and mode; blank patient fields are auto-filled. The patient never picks a speciality. A 400 listing missing fields means show the Patient Details form and send patient_name, patient_age, patient_gender and patient_phone.
+    3. Symptoms: GET /api/v1/consultations/conditions/ returns the whole disease -> type -> variant tree as one array (not paginated). PUT /api/v1/consultations/{id}/history/ with condition, condition_type and condition_variant (required when that level has options), condition_details, duration_value, duration_unit, ongoing_medication and treatment_details. Saving this sets the specialist category automatically from the disease/type mapping staff keep in Django admin (no mapping = General Physician); each disease and type in the conditions list shows its speciality and fee.
     4. Optional POST /api/v1/consultations/{id}/documents/ as multipart with one file per request. PDF/PNG/JPG up to 10 MB. Skip means no upload call; private downloads require authentication.
     5. Schedule Appointment: GET /api/v1/appointments/slot-dates/?days=7 for the date strip and GET /api/v1/appointments/slots/?date=YYYY-MM-DD for every 15-minute time (Asia/Kolkata, 08:00-23:45), the same for all categories. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" reserves nothing.
     6. Case Preview: GET /api/v1/consultations/{id}/preview/?starts_at=. "Submit Case": POST /api/v1/appointments/ with consultation_id, starts_at and information_confirmed=true. The fee is fixed per category (GET /api/v1/pricing/consultation-fee/?category=): general = the country rate from the pricing table (default India INR 200) using the country_code sent in step 1; specialists = INR, the most common fee of that speciality's verified doctors. It is locked when the case is submitted. The appointment is created without a doctor.
@@ -2043,14 +2043,6 @@ paths:
                 summary: Book Appointment from the USA
                 description: country_code from GET /api/v1/pricing/. Checkout then
                   charges USD at the US general physician fee.
-              BookSpecialist:MyselfWithDermatology:
-                value:
-                  family_member_id: null
-                  speciality: 2
-                  mode: video
-                summary: 'Book Specialist: Myself with Dermatology'
-                description: speciality id from GET /api/v1/doctors/specialities/.
-                  The fixed fee then follows that speciality (GET /api/v1/pricing/consultation-fee/).
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/PatientDetails'
@@ -2337,8 +2329,9 @@ paths:
                   value:
                     detail: Not found.
       description: 'Booking step 1 correction: change the patient (family_member_id),
-        patient details, speciality, mode or country_code before the appointment is
-        submitted. Send only changed fields. Send `Authorization: Bearer <access>`
+        patient details, mode or country_code before the appointment is submitted.
+        Send only changed fields. The speciality cannot be set here; it follows the
+        disease saved in the Symptoms step. Send `Authorization: Bearer <access>`
         (access JWT from login).'
   /api/v1/consultations/{consultation_id}/documents/:
     get:
@@ -2576,8 +2569,12 @@ paths:
   /api/v1/consultations/{consultation_id}/history/:
     put:
       operationId: consultations_history_update
-      description: Use ids from `GET /api/v1/consultations/conditions/`. Type and
-        variant are required when the chosen item has children.
+      description: 'Use ids from `GET /api/v1/consultations/conditions/`. Type and
+        variant are required when the chosen item has children. Saving also sets the
+        consultation''s `speciality` automatically: the selected type''s speciality,
+        else the disease''s, else null (General Physician). That decides `consultation_title`,
+        `fee` and which doctors staff can assign. Saving again with another disease
+        re-maps it.'
       summary: 'Step 2: Symptoms - disease, type, variant, duration and medication'
       parameters:
       - in: path
@@ -2827,10 +2824,10 @@ paths:
   /api/v1/consultations/conditions/:
     get:
       operationId: consultations_conditions_list
-      description: Staff manage options in Django admin. Show the second dropdown
-        using type_label when the selected disease has types, and the "Sub-condition
-        / Variant for {type}" dropdown when the selected type has variants. Returns
-        the whole tree at once as a plain array (no pagination, no page parameter).
+      description: |-
+        Staff manage options in Django admin. Show the second dropdown using type_label when the selected disease has types, and the "Sub-condition / Variant for {type}" dropdown when the selected type has variants. Returns the whole tree at once as a plain array (no pagination, no page parameter).
+
+        Specialist mapping: the patient never picks a speciality. Saving the Symptoms step (`PUT /api/v1/consultations/{id}/history/`) sets it from the chosen disease/type, and that decides the fee and which doctors staff can assign. `speciality` on a type is already resolved (the type's own, else the disease's), so show the selected type's value when the disease has types, otherwise the disease's. null = General Physician at the general fee from `GET /api/v1/pricing/`. Staff set the mapping in Django admin (Conditions / Condition types).
       summary: 'Symptoms dropdowns: known disease -> specific type -> sub-condition/variant'
       tags:
       - Mobile intake
@@ -2852,21 +2849,40 @@ paths:
                     name: Headache
                     slug: headache
                     type_label: Specific Headache Type
+                    speciality: null
                     types:
                     - id: 7
                       name: Cluster Headache
+                      speciality:
+                        id: 4
+                        name: Neurology
+                        slug: neurology
+                        title: Neurology Consultation
+                        fee: 600
+                        currency: INR
+                        fee_display: ₹600
                       variants:
                       - id: 15
                         name: Chronic
                       - id: 16
                         name: Episodic
                     - id: 8
-                      name: Migraine
-                      variants:
-                      - id: 17
-                        name: With aura
-                      - id: 18
-                        name: Without aura
+                      name: Tension Headache
+                      speciality: null
+                      variants: []
+                  - id: 9
+                    name: Skin Rash
+                    slug: skin-rash
+                    type_label: Specific Skin Rash Type
+                    speciality:
+                      id: 2
+                      name: Dermatology
+                      slug: dermatology
+                      title: Skin Consultation
+                      fee: 500
+                      currency: INR
+                      fee_display: ₹500
+                    types: []
                   summary: Disease tree
           description: ''
         '401':
@@ -5180,10 +5196,11 @@ paths:
   /api/v1/doctors/specialities/:
     get:
       operationId: doctors_specialities_list
-      description: Active specialities with their per-consultation fee, for the "Expert
-        Care" card. Send the chosen `id` as `speciality` in step 1 (`POST /api/v1/consultations/`)
-        and as `speciality_id` when listing slots. Public, not paginated. Specialist
-        fees are in INR for every country.
+      description: 'Active specialities with their per-consultation fee, for the "Expert
+        Care" card (information only) and the doctor app profile. Patients do not
+        pick a speciality when booking: it is set automatically from the disease chosen
+        in the Symptoms step (see `GET /api/v1/consultations/conditions/`). Public,
+        not paginated. Specialist fees are in INR for every country.'
       summary: Specialities for Book Specialist
       tags:
       - Appointment booking
@@ -7307,7 +7324,7 @@ paths:
       description: |-
         Public, no login. Send the device/browser location as `lat` and `lng` (the country is found offline on our server; coordinates are not stored), or an ISO `country` code. With neither, or when that country has no pricing yet, India prices are returned (`source: "default"`, ₹200).
 
-        App: call on the home screen and before booking, show `general_fee_display`, and send `country_code` in `POST /api/v1/consultations/` so checkout charges this amount in this currency. Specialist (Book Specialist) bookings are always charged in INR at the speciality's fixed fee; get the exact fee of any category from `GET /api/v1/pricing/consultation-fee/?category=`.
+        App: call on the home screen and before booking, show `general_fee_display`, and send `country_code` in `POST /api/v1/consultations/` so checkout charges this amount in this currency. Specialist bookings (speciality set automatically from the chosen disease) are always charged in INR at the speciality's fixed fee; get the exact fee of any category from `GET /api/v1/pricing/consultation-fee/?category=`.
 
         For-doctors page: `specialist_fee_min/max/step` is the fee range a specialist may choose, and `general_doctor_payout_display` is what a general doctor receives after the platform fee.
       summary: General physician price for the user's location
@@ -8333,6 +8350,14 @@ components:
           type: string
           readOnly: true
           description: Label for the second dropdown
+        speciality:
+          allOf:
+          - $ref: '#/components/schemas/MappedSpeciality'
+          nullable: true
+          readOnly: true
+          description: Specialist booked automatically for this choice; null = General
+            Physician (general fee from GET /api/v1/pricing/). When types exist, use
+            the selected type's speciality.
         types:
           type: array
           items:
@@ -8342,6 +8367,7 @@ components:
       - id
       - name
       - slug
+      - speciality
       - type_label
       - types
     ConditionTypeChoice:
@@ -8353,6 +8379,14 @@ components:
         name:
           type: string
           maxLength: 150
+        speciality:
+          allOf:
+          - $ref: '#/components/schemas/MappedSpeciality'
+          nullable: true
+          readOnly: true
+          description: 'Specialist booked automatically for this choice; null = General
+            Physician (general fee from GET /api/v1/pricing/). Already resolved: this
+            type''s own speciality, else the disease''s.'
         variants:
           type: array
           items:
@@ -8361,6 +8395,7 @@ components:
       required:
       - id
       - name
+      - speciality
       - variants
     ConditionVariantChoice:
       type: object
@@ -9831,7 +9866,8 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Speciality'
-          description: '"Expert Care" card. Empty list = hide Book Specialist'
+          description: '"Expert Care" card (information only: the speciality is set
+            from the chosen disease). Empty list = hide the card'
         upcoming_appointments:
           type: array
           items:
@@ -9994,6 +10030,43 @@ components:
       required:
       - code
       - label
+    MappedSpeciality:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+          description: e.g. Dermatology
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        title:
+          type: string
+          readOnly: true
+          description: Consultation title, e.g. "Skin Consultation"
+        fee:
+          type: integer
+          readOnly: true
+          description: Fixed INR fee that will be charged (same as GET /api/v1/pricing/consultation-fee/)
+        currency:
+          type: string
+          readOnly: true
+        fee_display:
+          type: string
+          readOnly: true
+          description: e.g. "₹500"
+      required:
+      - currency
+      - fee
+      - fee_display
+      - id
+      - name
+      - slug
+      - title
     MarkAllReadResult:
       type: object
       properties:
@@ -10647,15 +10720,12 @@ components:
             the member, or for yourself from your profile and latest booking. If anything
             is still unknown the response is 400 listing the missing fields, so show
             the Patient Details form.
-        speciality:
-          type: integer
-          nullable: true
-          description: 'Book Specialist: id from GET /api/v1/doctors/specialities/.
-            Omit or null for Book Appointment (general physician).'
         country_code:
-          description: country_code from GET /api/v1/pricing/ for the user's location.
+          description: 'country_code from GET /api/v1/pricing/ for the user''s location.
             Sets the general physician fee and currency charged at checkout. Omit
-            for India (INR). Specialist bookings are always INR.
+            for India (INR). Specialist bookings are always INR. The speciality is
+            not chosen here: it is set automatically from the disease picked in the
+            Symptoms step.'
           oneOf:
           - type: string
             pattern: ^[A-Za-z]{2}$
@@ -10832,15 +10902,12 @@ components:
             the member, or for yourself from your profile and latest booking. If anything
             is still unknown the response is 400 listing the missing fields, so show
             the Patient Details form.
-        speciality:
-          type: integer
-          nullable: true
-          description: 'Book Specialist: id from GET /api/v1/doctors/specialities/.
-            Omit or null for Book Appointment (general physician).'
         country_code:
-          description: country_code from GET /api/v1/pricing/ for the user's location.
+          description: 'country_code from GET /api/v1/pricing/ for the user''s location.
             Sets the general physician fee and currency charged at checkout. Omit
-            for India (INR). Specialist bookings are always INR.
+            for India (INR). Specialist bookings are always INR. The speciality is
+            not chosen here: it is set automatically from the disease picked in the
+            Symptoms step.'
           oneOf:
           - type: string
             pattern: ^[A-Za-z]{2}$

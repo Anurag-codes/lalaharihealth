@@ -296,12 +296,20 @@ Examples for every request and response are in Swagger under **Mobile intake**,
 | --- | --- |
 | Patient Details + Verify OTP (logged out) | The app keeps the typed details, logs in with Firebase phone OTP (`POST /api/v1/auth/patient/phone/firebase/`), then sends them to `POST /api/v1/consultations/`. |
 | Select Patient (logged in) | `GET /api/v1/patients/booking-patients/` returns Myself, then family members. `POST /api/v1/consultations/` with `{"family_member_id": null or id, "mode": "video"}` fills in the details. A 400 that lists missing fields means the app should show Patient Details. "+ Add family member" uses `POST /api/v1/patients/family-members/`. |
-| Symptoms (Known Disease → Specific Type → Sub-condition/Variant) | `GET /api/v1/consultations/conditions/` returns the whole tree at once as a plain array (no pagination or `?page=`). Send `PUT /api/v1/consultations/{id}/history/` with `condition`, `condition_type`, `condition_variant`, `condition_details`, `duration_value`, `duration_unit`, `ongoing_medication` and `treatment_details`. The type and variant are required whenever that level has options. Manage the list in Django admin under Conditions / Condition types. |
+| Symptoms (Known Disease → Specific Type → Sub-condition/Variant) | `GET /api/v1/consultations/conditions/` returns the whole tree at once as a plain array (no pagination or `?page=`). Send `PUT /api/v1/consultations/{id}/history/` with `condition`, `condition_type`, `condition_variant`, `condition_details`, `duration_value`, `duration_unit`, `ongoing_medication` and `treatment_details`. The type and variant are required whenever that level has options. Saving this step also sets the booking's specialist category automatically (see **Disease → specialist mapping** below). Manage the list in Django admin under Conditions / Condition types. |
 | Upload Documents | `POST /api/v1/consultations/{id}/documents/` (optional) |
 | Schedule Appointment | `GET /api/v1/appointments/slot-dates/?days=7` returns the date strip. `GET /api/v1/appointments/slots/?date=YYYY-MM-DD` returns every 15-minute time from 08:00 AM to 11:45 PM (past times left out), for any category. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" only opens Case Preview. |
 | Case Preview | `GET /api/v1/consultations/{id}/preview/?starts_at=` (URL-encode the `+` of the offset). "Submit Case" sends `POST /api/v1/appointments/` with `{"consultation_id", "starts_at", "information_confirmed": true}`. This creates the appointment without a doctor and locks the fixed category fee. |
 | Checkout | `GET /api/v1/appointments/{id}/` returns `appointment_number`, `schedule_date`, `schedule_time` and `amount`. Then `POST /api/v1/payments/orders/` → Razorpay SDK → `POST /api/v1/payments/verify/`. |
 | Finding Your Doctor | Poll `GET /api/v1/appointments/{id}/`. `finding_doctor` means payment succeeded. `confirmed` adds `doctor_name`. |
+
+**Disease → specialist mapping.** Patients never choose a speciality; `POST /api/v1/consultations/` no longer
+accepts `speciality`. In Django admin, staff set **Speciality** on a Condition (disease), and optionally on a Condition
+type to override it (e.g. Headache → empty/General, but Cluster Headache → Neurology). When the patient saves the
+Symptoms step, the consultation gets the selected type's speciality, else the disease's, else none (General Physician).
+An inactive speciality is skipped the same way. Saving the step again with another disease re-maps it. The conditions
+list returns this resolved `speciality` (id, name, title, INR fee) on every disease and type, or `null` for general,
+so the app can show the price before the patient continues.
 
 **Fixed fee per category.** `GET /api/v1/pricing/consultation-fee/?category=general` (optional `&country=US`) returns the
 general physician fee stored for the country. `?category=<speciality id or slug>` returns the specialist fee in INR: the
@@ -331,7 +339,7 @@ Examples are in Swagger under **Home**, **My Cases**, **Notifications** and **Ap
 | --- | --- |
 | Welcome Back, avatar, EN toggle, bell red dot, "Prefer to book by call?", Upcoming appointments, My Cases badge | `GET /api/v1/patients/home/`. Change the language with `PATCH /api/v1/patients/profile/` and `{"preferred_language": "hi"}`. |
 | General Physician → Book Appointment | The normal booking flow (fee from the country pricing table, target `DOCTOR_MATCH_TARGET_MINUTES`). |
-| Expert Care → Book Specialist | `GET /api/v1/doctors/specialities/`. Send `speciality` in `POST /api/v1/consultations/`. The fee is the speciality's fixed fee (see `GET /api/v1/pricing/consultation-fee/`); times are the same as for general bookings. |
+| Expert Care (specialities) | `GET /api/v1/doctors/specialities/` lists the specialities and fees for information. Booking uses the normal flow; the speciality is set from the chosen disease (see **Disease → specialist mapping**). Times are the same as for general bookings. |
 | Bell / notification list | `GET /api/v1/notifications/` (`?unread=true`), `unread-count/`, `POST {id}/read/`, `POST read-all/` |
 | Push | After login, `POST /api/v1/notifications/devices/` with `{"token": "<FCM token>", "platform": "android"}`. On logout, `POST /api/v1/notifications/devices/remove/`. |
 | My Cases (Track history) | `GET /api/v1/patients/cases/?status=active` (or `closed`) and `GET /api/v1/patients/cases/{consultation_id}/`. Each case has `stage`, `next_action` and a 4-step `tracker`. |
@@ -346,7 +354,8 @@ Operations:
 - **Specialities.** Manage them in Django admin → Specialities. Cardiology, Orthopaedics and Dermatology are seeded as
   *inactive* with a placeholder fee of ₹500. The speciality fee is only used until the speciality has verified
   doctors; after that patients pay the most common fee among them. Set each specialist's
-  **Speciality** on their Doctor profile. A doctor without one is a general physician. Staff can assign any verified
+  **Speciality** on their Doctor profile. A doctor without one is a general physician. Map diseases to specialities
+  under Conditions / Condition types; nothing is mapped by default, so every booking stays general until you do. Staff can assign any verified
   doctor whose speciality matches the booking, whatever their own `consultation_fee`.
 - **Reminders.** Run `python manage.py send_appointment_reminders` every 5 minutes (cron or Task Scheduler).
   It notifies confirmed appointments starting within `APPOINTMENT_REMINDER_MINUTES`, once per appointment.

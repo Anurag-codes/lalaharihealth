@@ -241,7 +241,7 @@ class HomeSerializer(serializers.Serializer):
     unread_notification_count = serializers.IntegerField(help_text='Show the red dot on the bell when > 0')
     support_phone = serializers.CharField(help_text='"Prefer to book by call?"')
     general_care = GeneralCareSerializer()
-    specialities = SpecialitySerializer(many=True, help_text='"Expert Care" card. Empty list = hide Book Specialist')
+    specialities = SpecialitySerializer(many=True, help_text='"Expert Care" card (information only: the speciality is set from the chosen disease). Empty list = hide the card')
     upcoming_appointments = UpcomingAppointmentSerializer(many=True)
     active_case_count = serializers.IntegerField(help_text='Badge for "My Cases"')
 

@@ -125,8 +125,12 @@ class CountryBookingTests(HomeTestBase):
     def test_specialist_booking_stays_inr(self):
         self.client.force_authenticate(self.patient)
         response = self.client.post('/api/v1/consultations/', {
-            'patient_name': 'A', 'patient_age': 25, 'patient_gender': 'male', 'mode': 'video',
-            'country_code': 'US', 'speciality': self.derma.pk,
+            'patient_name': 'A', 'patient_age': 25, 'patient_gender': 'male', 'mode': 'video', 'country_code': 'US',
+        }, format='json')
+        self.assertEqual((response.data['fee'], response.data['fee_currency']), (10, 'USD'))
+        response = self.client.put(f'/api/v1/consultations/{response.data["id"]}/history/', {
+            'condition': self.mapped_condition(self.derma).pk, 'duration_value': 2, 'duration_unit': 'days',
+            'ongoing_medication': False,
         }, format='json')
         self.assertEqual((response.data['fee'], response.data['fee_currency']), (400, 'INR'))
         self.assertEqual(Consultation.objects.get(pk=response.data['id']).expected_currency, 'INR')

@@ -570,6 +570,7 @@
     "name": "Cough & Cold",
     "slug": "cough-cold",
     "type_label": "Specific Cough & Cold Type",
+    "speciality": null,
     "types": []
    },
    {
@@ -577,20 +578,24 @@
     "name": "Diabetes",
     "slug": "diabetes",
     "type_label": "Specific Diabetes Type",
+    "speciality": null,
     "types": [
      {
       "id": 9,
       "name": "Type 1 Diabetes",
+      "speciality": null,
       "variants": []
      },
      {
       "id": 10,
       "name": "Type 2 Diabetes",
+      "speciality": null,
       "variants": []
      },
      {
       "id": 11,
       "name": "Gestational Diabetes",
+      "speciality": null,
       "variants": []
      }
     ]
@@ -600,20 +605,24 @@
     "name": "Fever",
     "slug": "fever",
     "type_label": "Specific Fever Type",
+    "speciality": null,
     "types": [
      {
       "id": 5,
       "name": "Viral Fever",
+      "speciality": null,
       "variants": []
      },
      {
       "id": 6,
       "name": "Dengue",
+      "speciality": null,
       "variants": []
      },
      {
       "id": 7,
       "name": "Typhoid",
+      "speciality": null,
       "variants": []
      }
     ]

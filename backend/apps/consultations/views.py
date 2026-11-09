@@ -30,11 +30,6 @@ STEP1_EXAMPLES = [
 		description='country_code from GET /api/v1/pricing/. Checkout then charges USD at the US general physician fee.',
 		value={'family_member_id': None, 'country_code': 'US', 'mode': 'video'},
 	),
-	OpenApiExample(
-		'Book Specialist: Myself with Dermatology', request_only=True,
-		description='speciality id from GET /api/v1/doctors/specialities/. The fixed fee then follows that speciality (GET /api/v1/pricing/consultation-fee/).',
-		value={'family_member_id': None, 'speciality': 2, 'mode': 'video'},
-	),
 ]
 HISTORY_EXAMPLES = [
 	OpenApiExample(
@@ -133,7 +128,12 @@ class ConsultationHistoryView(generics.GenericAPIView):
 
 	@extend_schema(
 		tags=['Mobile intake'], summary='Step 2: Symptoms - disease, type, variant, duration and medication',
-		description='Use ids from `GET /api/v1/consultations/conditions/`. Type and variant are required when the chosen item has children.',
+		description=(
+			'Use ids from `GET /api/v1/consultations/conditions/`. Type and variant are required when the chosen item has children. '
+			'Saving also sets the consultation\'s `speciality` automatically: the selected type\'s speciality, else the '
+			'disease\'s, else null (General Physician). That decides `consultation_title`, `fee` and which doctors staff '
+			'can assign. Saving again with another disease re-maps it.'
+		),
 		responses=ConsultationSerializer, examples=HISTORY_EXAMPLES,
 	)
 	@transaction.atomic

@@ -53,8 +53,9 @@ DESCRIPTIONS = {
     'GET /api/v1/consultations/': 'Your consultations (drafts and booked), newest first, paginated with `?page=`. ' + AUTH,
     'GET /api/v1/consultations/{consultation_id}/': 'One of your consultations with patient details and symptom history. 404 if it is not yours. ' + AUTH,
     'PATCH /api/v1/consultations/{consultation_id}/': (
-        'Booking step 1 correction: change the patient (family_member_id), patient details, speciality, '
-        'mode or country_code before the appointment is submitted. Send only changed fields. ' + AUTH
+        'Booking step 1 correction: change the patient (family_member_id), patient details, '
+        'mode or country_code before the appointment is submitted. Send only changed fields. The speciality cannot be '
+        'set here; it follows the disease saved in the Symptoms step. ' + AUTH
     ),
     'GET /api/v1/consultations/{consultation_id}/documents/': 'Reports uploaded for this consultation (paginated). Use `download_url` with the auth header to open a file. ' + AUTH,
     'POST /api/v1/consultations/{consultation_id}/documents/': (

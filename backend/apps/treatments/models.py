@@ -21,6 +21,10 @@ class Condition(models.Model):
         max_length=150, blank=True,
         help_text='Label of the second dropdown in the app, e.g. "Specific Headache Type".',
     )
+    speciality = models.ForeignKey(
+        'doctors.Speciality', related_name='conditions', on_delete=models.SET_NULL, null=True, blank=True,
+        help_text='Specialist category booked automatically for this disease. Empty = General Physician.',
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -36,6 +40,10 @@ class ConditionType(models.Model):
 
     condition = models.ForeignKey(Condition, related_name='types', on_delete=models.CASCADE)
     name = models.CharField(max_length=150)
+    speciality = models.ForeignKey(
+        'doctors.Speciality', related_name='condition_types', on_delete=models.SET_NULL, null=True, blank=True,
+        help_text="Overrides the disease's speciality for this type. Empty = use the disease's speciality.",
+    )
     display_order = models.PositiveSmallIntegerField(default=0)
     is_active = models.BooleanField(default=True)
 
@@ -61,6 +69,17 @@ class ConditionVariant(models.Model):
 
     def __str__(self):
         return f'{self.condition_type} - {self.name}'
+
+
+def booking_speciality(condition, condition_type=None):
+    """Speciality booked for this symptom choice: the type's, else the disease's; None means General Physician.
+
+    An inactive speciality is skipped, so the booking falls back to the next level (or general) instead of failing.
+    """
+    for item in (condition_type, condition):
+        if item is not None and item.speciality_id and item.speciality.is_active:
+            return item.speciality
+    return None
 
 
 class TreatmentOption(models.Model):
