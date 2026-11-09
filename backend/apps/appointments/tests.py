@@ -72,9 +72,11 @@ class BookingFlowTests(APITestCase):
 
     def test_condition_tree_and_history_hierarchy(self):
         self.client.force_authenticate(self.patient)
-        response = self.client.get('/api/v1/consultations/conditions/', {'page_size': 100})
+        response = self.client.get('/api/v1/consultations/conditions/')
         self.assertEqual(response.status_code, 200)
-        headache = next(item for item in response.data['results'] if item['name'] == 'Headache')
+        self.assertIsInstance(response.data, list)
+        self.assertEqual(len(response.data), Condition.objects.filter(is_active=True).count())
+        headache = next(item for item in response.data if item['name'] == 'Headache')
         self.assertEqual(headache['type_label'], 'Specific Headache Type')
         cluster = next(item for item in headache['types'] if item['name'] == 'Cluster Headache')
         chronic = next(item for item in cluster['variants'] if item['name'] == 'Chronic')

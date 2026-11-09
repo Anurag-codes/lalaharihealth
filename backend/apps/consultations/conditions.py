@@ -32,16 +32,13 @@ class ConditionChoiceSerializer(serializers.ModelSerializer):
         return obj.type_label or f'Specific {obj.name} Type'
 
 
-CONDITIONS_EXAMPLE = {
-    'count': 1, 'next': None, 'previous': None,
-    'results': [{
-        'id': 3, 'name': 'Headache', 'slug': 'headache', 'type_label': 'Specific Headache Type',
-        'types': [
-            {'id': 7, 'name': 'Cluster Headache', 'variants': [{'id': 15, 'name': 'Chronic'}, {'id': 16, 'name': 'Episodic'}]},
-            {'id': 8, 'name': 'Migraine', 'variants': [{'id': 17, 'name': 'With aura'}, {'id': 18, 'name': 'Without aura'}]},
-        ],
-    }],
-}
+CONDITIONS_EXAMPLE = [{
+    'id': 3, 'name': 'Headache', 'slug': 'headache', 'type_label': 'Specific Headache Type',
+    'types': [
+        {'id': 7, 'name': 'Cluster Headache', 'variants': [{'id': 15, 'name': 'Chronic'}, {'id': 16, 'name': 'Episodic'}]},
+        {'id': 8, 'name': 'Migraine', 'variants': [{'id': 17, 'name': 'With aura'}, {'id': 18, 'name': 'Without aura'}]},
+    ],
+}]
 
 
 @extend_schema(
@@ -49,13 +46,14 @@ CONDITIONS_EXAMPLE = {
     description=(
         'Staff manage options in Django admin. Show the second dropdown using type_label when the selected disease '
         'has types, and the "Sub-condition / Variant for {type}" dropdown when the selected type has variants. '
-        'The list is paginated (20 per page); follow next for more.'
+        'Returns the whole tree at once as a plain array (no pagination, no page parameter).'
     ),
     examples=[OpenApiExample('Disease tree', value=CONDITIONS_EXAMPLE, response_only=True)],
 )
 class ConditionChoicesView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ConditionChoiceSerializer
+    pagination_class = None
 
     def get_queryset(self):
         variants = ConditionVariant.objects.filter(is_active=True)

@@ -8,7 +8,7 @@ info:
     1. Request and verify Gmail email OTP through /api/v1/auth/patient/email/request-otp/ and /api/v1/auth/patient/email/verify-otp/, or verify phone OTP in the app with Firebase and exchange its ID token at /api/v1/auth/patient/phone/firebase/. New verified patients are registered automatically. Use the returned access JWT as a Bearer token. Refresh through /api/v1/auth/patient/token/refresh/. Signed-in patients can link another verified contact through /api/v1/auth/patient/link/. Legacy password endpoints remain available.
     Logged-out users fill Patient Details first, then log in with phone OTP, then continue at step 2.
     2. Select Patient: GET /api/v1/patients/booking-patients/ lists Myself and family members (add one with POST /api/v1/patients/family-members/). POST /api/v1/consultations/ with family_member_id (null = Myself), mode and, for Book Specialist, speciality (id from GET /api/v1/doctors/specialities/); blank patient fields are auto-filled. A 400 listing missing fields means show the Patient Details form and send patient_name, patient_age, patient_gender and patient_phone.
-    3. Symptoms: GET /api/v1/consultations/conditions/ returns disease -> type -> variant. PUT /api/v1/consultations/{id}/history/ with condition, condition_type and condition_variant (required when that level has options), condition_details, duration_value, duration_unit, ongoing_medication and treatment_details.
+    3. Symptoms: GET /api/v1/consultations/conditions/ returns the whole disease -> type -> variant tree as one array (not paginated). PUT /api/v1/consultations/{id}/history/ with condition, condition_type and condition_variant (required when that level has options), condition_details, duration_value, duration_unit, ongoing_medication and treatment_details.
     4. Optional POST /api/v1/consultations/{id}/documents/ as multipart with one file per request. PDF/PNG/JPG up to 10 MB. Skip means no upload call; private downloads require authentication.
     5. Schedule Appointment: GET /api/v1/appointments/slot-dates/?days=7 for the date strip and GET /api/v1/appointments/slots/?date=YYYY-MM-DD for every 15-minute time (Asia/Kolkata, 08:00-23:45), the same for all categories. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" reserves nothing.
     6. Case Preview: GET /api/v1/consultations/{id}/preview/?starts_at=. "Submit Case": POST /api/v1/appointments/ with consultation_id, starts_at and information_confirmed=true. The fee is fixed per category (GET /api/v1/pricing/consultation-fee/?category=): general = the country rate from the pricing table (default India INR 200) using the country_code sent in step 1; specialists = INR, the most common fee of that speciality's verified doctors. It is locked when the case is submitted. The appointment is created without a doctor.
@@ -24,7 +24,7 @@ info:
 
     Doctor app: 1. Sign Up / Verify Your Number: verify the phone OTP in the app with Firebase and exchange the ID token at POST /api/v1/auth/doctor/phone/firebase/ (doctor JWTs; a doctor account is separate from a patient account on the same number). A matching website For Doctors form entry is copied into the profile; every new doctor is Pending Review until staff verify. Refresh at /api/v1/auth/doctor/token/refresh/, log out at /api/v1/auth/doctor/logout/. Open the screen in onboarding.next_step. 2. Professional Details: PATCH /api/v1/doctors/me/, PUT /api/v1/doctors/me/photo/, POST /api/v1/doctors/me/documents/ (medical_registration certificate), qualification suggestions at GET /api/v1/doctors/qualifications/, specialities at GET /api/v1/doctors/specialities/. 3. Weekly Availability: GET/PUT /api/v1/doctors/me/availability/ (1-3 windows per open day, at least 6 hours; used by staff only, patients never see it). Verified doctors: Home timeline GET /api/v1/doctors/me/schedule/?date=, appointment details GET /api/v1/doctors/me/appointments/{id}/, mark completed with PATCH {"status": "completed"} (staff confirm it with POST /api/v1/appointments/{id}/confirm-completion/), optional call details at /api/v1/doctors/me/appointments/{id}/calls/, prescription at /api/v1/doctors/me/consultations/{id}/record/ and Earnings at GET /api/v1/doctors/me/earnings/?period=daily|monthly|financial_year. Calls run in the app. Notifications use the same /api/v1/notifications/ endpoints.
 
-    Conventions: JSON bodies (multipart only for file uploads). Lists are paginated as {count, next, previous, results} with ?page=. Errors use HTTP status codes with a JSON body: {"detail": "message"} or {"field": ["message"]} for validation (400). 401 = refresh the token or log in, 403 = not allowed, 404 = not found or not yours, 429 = too many requests, 503 = service not configured. Every endpoint below shows request and response examples and its error responses.
+    Conventions: JSON bodies (multipart only for file uploads). Most lists are paginated as {count, next, previous, results} with ?page=. Errors use HTTP status codes with a JSON body: {"detail": "message"} or {"field": ["message"]} for validation (400). 401 = refresh the token or log in, 403 = not allowed, 404 = not found or not yours, 429 = too many requests, 503 = service not configured. Every endpoint below shows request and response examples and its error responses.
 paths:
   /api/v1/appointments/:
     get:
@@ -2829,16 +2829,9 @@ paths:
       operationId: consultations_conditions_list
       description: Staff manage options in Django admin. Show the second dropdown
         using type_label when the selected disease has types, and the "Sub-condition
-        / Variant for {type}" dropdown when the selected type has variants. The list
-        is paginated (20 per page); follow next for more.
+        / Variant for {type}" dropdown when the selected type has variants. Returns
+        the whole tree at once as a plain array (no pagination, no page parameter).
       summary: 'Symptoms dropdowns: known disease -> specific type -> sub-condition/variant'
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
       tags:
       - Mobile intake
       security:
@@ -2849,33 +2842,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedConditionChoiceList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConditionChoice'
               examples:
                 DiseaseTree:
                   value:
-                    count: 1
-                    next: null
-                    previous: null
-                    results:
-                    - id: 3
-                      name: Headache
-                      slug: headache
-                      type_label: Specific Headache Type
-                      types:
-                      - id: 7
-                        name: Cluster Headache
-                        variants:
-                        - id: 15
-                          name: Chronic
-                        - id: 16
-                          name: Episodic
-                      - id: 8
-                        name: Migraine
-                        variants:
-                        - id: 17
-                          name: With aura
-                        - id: 18
-                          name: Without aura
+                  - id: 3
+                    name: Headache
+                    slug: headache
+                    type_label: Specific Headache Type
+                    types:
+                    - id: 7
+                      name: Cluster Headache
+                      variants:
+                      - id: 15
+                        name: Chronic
+                      - id: 16
+                        name: Episodic
+                    - id: 8
+                      name: Migraine
+                      variants:
+                      - id: 17
+                        name: With aura
+                      - id: 18
+                        name: Without aura
                   summary: Disease tree
           description: ''
         '401':
@@ -10393,29 +10384,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Case'
-    PaginatedConditionChoiceList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/ConditionChoice'
     PaginatedConsultationList:
       type: object
       required:

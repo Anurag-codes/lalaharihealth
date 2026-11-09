@@ -564,66 +564,61 @@
  },
  "GET /api/v1/consultations/conditions/": {
   "status": 200,
-  "response": {
-   "count": 9,
-   "next": null,
-   "previous": null,
-   "results": [
-    {
-     "id": 6,
-     "name": "Cough & Cold",
-     "slug": "cough-cold",
-     "type_label": "Specific Cough & Cold Type",
-     "types": []
-    },
-    {
-     "id": 3,
-     "name": "Diabetes",
-     "slug": "diabetes",
-     "type_label": "Specific Diabetes Type",
-     "types": [
-      {
-       "id": 9,
-       "name": "Type 1 Diabetes",
-       "variants": []
-      },
-      {
-       "id": 10,
-       "name": "Type 2 Diabetes",
-       "variants": []
-      },
-      {
-       "id": 11,
-       "name": "Gestational Diabetes",
-       "variants": []
-      }
-     ]
-    },
-    {
-     "id": 2,
-     "name": "Fever",
-     "slug": "fever",
-     "type_label": "Specific Fever Type",
-     "types": [
-      {
-       "id": 5,
-       "name": "Viral Fever",
-       "variants": []
-      },
-      {
-       "id": 6,
-       "name": "Dengue",
-       "variants": []
-      },
-      {
-       "id": 7,
-       "name": "Typhoid",
-       "variants": []
-      }
-     ]
-    }
-   ]
-  }
+  "response": [
+   {
+    "id": 6,
+    "name": "Cough & Cold",
+    "slug": "cough-cold",
+    "type_label": "Specific Cough & Cold Type",
+    "types": []
+   },
+   {
+    "id": 3,
+    "name": "Diabetes",
+    "slug": "diabetes",
+    "type_label": "Specific Diabetes Type",
+    "types": [
+     {
+      "id": 9,
+      "name": "Type 1 Diabetes",
+      "variants": []
+     },
+     {
+      "id": 10,
+      "name": "Type 2 Diabetes",
+      "variants": []
+     },
+     {
+      "id": 11,
+      "name": "Gestational Diabetes",
+      "variants": []
+     }
+    ]
+   },
+   {
+    "id": 2,
+    "name": "Fever",
+    "slug": "fever",
+    "type_label": "Specific Fever Type",
+    "types": [
+     {
+      "id": 5,
+      "name": "Viral Fever",
+      "variants": []
+     },
+     {
+      "id": 6,
+      "name": "Dengue",
+      "variants": []
+     },
+     {
+      "id": 7,
+      "name": "Typhoid",
+      "variants": []
+     }
+    ]
+   }
+  ]
  },
  "GET /api/v1/doctors/me/slots/": {
   "status": 200,
