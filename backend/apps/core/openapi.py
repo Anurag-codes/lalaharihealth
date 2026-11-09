@@ -82,8 +82,14 @@ DESCRIPTIONS = {
     'DELETE /api/v1/patients/profile/photo/': 'Remove your profile photo. Returns 204. ' + AUTH,
     'GET /api/v1/payments/{payment_id}/': 'Status of one of your payments (pending, success, failed, refunded). ' + AUTH,
     'GET /api/v1/appointments/': 'My appointments, newest first, paginated with `?page=`. Each has status, slot time, doctor and fee. ' + AUTH,
-    'POST /api/v1/auth/token/': 'Legacy username/password login (staff and doctors). Patients should use OTP login.',
-    'POST /api/v1/auth/token/refresh/': 'Legacy refresh for password logins. Patients use /api/v1/auth/patient/token/refresh/.',
+    'POST /api/v1/auth/token/': (
+        'Legacy username/password login (staff and doctors). Patients use OTP login; the doctor app uses '
+        'POST /api/v1/auth/doctor/phone/firebase/.'
+    ),
+    'POST /api/v1/auth/token/refresh/': (
+        'Legacy refresh for password logins. Patients use /api/v1/auth/patient/token/refresh/, '
+        'the doctor app /api/v1/auth/doctor/token/refresh/.'
+    ),
 }
 
 STATUS_TEXT = {
@@ -165,6 +171,13 @@ def add_docs(result, generator, request, public):
                 for media in op['requestBody'].get('content', {}).values():
                     if not _has_examples(media):
                         media['examples'] = _example(data['request'])
+            # OpenApiExample only fills application/json; reuse it for the form encodings of the same body
+            request_content = op.get('requestBody', {}).get('content', {})
+            json_examples = request_content.get('application/json', {}).get('examples')
+            if json_examples:
+                for media in request_content.values():
+                    if not _has_examples(media):
+                        media['examples'] = copy.deepcopy(json_examples)
 
             responses = op.setdefault('responses', {})
             status = str(data.get('status', ''))

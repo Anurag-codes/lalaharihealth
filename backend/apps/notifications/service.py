@@ -76,6 +76,49 @@ def notify_appointment(appointment, kind):
     return notification
 
 
+DOCTOR_MESSAGES = {
+    Kind.APPOINTMENT_ASSIGNED: ('New appointment booked', '{patient} booked a {title} on {date} at {time}.'),
+    Kind.APPOINTMENT_REMINDER: ('Appointment reminder', 'Your {title} with {patient} starts at {time}.'),
+}
+
+VERIFICATION_MESSAGES = {
+    'verified': ('Profile verified', 'Your profile has been verified. You will now receive appointments.'),
+    'rejected': ('Profile verification update', 'We could not verify your profile. Please check your documents or contact support.'),
+    'pending': ('Profile under review', 'Your profile is under review. We will notify you once it is verified.'),
+}
+
+
+def notify_doctor(appointment, kind):
+    """Add an inbox item for the doctor assigned to this appointment and queue a push. Call inside the transaction."""
+    from apps.appointments.availability import display_date, display_time
+
+    if appointment.doctor_id is None:
+        return None
+    consultation = appointment.consultation
+    title, body = DOCTOR_MESSAGES[kind]
+    values = {
+        'patient': consultation.patient_name or 'A patient', 'title': consultation.title,
+        'number': f'APT-{appointment.pk:05d}',
+        'date': display_date(appointment.slot_time), 'time': display_time(appointment.slot_time),
+    }
+    notification = Notification.objects.create(
+        user_id=appointment.doctor_id, kind=kind, title=title, body=body.format(**values),
+        appointment=appointment, consultation=consultation,
+    )
+    queue_push([notification.pk])
+    return notification
+
+
+def notify_doctor_verification(profile):
+    """Tell a doctor their verification status changed. Call inside the transaction that saved it."""
+    title, body = VERIFICATION_MESSAGES[profile.verification_status]
+    notification = Notification.objects.create(
+        user_id=profile.user_id, kind=Kind.VERIFICATION_UPDATE, title=title, body=body,
+    )
+    queue_push([notification.pk])
+    return notification
+
+
 def send_announcement(announcement):
     """Deliver an announcement once to every active user of its audience."""
     with transaction.atomic():

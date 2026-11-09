@@ -40,7 +40,9 @@ class NotificationListView(generics.ListAPIView):
         tags=TAG, summary='Bell: my notifications, newest first',
         description=(
             'Kinds: payment_success, doctor_assigned, appointment_reminder, consultation_completed, '
-            'appointment_cancelled, announcement. Text is in the language chosen in Profile (en/hi). '
+            'appointment_cancelled, announcement. Doctor app kinds: appointment_assigned ("New appointment booked"), '
+            'appointment_reminder and verification_update (profile verified / rejected / under review). '
+            'Patient text is in the language chosen in Profile (en/hi); doctor text is English. '
             'Tap -> open appointment_id when set.'
         ),
         parameters=[NotificationQuerySerializer],

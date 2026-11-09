@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from apps.consultations.models import Consultation
 from apps.doctors.models import DoctorProfile
 from apps.notifications.models import Notification
-from apps.notifications.service import notify_appointment
+from apps.notifications.service import notify_appointment, notify_doctor
 from apps.payments.models import Payment
 from .availability import booking_times_for_date
 from .models import Appointment, AppointmentSlot
@@ -19,6 +19,8 @@ from .serializers import (
 	AppointmentRequestSerializer, AppointmentSerializer, AppointmentSlotSerializer,
 	DoctorAssignmentSerializer, SlotDateSerializer, SlotDatesQuerySerializer, SlotQuerySerializer,
 )
+
+FREED_STATUSES = (Appointment.Status.CANCELLED, Appointment.Status.COMPLETED)
 
 APPOINTMENT_EXAMPLE = {
 	'id': 12345, 'appointment_number': 'APT-12345', 'consultation': 42, 'slot': None,
@@ -182,7 +184,8 @@ class AssignDoctorView(generics.GenericAPIView):
 		description=(
 			"The doctor must be active and verified, and a general physician for general bookings or of the booking's "
 			"speciality. The doctor's own consultation_fee does not matter: the patient paid the fixed category fee. "
-			'400 if the doctor already has another appointment at the same time. If the doctor opened an availability slot '
+			'400 if the doctor already has another unfinished appointment at the same time; once that consultation is completed the '
+			'doctor can be assigned another patient at that time. The doctor gets a "New appointment" notification. If the doctor opened an availability slot '
 			'at that time in the doctor app, it is linked (shown as booked there).'
 		),
 		responses=AppointmentSerializer,
@@ -203,13 +206,14 @@ class AssignDoctorView(generics.GenericAPIView):
 				speciality_id=consultation.speciality_id,
 			)
 			profile = get_object_or_404(doctors, user_id=serializer.validated_data['doctor_id'])
-			if Appointment.objects.filter(doctor=profile.user, slot_time=appointment.slot_time).exclude(pk=appointment.pk).exclude(status=Appointment.Status.CANCELLED).exists():
+			# A doctor sees one patient per 15-minute time; once that consultation is completed the doctor can take another.
+			if Appointment.objects.filter(doctor=profile.user, slot_time=appointment.slot_time).exclude(pk=appointment.pk).exclude(status__in=FREED_STATUSES).exists():
 				raise serializers.ValidationError('Doctor already has an appointment at this time.')
 			# Link the doctor's own free slot at this time, if any, so the doctor app shows it as booked.
 			slot = AppointmentSlot.objects.select_for_update().filter(
 				doctor=profile.user, starts_at=appointment.slot_time, is_active=True,
 			).first()
-			if slot is not None and slot.appointments.exclude(pk=appointment.pk).exclude(status=Appointment.Status.CANCELLED).count() >= slot.capacity:
+			if slot is not None and slot.appointments.exclude(pk=appointment.pk).exclude(status__in=FREED_STATUSES).count() >= slot.capacity:
 				slot = None
 			appointment.slot = slot
 			appointment.doctor = profile.user
@@ -218,4 +222,27 @@ class AssignDoctorView(generics.GenericAPIView):
 			appointment.consultation.doctor = profile.user
 			appointment.consultation.save(update_fields=['doctor'])
 			notify_appointment(appointment, Notification.Kind.DOCTOR_ASSIGNED)
+			notify_doctor(appointment, Notification.Kind.APPOINTMENT_ASSIGNED)
+		return Response(AppointmentSerializer(appointment).data)
+
+
+class ConfirmCompletionView(generics.GenericAPIView):
+	permission_classes = [IsAdminUser]
+	serializer_class = AppointmentSerializer
+
+	@extend_schema(
+		tags=['Staff matching'], summary='Staff only: confirm a consultation the doctor marked completed',
+		description='Records which staff member confirmed it and when (shown to the doctor as `completion_confirmed`). 400 unless the appointment is completed; repeating it is harmless.',
+		request=None, responses=AppointmentSerializer,
+		examples=[OpenApiExample('Confirmed', response_only=True, value={**APPOINTMENT_EXAMPLE, 'status': 'completed', 'status_label': 'Completed', 'doctor': 7, 'doctor_name': 'Dr. Ananya Sharma', 'doctor_specialization': 'General Physician', 'payment_status': 'success'})],
+	)
+	def post(self, request, appointment_id):
+		with transaction.atomic():
+			appointment = get_object_or_404(Appointment.objects.select_for_update(), pk=appointment_id)
+			if appointment.status != Appointment.Status.COMPLETED:
+				raise serializers.ValidationError('Only completed consultations can be confirmed.')
+			if appointment.completion_confirmed_at is None:
+				appointment.completion_confirmed_at = timezone.now()
+				appointment.completion_confirmed_by = request.user
+				appointment.save(update_fields=['completion_confirmed_at', 'completion_confirmed_by'])
 		return Response(AppointmentSerializer(appointment).data)

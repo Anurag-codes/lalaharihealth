@@ -4,7 +4,14 @@ from pathlib import Path
 from django.conf import settings
 from django.db import models
 
+from apps.core.storage import private_document_storage
 from apps.treatments.models import TreatmentSystem
+
+
+def doctor_photo_path(instance, filename):
+    """Random public file name so doctor photos cannot be guessed before they are shown on the website."""
+    extension = Path(filename).suffix.lower()[:5]
+    return f'doctors/photos/{uuid.uuid4().hex}{extension}'
 
 
 class Speciality(models.Model):
@@ -42,22 +49,35 @@ class DoctorProfile(models.Model):
         VERIFIED = 'verified', 'Verified'
         REJECTED = 'rejected', 'Rejected'
 
+    class Gender(models.TextChoices):
+        MALE = 'male', 'Male'
+        FEMALE = 'female', 'Female'
+        OTHER = 'other', 'Other'
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL, related_name='doctor_profile', on_delete=models.CASCADE)
-    specialization = models.CharField(max_length=150)
+    application = models.ForeignKey(
+        'DoctorApplication', related_name='doctor_profiles', on_delete=models.SET_NULL, null=True, blank=True,
+        help_text='For Doctors form entry whose details were copied when this doctor first signed in to the app.',
+    )
+    age = models.PositiveSmallIntegerField(null=True, blank=True)
+    gender = models.CharField(max_length=10, choices=Gender.choices, blank=True)
+    specialization = models.CharField(max_length=150, blank=True)
     speciality = models.ForeignKey(
         Speciality, related_name='doctors', on_delete=models.PROTECT, null=True, blank=True,
         help_text='Empty for general physicians. Specialists are matched only to bookings of this speciality.',
     )
     systems_practiced = models.CharField(
-        max_length=255,
+        max_length=255, blank=True,
         help_text='Comma separated TreatmentSystem values this doctor consults on',
     )
-    qualification = models.CharField(max_length=255)
-    registration_number = models.CharField(max_length=100, unique=True)
+    qualification = models.CharField(max_length=255, blank=True)
+    registration_number = models.CharField(
+        max_length=100, unique=True, null=True, blank=True, help_text='Medical Council registration number',
+    )
     experience_years = models.PositiveSmallIntegerField(default=0)
     bio = models.TextField(blank=True)
-    profile_photo = models.ImageField(upload_to='doctors/photos/', blank=True, null=True)
-    consultation_fee = models.PositiveIntegerField(help_text='Fee in whole units of currency')
+    profile_photo = models.ImageField(upload_to=doctor_photo_path, blank=True, null=True)
+    consultation_fee = models.PositiveIntegerField(default=0, help_text='Fee in whole units of currency')
     currency = models.CharField(max_length=3, default='INR')
     languages_spoken = models.CharField(max_length=255, blank=True)
     city = models.CharField(max_length=100, blank=True)
@@ -74,6 +94,39 @@ class DoctorProfile(models.Model):
     def __str__(self):
         return f'Dr. {self.user.get_full_name() or self.user.username}'
 
+    @property
+    def is_verified(self):
+        return self.is_active and self.verification_status == self.VerificationStatus.VERIFIED
+
+
+class DoctorAvailability(models.Model):
+    """One weekly time window when our care team can reach the doctor, e.g. Monday 07:00-10:00."""
+
+    class Weekday(models.IntegerChoices):
+        MONDAY = 0, 'Mon'
+        TUESDAY = 1, 'Tue'
+        WEDNESDAY = 2, 'Wed'
+        THURSDAY = 3, 'Thu'
+        FRIDAY = 4, 'Fri'
+        SATURDAY = 5, 'Sat'
+        SUNDAY = 6, 'Sun'
+
+    doctor = models.ForeignKey(DoctorProfile, related_name='availability_windows', on_delete=models.CASCADE)
+    weekday = models.PositiveSmallIntegerField(choices=Weekday.choices)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    class Meta:
+        ordering = ['weekday', 'start_time']
+        verbose_name_plural = 'doctor availability'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(start_time__lt=models.F('end_time')), name='availability_starts_before_end'),
+            models.UniqueConstraint(fields=['doctor', 'weekday', 'start_time'], name='unique_availability_window_start'),
+        ]
+
+    def __str__(self):
+        return f'{self.get_weekday_display()} {self.start_time:%H:%M}-{self.end_time:%H:%M}'
+
 
 class DoctorDocument(models.Model):
     """KYC / degree / registration proof uploaded during onboarding."""
@@ -86,8 +139,12 @@ class DoctorDocument(models.Model):
 
     doctor = models.ForeignKey(DoctorProfile, related_name='documents', on_delete=models.CASCADE)
     document_type = models.CharField(max_length=25, choices=DocumentType.choices)
-    file = models.FileField(upload_to='doctors/documents/')
+    file = models.FileField(storage=private_document_storage, upload_to='doctors/documents/%Y/%m/')
+    original_name = models.CharField(max_length=255, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['uploaded_at', 'id']
 
     def __str__(self):
         return f'{self.doctor} - {self.get_document_type_display()}'

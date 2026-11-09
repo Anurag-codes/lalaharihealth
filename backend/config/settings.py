@@ -221,6 +221,18 @@ SPECTACULAR_SETTINGS = {
         'GET /api/v1/patients/cases/?status=active|closed and /{consultation_id}/. Notifications: '
         'GET /api/v1/notifications/, unread-count/, {id}/read/, read-all/; register the FCM token after login with '
         'POST /api/v1/notifications/devices/ and remove it on logout with devices/remove/.\n\n'
+        'Doctor app: 1. Sign Up / Verify Your Number: verify the phone OTP in the app with Firebase and exchange the ID token at '
+        'POST /api/v1/auth/doctor/phone/firebase/ (doctor JWTs; a doctor account is separate from a patient account on the same number). '
+        'A matching website For Doctors form entry is copied into the profile; every new doctor is Pending Review until staff verify. '
+        'Refresh at /api/v1/auth/doctor/token/refresh/, log out at /api/v1/auth/doctor/logout/. Open the screen in onboarding.next_step. '
+        '2. Professional Details: PATCH /api/v1/doctors/me/, PUT /api/v1/doctors/me/photo/, POST /api/v1/doctors/me/documents/ '
+        '(medical_registration certificate), qualification suggestions at GET /api/v1/doctors/qualifications/, specialities at '
+        'GET /api/v1/doctors/specialities/. 3. Weekly Availability: GET/PUT /api/v1/doctors/me/availability/ (1-3 windows per open day, '
+        'at least 6 hours; used by staff only, patients never see it). Verified doctors: Home timeline GET /api/v1/doctors/me/schedule/?date=, '
+        'appointment details GET /api/v1/doctors/me/appointments/{id}/, mark completed with PATCH {"status": "completed"} (staff confirm it '
+        'with POST /api/v1/appointments/{id}/confirm-completion/), optional call details at /api/v1/doctors/me/appointments/{id}/calls/, '
+        'prescription at /api/v1/doctors/me/consultations/{id}/record/ and Earnings at GET /api/v1/doctors/me/earnings/?period=daily|monthly|financial_year. '
+        'Calls run in the app. Notifications use the same /api/v1/notifications/ endpoints.\n\n'
         'Conventions: JSON bodies (multipart only for file uploads). Lists are paginated as '
         '{count, next, previous, results} with ?page=. Errors use HTTP status codes with a JSON body: '
         '{"detail": "message"} or {"field": ["message"]} for validation (400). 401 = refresh the token or log in, '
@@ -243,6 +255,7 @@ SPECTACULAR_SETTINGS = {
         'ConsultationStatusEnum': ['draft', 'requested', 'ongoing', 'completed', 'cancelled'],
         'AppointmentStatusEnum': ['pending', 'awaiting_payment', 'finding_doctor', 'confirmed', 'completed', 'cancelled'],
         'PaymentStatusEnum': ['pending', 'success', 'failed', 'refunded'],
+        'DoctorAppointmentStatusEnum': [('confirmed', 'Confirmed'), ('completed', 'Completed')],
         'ApplicationStatusEnum': [
             ('pending', 'Pending Review'), ('contacted', 'Contacted'),
             ('approved', 'Approved'), ('rejected', 'Rejected'),
@@ -307,6 +320,12 @@ DOCTOR_MATCH_TARGET_MINUTES = config('DOCTOR_MATCH_TARGET_MINUTES', default=30, 
 # Push uses Firebase Cloud Messaging with the FIREBASE_* credentials above; skipped when they are not set.
 PUSH_NOTIFICATIONS_ENABLED = config('PUSH_NOTIFICATIONS_ENABLED', default=True, cast=bool)
 APPOINTMENT_REMINDER_MINUTES = config('APPOINTMENT_REMINDER_MINUTES', default=30, cast=int)
+
+# Doctor app: weekly hours when staff may contact the doctor (not shown to patients).
+DOCTOR_AVAILABILITY_MAX_WINDOWS = 3
+DOCTOR_MIN_DAILY_AVAILABILITY_HOURS = 6
+# The doctor app may join a call and mark it completed from this many minutes before the appointment time.
+CONSULTATION_JOIN_EARLY_MINUTES = 5
 
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
 RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')

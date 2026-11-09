@@ -10,4 +10,5 @@ urlpatterns = [
 	path('', views.AppointmentListCreateView.as_view()),
 	path('<int:appointment_id>/', views.AppointmentDetailView.as_view()),
 	path('<int:appointment_id>/assign-doctor/', views.AssignDoctorView.as_view()),
+	path('<int:appointment_id>/confirm-completion/', views.ConfirmCompletionView.as_view()),
 ]

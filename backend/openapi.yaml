@@ -22,6 +22,8 @@ info:
 
     Home screen: GET /api/v1/patients/home/ (name, photo, language, bell count, General Physician card, specialities, support number, upcoming appointments, My Cases badge). My Cases with a progress tracker: GET /api/v1/patients/cases/?status=active|closed and /{consultation_id}/. Notifications: GET /api/v1/notifications/, unread-count/, {id}/read/, read-all/; register the FCM token after login with POST /api/v1/notifications/devices/ and remove it on logout with devices/remove/.
 
+    Doctor app: 1. Sign Up / Verify Your Number: verify the phone OTP in the app with Firebase and exchange the ID token at POST /api/v1/auth/doctor/phone/firebase/ (doctor JWTs; a doctor account is separate from a patient account on the same number). A matching website For Doctors form entry is copied into the profile; every new doctor is Pending Review until staff verify. Refresh at /api/v1/auth/doctor/token/refresh/, log out at /api/v1/auth/doctor/logout/. Open the screen in onboarding.next_step. 2. Professional Details: PATCH /api/v1/doctors/me/, PUT /api/v1/doctors/me/photo/, POST /api/v1/doctors/me/documents/ (medical_registration certificate), qualification suggestions at GET /api/v1/doctors/qualifications/, specialities at GET /api/v1/doctors/specialities/. 3. Weekly Availability: GET/PUT /api/v1/doctors/me/availability/ (1-3 windows per open day, at least 6 hours; used by staff only, patients never see it). Verified doctors: Home timeline GET /api/v1/doctors/me/schedule/?date=, appointment details GET /api/v1/doctors/me/appointments/{id}/, mark completed with PATCH {"status": "completed"} (staff confirm it with POST /api/v1/appointments/{id}/confirm-completion/), optional call details at /api/v1/doctors/me/appointments/{id}/calls/, prescription at /api/v1/doctors/me/consultations/{id}/record/ and Earnings at GET /api/v1/doctors/me/earnings/?period=daily|monthly|financial_year. Calls run in the app. Notifications use the same /api/v1/notifications/ endpoints.
+
     Conventions: JSON bodies (multipart only for file uploads). Lists are paginated as {count, next, previous, results} with ?page=. Errors use HTTP status codes with a JSON body: {"detail": "message"} or {"field": ["message"]} for validation (400). 401 = refresh the token or log in, 403 = not allowed, 404 = not found or not yours, 429 = too many requests, 503 = service not configured. Every endpoint below shows request and response examples and its error responses.
 paths:
   /api/v1/appointments/:
@@ -297,9 +299,10 @@ paths:
       description: 'The doctor must be active and verified, and a general physician
         for general bookings or of the booking''s speciality. The doctor''s own consultation_fee
         does not matter: the patient paid the fixed category fee. 400 if the doctor
-        already has another appointment at the same time. If the doctor opened an
-        availability slot at that time in the doctor app, it is linked (shown as booked
-        there).'
+        already has another unfinished appointment at the same time; once that consultation
+        is completed the doctor can be assigned another patient at that time. The
+        doctor gets a "New appointment" notification. If the doctor opened an availability
+        slot at that time in the doctor app, it is linked (shown as booked there).'
       summary: 'Staff only: assign a verified doctor to a paid appointment'
       parameters:
       - in: path
@@ -409,6 +412,76 @@ paths:
                 Error:
                   value:
                     detail: No DoctorProfile matches the given query.
+  /api/v1/appointments/{appointment_id}/confirm-completion/:
+    post:
+      operationId: appointments_confirm_completion_create
+      description: Records which staff member confirmed it and when (shown to the
+        doctor as `completion_confirmed`). 400 unless the appointment is completed;
+        repeating it is harmless.
+      summary: 'Staff only: confirm a consultation the doctor marked completed'
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Staff matching
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+              examples:
+                Confirmed:
+                  value:
+                    id: 12345
+                    appointment_number: APT-12345
+                    consultation: 42
+                    slot: null
+                    slot_time: '2026-10-18T10:00:00+05:30'
+                    schedule_date: '2026-10-18'
+                    schedule_time: 10:00 AM
+                    status: completed
+                    status_label: Completed
+                    patient_name: Rahul Sharma
+                    consultation_title: General Consultation
+                    speciality: null
+                    chief_complaint: Headache - Cluster Headache - Chronic
+                    mode_label: Online
+                    doctor: 7
+                    doctor_name: Dr. Ananya Sharma
+                    doctor_specialization: General Physician
+                    amount: 200
+                    currency: INR
+                    payment_status: success
+                    created_at: '2026-10-16T18:20:00+05:30'
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
   /api/v1/appointments/slot-dates/:
     get:
       operationId: appointments_slot_dates_list
@@ -541,6 +614,229 @@ paths:
                 Error:
                   value:
                     detail: Authentication credentials were not provided.
+  /api/v1/auth/doctor/logout/:
+    post:
+      operationId: auth_doctor_logout_create
+      description: Call POST /api/v1/notifications/devices/remove/ first, then send
+        the current refresh token here and delete the stored tokens. Returns 204.
+      summary: 'Log out: revoke this doctor refresh token'
+      tags:
+      - 'Doctor app: authentication'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientLogout'
+            examples:
+              Logout:
+                value:
+                  refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatientLogout'
+            examples:
+              Logout:
+                value:
+                  refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatientLogout'
+            examples:
+              Logout:
+                value:
+                  refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+  /api/v1/auth/doctor/phone/firebase/:
+    post:
+      operationId: auth_doctor_phone_firebase_create
+      description: 'The doctor app sends and verifies the SMS OTP with Firebase Phone
+        Auth (Sign Up and Verify Your Number screens), then sends the fresh Firebase
+        ID token here. A new number creates a doctor account (`is_new_user: true`),
+        separate from any patient account on the same number. If the number was used
+        in the website For Doctors form, its name, qualification, speciality, experience,
+        city, photo and documents are copied into the profile. Every new doctor is
+        Pending Review until staff verify them. Open the screen in `doctor.onboarding.next_step`.
+        Store `access` (60 minutes) and `refresh` (7 days) securely. 401 = invalid,
+        expired or reused token; 403 = the number belongs to a staff or deactivated
+        account; 503 = Firebase is not configured on the server.'
+      summary: 'Doctor sign up / sign in: exchange a Firebase phone ID token for doctor
+        JWTs'
+      tags:
+      - 'Doctor app: authentication'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirebasePhone'
+            examples:
+              FirebaseIDToken:
+                value:
+                  id_token: eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...firebase-id-token
+                summary: Firebase ID token
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FirebasePhone'
+            examples:
+              FirebaseIDToken:
+                value:
+                  id_token: eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...firebase-id-token
+                summary: Firebase ID token
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FirebasePhone'
+            examples:
+              FirebaseIDToken:
+                value:
+                  id_token: eyJhbGciOiJSUzI1NiIsImtpZCI6Ij...firebase-id-token
+                summary: Firebase ID token
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorAuthResponse'
+              examples:
+                SignedIn:
+                  value:
+                    access: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access
+                    refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+                    is_new_user: true
+                    doctor:
+                      id: 57
+                      profile_id: 12
+                      full_name: Ananya Sharma
+                      first_name: Ananya
+                      last_name: Sharma
+                      phone_number: '+919876543210'
+                      email: ''
+                      photo_url: https://api.lalaharihealth.com/media/doctors/photos/3f2a9c1e5b7d4e8f.jpg
+                      age: 34
+                      gender: female
+                      registration_number: DMC/R/12345
+                      qualification: MBBS, MD
+                      speciality: null
+                      specialization: General Physician
+                      experience_years: 8
+                      city: Delhi
+                      verification_status: pending
+                      verification_status_label: Pending Review
+                      is_verified: false
+                      documents:
+                      - id: 31
+                        document_type: medical_registration
+                        document_type_label: Medical Council Registration
+                        original_name: registration.pdf
+                        uploaded_at: '2026-10-18T10:15:00+05:30'
+                        download_url: https://api.lalaharihealth.com/api/v1/doctors/me/documents/31/download/
+                      onboarding:
+                        profile_completed: true
+                        registration_certificate_uploaded: true
+                        availability_set: false
+                        is_complete: false
+                        next_step: availability
+                  summary: Signed in
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+  /api/v1/auth/doctor/token/refresh/:
+    post:
+      operationId: auth_doctor_token_refresh_create
+      description: Send the doctor refresh token; returns a new access and refresh
+        token. 401 if it is expired, revoked or not a doctor token.
+      summary: Refresh doctor JWTs (rotates and revokes the used refresh token)
+      tags:
+      - 'Doctor app: authentication'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DoctorRefresh'
+            examples:
+              Refresh:
+                value:
+                  refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DoctorRefresh'
+            examples:
+              Refresh:
+                value:
+                  refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DoctorRefresh'
+            examples:
+              Refresh:
+                value:
+                  refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorRefresh'
+              examples:
+                NewTokens:
+                  value:
+                    access: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access
+                    refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh
+                  summary: New tokens
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
   /api/v1/auth/patient/email/request-otp/:
     post:
       operationId: auth_patient_email_request_otp_create
@@ -2854,6 +3150,881 @@ paths:
                     photo_url: null
                   summary: Approved doctors
           description: ''
+  /api/v1/doctors/me/:
+    get:
+      operationId: doctors_me_retrieve
+      description: 'Profile, verification status, documents and `onboarding`. After
+        sign-in open the screen given by `onboarding.next_step`: profile (Step 2 Professional
+        Details), availability (Step 3) or done (Home). New doctors are Pending Review
+        until staff verify them; only verified doctors receive appointments. Doctor
+        access token from POST /api/v1/auth/doctor/phone/firebase/.'
+      summary: My doctor profile and onboarding progress
+      tags:
+      - 'Doctor app: profile'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorMe'
+              examples:
+                Profile:
+                  value:
+                    id: 57
+                    profile_id: 12
+                    full_name: Ananya Sharma
+                    first_name: Ananya
+                    last_name: Sharma
+                    phone_number: '+919876543210'
+                    email: ''
+                    photo_url: https://api.lalaharihealth.com/media/doctors/photos/3f2a9c1e5b7d4e8f.jpg
+                    age: 34
+                    gender: female
+                    registration_number: DMC/R/12345
+                    qualification: MBBS, MD
+                    speciality: null
+                    specialization: General Physician
+                    experience_years: 8
+                    city: Delhi
+                    verification_status: pending
+                    verification_status_label: Pending Review
+                    is_verified: false
+                    documents:
+                    - id: 31
+                      document_type: medical_registration
+                      document_type_label: Medical Council Registration
+                      original_name: registration.pdf
+                      uploaded_at: '2026-10-18T10:15:00+05:30'
+                      download_url: https://api.lalaharihealth.com/api/v1/doctors/me/documents/31/download/
+                    onboarding:
+                      profile_completed: true
+                      registration_certificate_uploaded: true
+                      availability_set: false
+                      is_complete: false
+                      next_step: availability
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+    patch:
+      operationId: doctors_me_partial_update
+      description: Send only changed fields. `speciality_id` is an id from GET /api/v1/doctors/specialities/
+        or null for General Physician. Registration number, qualification and speciality
+        are locked once you are verified (400). Doctor access token from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: Save Professional Details (Step 2) or edit my profile
+      tags:
+      - 'Doctor app: profile'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDoctorMeUpdate'
+            examples:
+              ProfessionalDetails:
+                value:
+                  full_name: Ananya Sharma
+                  age: 34
+                  gender: female
+                  registration_number: DMC/R/12345
+                  qualification: MBBS, MD
+                  speciality_id: null
+                summary: Professional details
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDoctorMeUpdate'
+            examples:
+              ProfessionalDetails:
+                value:
+                  full_name: Ananya Sharma
+                  age: 34
+                  gender: female
+                  registration_number: DMC/R/12345
+                  qualification: MBBS, MD
+                  speciality_id: null
+                summary: Professional details
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDoctorMeUpdate'
+            examples:
+              ProfessionalDetails:
+                value:
+                  full_name: Ananya Sharma
+                  age: 34
+                  gender: female
+                  registration_number: DMC/R/12345
+                  qualification: MBBS, MD
+                  speciality_id: null
+                summary: Professional details
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorMe'
+              examples:
+                Profile:
+                  value:
+                    id: 57
+                    profile_id: 12
+                    full_name: Ananya Sharma
+                    first_name: Ananya
+                    last_name: Sharma
+                    phone_number: '+919876543210'
+                    email: ''
+                    photo_url: https://api.lalaharihealth.com/media/doctors/photos/3f2a9c1e5b7d4e8f.jpg
+                    age: 34
+                    gender: female
+                    registration_number: DMC/R/12345
+                    qualification: MBBS, MD
+                    speciality: null
+                    specialization: General Physician
+                    experience_years: 8
+                    city: Delhi
+                    verification_status: pending
+                    verification_status_label: Pending Review
+                    is_verified: false
+                    documents:
+                    - id: 31
+                      document_type: medical_registration
+                      document_type_label: Medical Council Registration
+                      original_name: registration.pdf
+                      uploaded_at: '2026-10-18T10:15:00+05:30'
+                      download_url: https://api.lalaharihealth.com/api/v1/doctors/me/documents/31/download/
+                    onboarding:
+                      profile_completed: true
+                      registration_certificate_uploaded: true
+                      availability_set: false
+                      is_complete: false
+                      next_step: availability
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+  /api/v1/doctors/me/appointments/{appointment_id}/:
+    get:
+      operationId: doctors_me_appointments_retrieve
+      description: Date, time, mode, booking ID, fee paid, patient name, age, gender,
+        phone and the reason / symptoms. Show "Join" while `can_join` is true; the
+        app runs the call itself. Write the diagnosis and prescription with PUT /api/v1/doctors/me/consultations/{consultation_id}/record/.
+        Verified doctors only (403 while Pending Review).
+      summary: Appointment details
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - 'Doctor app: appointments'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorAppointmentDetail'
+              examples:
+                UpcomingVideoConsultation:
+                  value:
+                    id: 18
+                    appointment_number: APT-00018
+                    consultation_id: 41
+                    patient_name: Rahul Sharma
+                    title: General Consultation
+                    starts_at: '2026-10-18T10:30:00+05:30'
+                    ends_at: '2026-10-18T10:45:00+05:30'
+                    time_display: 10:30 AM - 10:45 AM
+                    mode: video
+                    mode_label: Video Call
+                    status: confirmed
+                    can_join: true
+                    date_display: 18 Oct 2026
+                    fee: 200
+                    currency: INR
+                    fee_display: ₹200
+                    patient:
+                      name: Rahul Sharma
+                      age: 35
+                      gender: male
+                      gender_label: Male
+                      phone_number: '+919876543210'
+                    chief_complaint: Fever - Viral Fever
+                    condition_details: Fever and sore throat since 3 days
+                    symptoms: Fever and sore throat since 3 days
+                    duration_value: 3
+                    duration_unit: days
+                    ongoing_medication: false
+                    treatment_details: ''
+                    join_opens_at: '2026-10-18T10:25:00+05:30'
+                    completed_at: null
+                    completion_confirmed: false
+                    calls: []
+                  summary: Upcoming video consultation
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+    patch:
+      operationId: doctors_me_appointments_partial_update
+      description: 'Send `{"status": "completed"}` after the consultation. Allowed
+        for confirmed appointments from 5 minutes before the start; repeating it is
+        harmless. The patient is notified and our staff then confirm the completion.
+        Completed consultations count in Earnings. Verified doctors only (403 while
+        Pending Review).'
+      summary: Mark the consultation completed
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - 'Doctor app: appointments'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedDoctorAppointmentStatus'
+            examples:
+              Complete:
+                value:
+                  status: completed
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedDoctorAppointmentStatus'
+            examples:
+              Complete:
+                value:
+                  status: completed
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedDoctorAppointmentStatus'
+            examples:
+              Complete:
+                value:
+                  status: completed
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorAppointmentDetail'
+              examples:
+                Completed:
+                  value:
+                    id: 18
+                    appointment_number: APT-00018
+                    consultation_id: 41
+                    patient_name: Rahul Sharma
+                    title: General Consultation
+                    starts_at: '2026-10-18T10:30:00+05:30'
+                    ends_at: '2026-10-18T10:45:00+05:30'
+                    time_display: 10:30 AM - 10:45 AM
+                    mode: video
+                    mode_label: Video Call
+                    status: completed
+                    can_join: false
+                    date_display: 18 Oct 2026
+                    fee: 200
+                    currency: INR
+                    fee_display: ₹200
+                    patient:
+                      name: Rahul Sharma
+                      age: 35
+                      gender: male
+                      gender_label: Male
+                      phone_number: '+919876543210'
+                    chief_complaint: Fever - Viral Fever
+                    condition_details: Fever and sore throat since 3 days
+                    symptoms: Fever and sore throat since 3 days
+                    duration_value: 3
+                    duration_unit: days
+                    ongoing_medication: false
+                    treatment_details: ''
+                    join_opens_at: '2026-10-18T10:25:00+05:30'
+                    completed_at: '2026-10-18T10:44:00+05:30'
+                    completion_confirmed: false
+                    calls:
+                    - id: 5
+                      mode: video
+                      provider: agora
+                      external_call_id: apt-18-room
+                      started_at: '2026-10-18T10:31:00+05:30'
+                      ended_at: '2026-10-18T10:43:30+05:30'
+                      duration_seconds: 750
+                      duration_minutes: 13
+                      end_reason: doctor_ended
+                      metadata:
+                        network: wifi
+                      created_at: '2026-10-18T10:31:00+05:30'
+                      updated_at: '2026-10-18T10:43:31+05:30'
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/doctors/me/appointments/{appointment_id}/calls/:
+    post:
+      operationId: doctors_me_appointments_calls_create
+      description: Optional. Store details of a call or chat the app ran for this
+        appointment. Every field is optional, e.g. send provider and started_at when
+        the call starts and PATCH ended_at when it ends. duration_seconds is calculated
+        from started_at and ended_at when not sent. Allowed for confirmed or completed
+        appointments. Verified doctors only (403 while Pending Review).
+      summary: Save call details
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - 'Doctor app: appointments'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCall'
+            examples:
+              CallStarted:
+                value:
+                  mode: video
+                  provider: agora
+                  external_call_id: apt-18-room
+                  started_at: '2026-10-18T10:31:00+05:30'
+                summary: Call started
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentCall'
+            examples:
+              CallStarted:
+                value:
+                  mode: video
+                  provider: agora
+                  external_call_id: apt-18-room
+                  started_at: '2026-10-18T10:31:00+05:30'
+                summary: Call started
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentCall'
+            examples:
+              CallStarted:
+                value:
+                  mode: video
+                  provider: agora
+                  external_call_id: apt-18-room
+                  started_at: '2026-10-18T10:31:00+05:30'
+                summary: Call started
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentCall'
+              examples:
+                Saved:
+                  value:
+                    id: 5
+                    mode: video
+                    provider: agora
+                    external_call_id: apt-18-room
+                    started_at: '2026-10-18T10:31:00+05:30'
+                    ended_at: null
+                    duration_seconds: null
+                    duration_minutes: null
+                    end_reason: ''
+                    metadata: {}
+                    created_at: '2026-10-18T10:31:00+05:30'
+                    updated_at: '2026-10-18T10:43:31+05:30'
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/doctors/me/appointments/{appointment_id}/calls/{call_id}/:
+    patch:
+      operationId: doctors_me_appointments_calls_partial_update
+      description: Send only changed fields. Verified doctors only (403 while Pending
+        Review).
+      summary: Update call details (e.g. when the call ends)
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: call_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - 'Doctor app: appointments'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentCall'
+            examples:
+              CallEnded:
+                value:
+                  ended_at: '2026-10-18T10:43:30+05:30'
+                  end_reason: doctor_ended
+                summary: Call ended
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentCall'
+            examples:
+              CallEnded:
+                value:
+                  ended_at: '2026-10-18T10:43:30+05:30'
+                  end_reason: doctor_ended
+                summary: Call ended
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentCall'
+            examples:
+              CallEnded:
+                value:
+                  ended_at: '2026-10-18T10:43:30+05:30'
+                  end_reason: doctor_ended
+                summary: Call ended
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentCall'
+              examples:
+                Updated:
+                  value:
+                    id: 5
+                    mode: video
+                    provider: agora
+                    external_call_id: apt-18-room
+                    started_at: '2026-10-18T10:31:00+05:30'
+                    ended_at: '2026-10-18T10:43:30+05:30'
+                    duration_seconds: 750
+                    duration_minutes: 13
+                    end_reason: doctor_ended
+                    metadata:
+                      network: wifi
+                    created_at: '2026-10-18T10:31:00+05:30'
+                    updated_at: '2026-10-18T10:43:31+05:30'
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/doctors/me/availability/:
+    get:
+      operationId: doctors_me_availability_retrieve
+      description: Weekly hours (India time) when our care team may contact you and
+        assign consultations. Patients never see or choose these. Doctor access token
+        from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: My weekly availability (Step 3)
+      tags:
+      - 'Doctor app: profile'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityWeek'
+              examples:
+                Week:
+                  value:
+                    days:
+                    - weekday: 0
+                      label: Mon
+                      is_open: true
+                      total_hours: 7.0
+                      windows:
+                      - start_time: 07:00
+                        end_time: '10:00'
+                        display: 07:00 AM - 10:00 AM
+                      - start_time: '15:00'
+                        end_time: '17:00'
+                        display: 03:00 PM - 05:00 PM
+                      - start_time: '21:00'
+                        end_time: '23:00'
+                        display: 09:00 PM - 11:00 PM
+                    - weekday: 1
+                      label: Tue
+                      is_open: true
+                      total_hours: 6.0
+                      windows:
+                      - start_time: 09:00
+                        end_time: '15:00'
+                        display: 09:00 AM - 03:00 PM
+                    - weekday: 2
+                      label: Wed
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    - weekday: 3
+                      label: Thu
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    - weekday: 4
+                      label: Fri
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    - weekday: 5
+                      label: Sat
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    - weekday: 6
+                      label: Sun
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    min_daily_hours: 6
+                    max_windows_per_day: 3
+                    timezone: Asia/Kolkata
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+    put:
+      operationId: doctors_me_availability_update
+      description: Replaces the whole week. Each open day has 1 to 3 time windows
+        (24-hour HH:MM, 15-minute steps, no overlaps), e.g. 07:00-10:00, 15:00-17:00
+        and 21:00-23:00, totalling at least 6 hours. Windows of closed days are ignored;
+        missing days are closed. At least one day must be open. Doctor access token
+        from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: Save my weekly availability ("Start Consulting")
+      tags:
+      - 'Doctor app: profile'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityWeek'
+            examples:
+              MondayThreeWindows,TuesdayOne:
+                value:
+                  days:
+                  - weekday: 0
+                    is_open: true
+                    windows:
+                    - start_time: 07:00
+                      end_time: '10:00'
+                    - start_time: '15:00'
+                      end_time: '17:00'
+                    - start_time: '21:00'
+                      end_time: '23:00'
+                  - weekday: 1
+                    is_open: true
+                    windows:
+                    - start_time: 09:00
+                      end_time: '15:00'
+                  - weekday: 2
+                    is_open: false
+                    windows: []
+                summary: Monday three windows, Tuesday one
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AvailabilityWeek'
+            examples:
+              MondayThreeWindows,TuesdayOne:
+                value:
+                  days:
+                  - weekday: 0
+                    is_open: true
+                    windows:
+                    - start_time: 07:00
+                      end_time: '10:00'
+                    - start_time: '15:00'
+                      end_time: '17:00'
+                    - start_time: '21:00'
+                      end_time: '23:00'
+                  - weekday: 1
+                    is_open: true
+                    windows:
+                    - start_time: 09:00
+                      end_time: '15:00'
+                  - weekday: 2
+                    is_open: false
+                    windows: []
+                summary: Monday three windows, Tuesday one
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AvailabilityWeek'
+            examples:
+              MondayThreeWindows,TuesdayOne:
+                value:
+                  days:
+                  - weekday: 0
+                    is_open: true
+                    windows:
+                    - start_time: 07:00
+                      end_time: '10:00'
+                    - start_time: '15:00'
+                      end_time: '17:00'
+                    - start_time: '21:00'
+                      end_time: '23:00'
+                  - weekday: 1
+                    is_open: true
+                    windows:
+                    - start_time: 09:00
+                      end_time: '15:00'
+                  - weekday: 2
+                    is_open: false
+                    windows: []
+                summary: Monday three windows, Tuesday one
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityWeek'
+              examples:
+                Week:
+                  value:
+                    days:
+                    - weekday: 0
+                      label: Mon
+                      is_open: true
+                      total_hours: 7.0
+                      windows:
+                      - start_time: 07:00
+                        end_time: '10:00'
+                        display: 07:00 AM - 10:00 AM
+                      - start_time: '15:00'
+                        end_time: '17:00'
+                        display: 03:00 PM - 05:00 PM
+                      - start_time: '21:00'
+                        end_time: '23:00'
+                        display: 09:00 PM - 11:00 PM
+                    - weekday: 1
+                      label: Tue
+                      is_open: true
+                      total_hours: 6.0
+                      windows:
+                      - start_time: 09:00
+                        end_time: '15:00'
+                        display: 09:00 AM - 03:00 PM
+                    - weekday: 2
+                      label: Wed
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    - weekday: 3
+                      label: Thu
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    - weekday: 4
+                      label: Fri
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    - weekday: 5
+                      label: Sat
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    - weekday: 6
+                      label: Sun
+                      is_open: false
+                      total_hours: 0.0
+                      windows: []
+                    min_daily_hours: 6
+                    max_windows_per_day: 3
+                    timezone: Asia/Kolkata
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
   /api/v1/doctors/me/consultations/:
     get:
       operationId: doctors_me_consultations_list
@@ -3250,6 +4421,500 @@ paths:
                 Error:
                   value:
                     detail: No Consultation matches the given query.
+  /api/v1/doctors/me/documents/:
+    get:
+      operationId: doctors_me_documents_list
+      description: Open a file with `download_url` and the auth header. Files are
+        private. Doctor access token from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: My verification documents
+      tags:
+      - 'Doctor app: profile'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoctorDocument'
+              examples:
+                Documents:
+                  value:
+                  - id: 31
+                    document_type: medical_registration
+                    document_type_label: Medical Council Registration
+                    original_name: registration.pdf
+                    uploaded_at: '2026-10-18T10:15:00+05:30'
+                    download_url: https://api.lalaharihealth.com/api/v1/doctors/me/documents/31/download/
+                  - id: 32
+                    document_type: degree_certificate
+                    document_type_label: Degree Certificate
+                    original_name: mbbs-degree.jpg
+                    uploaded_at: '2026-10-18T10:15:00+05:30'
+                    download_url: https://api.lalaharihealth.com/api/v1/doctors/me/documents/32/download/
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+    post:
+      operationId: doctors_me_documents_create
+      description: multipart/form-data with `document_type` and `file` (PDF, PNG or
+        JPG, up to 10 MB). `medical_registration` = Medical Council Registration Certificate
+        (required in Step 2), `degree_certificate` = Qualification Degree, `government_id`
+        = Government ID Proof. Uploading one of these replaces the previous file of
+        that type. `other` keeps up to 5 files. Doctor access token from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: Upload a verification document
+      tags:
+      - 'Doctor app: profile'
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DoctorDocumentUpload'
+            examples:
+              RegistrationCertificate:
+                value:
+                  document_type: medical_registration
+                  file: '<file: mci-registration.pdf>'
+                summary: Registration certificate
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorDocument'
+              examples:
+                Uploaded:
+                  value:
+                    id: 31
+                    document_type: medical_registration
+                    document_type_label: Medical Council Registration
+                    original_name: registration.pdf
+                    uploaded_at: '2026-10-18T10:15:00+05:30'
+                    download_url: https://api.lalaharihealth.com/api/v1/doctors/me/documents/31/download/
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+  /api/v1/doctors/me/documents/{document_id}/:
+    delete:
+      operationId: doctors_me_documents_destroy
+      description: Returns 204. Verified doctors cannot delete the Medical Council
+        Registration Certificate (400). Doctor access token from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: Delete one of my documents
+      parameters:
+      - in: path
+        name: document_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - 'Doctor app: profile'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/doctors/me/documents/{document_id}/download/:
+    get:
+      operationId: doctors_me_documents_download_retrieve
+      description: Streams the private file (PDF or image bytes). Doctor access token
+        from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: Download one of my documents
+      parameters:
+      - in: path
+        name: document_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - 'Doctor app: profile'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/doctors/me/earnings/:
+    get:
+      operationId: doctors_me_earnings_retrieve
+      description: What patients paid for your completed consultations in the period
+        (India time), with consultations done, average per consultation, a chart and
+        the split by Video / Audio / Chat. Financial year is April to March. Use `previous_date`
+        and `next_date` as `date` for the arrows. Verified doctors only (403 while
+        Pending Review).
+      summary: 'Earnings: daily, monthly or financial year'
+      parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Any day inside the period. Default today. Use previous_date /
+          next_date for the arrows.
+      - in: query
+        name: period
+        schema:
+          enum:
+          - daily
+          - monthly
+          - financial_year
+          type: string
+          default: daily
+          minLength: 1
+        description: |-
+          * `daily` - daily
+          * `monthly` - monthly
+          * `financial_year` - financial_year
+      tags:
+      - 'Doctor app: appointments'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Earnings'
+              examples:
+                ThisMonth:
+                  value:
+                    period: monthly
+                    label: October 2026
+                    start_date: '2026-10-01'
+                    end_date: '2026-10-31'
+                    is_current: true
+                    previous_date: '2026-09-01'
+                    next_date: null
+                    currency: INR
+                    total_earned: 4600
+                    total_earned_display: ₹4,600
+                    consultations_count: 20
+                    average_per_consultation: 230
+                    average_display: ₹230
+                    chart:
+                    - label: '1'
+                      amount: 400
+                      count: 2
+                    - label: '2'
+                      amount: 0
+                      count: 0
+                    by_mode:
+                    - mode: video
+                      label: Video Call
+                      amount: 3000
+                      amount_display: ₹3,000
+                      count: 13
+                      share_percent: 65.2
+                    - mode: audio
+                      label: Audio Call
+                      amount: 1200
+                      amount_display: ₹1,200
+                      count: 5
+                      share_percent: 26.1
+                    - mode: chat
+                      label: Chat
+                      amount: 400
+                      amount_display: ₹400
+                      count: 2
+                      share_percent: 8.7
+                    other_currencies: []
+                  summary: This month
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+  /api/v1/doctors/me/photo/:
+    put:
+      operationId: doctors_me_photo_update
+      description: multipart/form-data with field `photo` (JPG, PNG or WEBP, up to
+        5 MB). Doctor access token from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: Upload or replace my profile photo
+      tags:
+      - 'Doctor app: profile'
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DoctorPhoto'
+            examples:
+              Photo:
+                value:
+                  photo: '<file: dr-anjali.jpg>'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoctorMe'
+              examples:
+                Profile:
+                  value:
+                    id: 57
+                    profile_id: 12
+                    full_name: Ananya Sharma
+                    first_name: Ananya
+                    last_name: Sharma
+                    phone_number: '+919876543210'
+                    email: ''
+                    photo_url: https://api.lalaharihealth.com/media/doctors/photos/3f2a9c1e5b7d4e8f.jpg
+                    age: 34
+                    gender: female
+                    registration_number: DMC/R/12345
+                    qualification: MBBS, MD
+                    speciality: null
+                    specialization: General Physician
+                    experience_years: 8
+                    city: Delhi
+                    verification_status: pending
+                    verification_status_label: Pending Review
+                    is_verified: false
+                    documents:
+                    - id: 31
+                      document_type: medical_registration
+                      document_type_label: Medical Council Registration
+                      original_name: registration.pdf
+                      uploaded_at: '2026-10-18T10:15:00+05:30'
+                      download_url: https://api.lalaharihealth.com/api/v1/doctors/me/documents/31/download/
+                    onboarding:
+                      profile_completed: true
+                      registration_certificate_uploaded: true
+                      availability_set: false
+                      is_complete: false
+                      next_step: availability
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+    delete:
+      operationId: doctors_me_photo_destroy
+      description: Returns 204. Doctor access token from POST /api/v1/auth/doctor/phone/firebase/.
+      summary: Remove my profile photo
+      tags:
+      - 'Doctor app: profile'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+  /api/v1/doctors/me/schedule/:
+    get:
+      operationId: doctors_me_schedule_list
+      description: Confirmed and completed appointments assigned to you on `date`
+        (India time), earliest first. Use the arrows to change `date`. Open GET /api/v1/doctors/me/appointments/{id}/
+        on tap. Verified doctors only (403 while Pending Review).
+      summary: 'Home timeline: my appointments on a date'
+      parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: YYYY-MM-DD, India time. Default today.
+      tags:
+      - 'Doctor app: appointments'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoctorScheduleItem'
+              examples:
+                Day:
+                  value:
+                  - id: 18
+                    appointment_number: APT-00018
+                    consultation_id: 41
+                    patient_name: Rahul Sharma
+                    title: General Consultation
+                    starts_at: '2026-10-18T10:30:00+05:30'
+                    ends_at: '2026-10-18T10:45:00+05:30'
+                    time_display: 10:30 AM - 10:45 AM
+                    mode: video
+                    mode_label: Video Call
+                    status: confirmed
+                    can_join: true
+                  - id: 19
+                    appointment_number: APT-00019
+                    consultation_id: 44
+                    patient_name: Priya Verma
+                    title: General Consultation
+                    starts_at: '2026-10-18T12:00:00+05:30'
+                    ends_at: '2026-10-18T12:15:00+05:30'
+                    time_display: 12:00 PM - 12:15 PM
+                    mode: audio
+                    mode_label: Audio Call
+                    status: confirmed
+                    can_join: false
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
   /api/v1/doctors/me/slots/:
     get:
       operationId: doctors_me_slots_list
@@ -3479,6 +5144,48 @@ paths:
                 Error:
                   value:
                     detail: No AppointmentSlot matches the given query.
+  /api/v1/doctors/qualifications/:
+    get:
+      operationId: doctors_qualifications_list
+      description: Public. Suggestions for the "Search or enter" qualification field;
+        the doctor may also type any other value.
+      summary: Qualification suggestions
+      parameters:
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Case-insensitive part of the name, e.g. "md"
+      tags:
+      - 'Doctor app: profile'
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Qualification'
+              examples:
+                Qualifications:
+                  value:
+                  - name: MD
+                  - name: MD (Ayurveda)
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
   /api/v1/doctors/specialities/:
     get:
       operationId: doctors_specialities_list
@@ -3626,8 +5333,11 @@ paths:
     get:
       operationId: notifications_list
       description: 'Kinds: payment_success, doctor_assigned, appointment_reminder,
-        consultation_completed, appointment_cancelled, announcement. Text is in the
-        language chosen in Profile (en/hi). Tap -> open appointment_id when set.'
+        consultation_completed, appointment_cancelled, announcement. Doctor app kinds:
+        appointment_assigned ("New appointment booked"), appointment_reminder and
+        verification_update (profile verified / rejected / under review). Patient
+        text is in the language chosen in Profile (en/hi); doctor text is English.
+        Tap -> open appointment_id when set.'
       summary: 'Bell: my notifications, newest first'
       parameters:
       - name: page
@@ -5932,6 +7642,83 @@ components:
       - speciality
       - status
       - status_label
+    AppointmentCall:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        mode:
+          oneOf:
+          - $ref: '#/components/schemas/ModeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        provider:
+          type: string
+          description: Calling service used by the app, e.g. agora, zego, jitsi
+          maxLength: 50
+        external_call_id:
+          type: string
+          description: The provider's call, room or channel id
+          maxLength: 255
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        duration_seconds:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+        duration_minutes:
+          type: integer
+          nullable: true
+          readOnly: true
+          description: duration_seconds rounded up to whole minutes
+        end_reason:
+          type: string
+          maxLength: 100
+        metadata:
+          description: Any extra details the app wants to keep
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - duration_minutes
+      - id
+      - updated_at
+    AppointmentPatient:
+      type: object
+      properties:
+        name:
+          type: string
+        age:
+          type: integer
+          nullable: true
+        gender:
+          type: string
+          description: male, female, other, prefer_not_to_say or empty
+        gender_label:
+          type: string
+        phone_number:
+          type: string
+          description: Number to call the patient on
+      required:
+      - age
+      - gender
+      - gender_label
+      - name
+      - phone_number
     AppointmentRequest:
       type: object
       properties:
@@ -5981,6 +7768,80 @@ components:
         * `confirmed` - Confirmed
         * `completed` - Completed
         * `cancelled` - Cancelled
+    AvailabilityDay:
+      type: object
+      properties:
+        weekday:
+          allOf:
+          - $ref: '#/components/schemas/WeekdayEnum'
+          description: |-
+            0 = Monday ... 6 = Sunday
+
+            * `0` - Mon
+            * `1` - Tue
+            * `2` - Wed
+            * `3` - Thu
+            * `4` - Fri
+            * `5` - Sat
+            * `6` - Sun
+        label:
+          type: string
+          readOnly: true
+        is_open:
+          type: boolean
+        windows:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityWindow'
+        total_hours:
+          type: number
+          format: double
+          readOnly: true
+      required:
+      - is_open
+      - label
+      - total_hours
+      - weekday
+    AvailabilityWeek:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvailabilityDay'
+          description: Send all 7 days, or only open days (missing days are closed)
+        min_daily_hours:
+          type: integer
+          readOnly: true
+        max_windows_per_day:
+          type: integer
+          readOnly: true
+        timezone:
+          type: string
+          readOnly: true
+      required:
+      - days
+      - max_windows_per_day
+      - min_daily_hours
+      - timezone
+    AvailabilityWindow:
+      type: object
+      properties:
+        start_time:
+          type: string
+          format: time
+          description: 24-hour HH:MM on a 15-minute boundary, e.g. 07:00
+        end_time:
+          type: string
+          format: time
+          description: Later than start_time, e.g. 10:00
+        display:
+          type: string
+          readOnly: true
+      required:
+      - display
+      - end_time
+      - start_time
     BlankEnum:
       enum:
       - ''
@@ -6427,6 +8288,19 @@ components:
       - date
       - starts_at
       - time
+    ChartBucket:
+      type: object
+      properties:
+        label:
+          type: string
+        amount:
+          type: integer
+        count:
+          type: integer
+      required:
+      - amount
+      - count
+      - label
     CheckoutOrder:
       type: object
       properties:
@@ -6998,6 +8872,127 @@ components:
             format: uri
           description: Optional supporting documents; submit at most five files.
           maxItems: 5
+    DoctorAppointmentDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        appointment_number:
+          type: string
+          description: Booking ID, e.g. APT-00018
+        consultation_id:
+          type: integer
+        patient_name:
+          type: string
+        title:
+          type: string
+          description: e.g. General Consultation or Skin Consultation
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          description: Every appointment is 15 minutes
+        time_display:
+          type: string
+          description: e.g. 10:30 AM - 10:45 AM
+        mode:
+          $ref: '#/components/schemas/ModeEnum'
+        mode_label:
+          type: string
+        status:
+          $ref: '#/components/schemas/DoctorAppointmentStatusEnum'
+        can_join:
+          type: boolean
+          description: true from 5 minutes before the start until you mark the appointment
+            completed
+        date_display:
+          type: string
+          description: e.g. 18 Oct 2026
+        fee:
+          type: integer
+          description: Amount the patient paid, whole currency units
+        currency:
+          type: string
+        fee_display:
+          type: string
+        patient:
+          $ref: '#/components/schemas/AppointmentPatient'
+        chief_complaint:
+          type: string
+          description: Disease - type - variant chosen by the patient
+        condition_details:
+          type: string
+          description: Symptoms / reason in the patient's words
+        symptoms:
+          type: string
+        duration_value:
+          type: integer
+          nullable: true
+        duration_unit:
+          type: string
+        ongoing_medication:
+          type: boolean
+          nullable: true
+        treatment_details:
+          type: string
+        join_opens_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        completion_confirmed:
+          type: boolean
+          description: true once our staff confirmed the completed consultation
+        calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppointmentCall'
+      required:
+      - appointment_number
+      - calls
+      - can_join
+      - chief_complaint
+      - completed_at
+      - completion_confirmed
+      - condition_details
+      - consultation_id
+      - currency
+      - date_display
+      - duration_unit
+      - duration_value
+      - ends_at
+      - fee
+      - fee_display
+      - id
+      - join_opens_at
+      - mode
+      - mode_label
+      - ongoing_medication
+      - patient
+      - patient_name
+      - starts_at
+      - status
+      - symptoms
+      - time_display
+      - title
+      - treatment_details
+    DoctorAppointmentStatusEnum:
+      enum:
+      - confirmed
+      - completed
+      type: string
+      description: |-
+        * `confirmed` - Confirmed
+        * `completed` - Completed
+    DoctorAppointmentStatusStatusEnum:
+      enum:
+      - completed
+      type: string
+      description: '* `completed` - completed'
     DoctorAssignment:
       type: object
       properties:
@@ -7006,6 +9001,23 @@ components:
           minimum: 1
       required:
       - doctor_id
+    DoctorAuthResponse:
+      type: object
+      properties:
+        access:
+          type: string
+        refresh:
+          type: string
+        is_new_user:
+          type: boolean
+          description: true when this sign-in created the doctor account
+        doctor:
+          $ref: '#/components/schemas/DoctorMe'
+      required:
+      - access
+      - doctor
+      - is_new_user
+      - refresh
     DoctorAvailability:
       type: object
       properties:
@@ -7168,6 +9180,218 @@ components:
       - status
       - symptoms
       - treatment_details
+    DoctorDocument:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        document_type:
+          allOf:
+          - $ref: '#/components/schemas/DocumentTypeEnum'
+          readOnly: true
+        document_type_label:
+          type: string
+          readOnly: true
+        original_name:
+          type: string
+          readOnly: true
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+        download_url:
+          type: string
+          readOnly: true
+      required:
+      - document_type
+      - document_type_label
+      - download_url
+      - id
+      - original_name
+      - uploaded_at
+    DoctorDocumentUpload:
+      type: object
+      properties:
+        document_type:
+          $ref: '#/components/schemas/DocumentTypeEnum'
+        file:
+          type: string
+          format: uri
+          description: PDF, JPG or PNG, up to 10 MB
+      required:
+      - document_type
+      - file
+    DoctorMe:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+          description: Doctor user id (used by staff to assign appointments)
+        profile_id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        phone_number:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          readOnly: true
+        photo_url:
+          type: string
+          nullable: true
+          readOnly: true
+        age:
+          type: integer
+          readOnly: true
+          nullable: true
+        gender:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        registration_number:
+          type: string
+          readOnly: true
+          nullable: true
+        qualification:
+          type: string
+          readOnly: true
+        speciality:
+          allOf:
+          - $ref: '#/components/schemas/SpecialityRef'
+          readOnly: true
+          nullable: true
+          description: null = General Physician
+        specialization:
+          type: string
+          readOnly: true
+        experience_years:
+          type: integer
+          readOnly: true
+        city:
+          type: string
+          readOnly: true
+        verification_status:
+          allOf:
+          - $ref: '#/components/schemas/VerificationStatusEnum'
+          readOnly: true
+        verification_status_label:
+          type: string
+          readOnly: true
+        is_verified:
+          type: boolean
+          readOnly: true
+          description: Only verified doctors receive appointments
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DoctorDocument'
+          readOnly: true
+        onboarding:
+          allOf:
+          - $ref: '#/components/schemas/Onboarding'
+          readOnly: true
+      required:
+      - age
+      - city
+      - documents
+      - email
+      - experience_years
+      - first_name
+      - full_name
+      - gender
+      - id
+      - is_verified
+      - last_name
+      - onboarding
+      - phone_number
+      - photo_url
+      - profile_id
+      - qualification
+      - registration_number
+      - speciality
+      - specialization
+      - verification_status
+      - verification_status_label
+    DoctorPhoto:
+      type: object
+      properties:
+        photo:
+          type: string
+          format: uri
+          description: JPG, PNG or WEBP, up to 5 MB
+      required:
+      - photo
+    DoctorRefresh:
+      type: object
+      properties:
+        refresh:
+          type: string
+        access:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    DoctorScheduleItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        appointment_number:
+          type: string
+          description: Booking ID, e.g. APT-00018
+        consultation_id:
+          type: integer
+        patient_name:
+          type: string
+        title:
+          type: string
+          description: e.g. General Consultation or Skin Consultation
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          description: Every appointment is 15 minutes
+        time_display:
+          type: string
+          description: e.g. 10:30 AM - 10:45 AM
+        mode:
+          $ref: '#/components/schemas/ModeEnum'
+        mode_label:
+          type: string
+        status:
+          $ref: '#/components/schemas/DoctorAppointmentStatusEnum'
+        can_join:
+          type: boolean
+          description: true from 5 minutes before the start until you mark the appointment
+            completed
+      required:
+      - appointment_number
+      - can_join
+      - consultation_id
+      - ends_at
+      - id
+      - mode
+      - mode_label
+      - patient_name
+      - starts_at
+      - status
+      - time_display
+      - title
     DoctorSlot:
       type: object
       properties:
@@ -7223,6 +9447,18 @@ components:
       - id
       - original_name
       - uploaded_at
+    DocumentTypeEnum:
+      enum:
+      - degree_certificate
+      - medical_registration
+      - government_id
+      - other
+      type: string
+      description: |-
+        * `degree_certificate` - Degree Certificate
+        * `medical_registration` - Medical Council Registration
+        * `government_id` - Government ID
+        * `other` - Other
     DocumentUpload:
       type: object
       properties:
@@ -7245,6 +9481,75 @@ components:
         * `weeks` - Weeks
         * `months` - Months
         * `years` - Years
+    Earnings:
+      type: object
+      properties:
+        period:
+          $ref: '#/components/schemas/PeriodEnum'
+        label:
+          type: string
+          description: e.g. "18 Oct 2026", "October 2026" or "FY 2026-27"
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        is_current:
+          type: boolean
+        previous_date:
+          type: string
+          format: date
+        next_date:
+          type: string
+          format: date
+          nullable: true
+          description: null when the next period is in the future (disable the arrow)
+        currency:
+          type: string
+        total_earned:
+          type: integer
+        total_earned_display:
+          type: string
+        consultations_count:
+          type: integer
+        average_per_consultation:
+          type: integer
+        average_display:
+          type: string
+        chart:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChartBucket'
+          description: 'daily: 12 two-hour buckets; monthly: one per day; financial_year:
+            Apr to Mar'
+        by_mode:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModeEarnings'
+        other_currencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/OtherCurrency'
+          description: Completed consultations paid in other currencies (not in the
+            INR totals)
+      required:
+      - average_display
+      - average_per_consultation
+      - by_mode
+      - chart
+      - consultations_count
+      - currency
+      - end_date
+      - is_current
+      - label
+      - next_date
+      - other_currencies
+      - period
+      - previous_date
+      - start_date
+      - total_earned
+      - total_earned_display
     EmailOtpRequest:
       type: object
       properties:
@@ -7863,6 +10168,30 @@ components:
       - patient
       - scheduled_at
       - status
+    ModeEarnings:
+      type: object
+      properties:
+        mode:
+          $ref: '#/components/schemas/ModeEnum'
+        label:
+          type: string
+        amount:
+          type: integer
+        amount_display:
+          type: string
+        count:
+          type: integer
+        share_percent:
+          type: number
+          format: double
+          description: Share of total_earned, for the bar width
+      required:
+      - amount
+      - amount_display
+      - count
+      - label
+      - mode
+      - share_percent
     ModeEnum:
       enum:
       - chat
@@ -7873,6 +10202,16 @@ components:
         * `chat` - Chat
         * `audio` - Audio Call
         * `video` - Video Call
+    NextStepEnum:
+      enum:
+      - profile
+      - availability
+      - done
+      type: string
+      description: |-
+        * `profile` - profile
+        * `availability` - availability
+        * `done` - done
     Notification:
       type: object
       properties:
@@ -7931,6 +10270,8 @@ components:
       - appointment_reminder
       - consultation_completed
       - appointment_cancelled
+      - appointment_assigned
+      - verification_update
       - announcement
       type: string
       description: |-
@@ -7939,7 +10280,50 @@ components:
         * `appointment_reminder` - Appointment reminder
         * `consultation_completed` - Consultation completed
         * `appointment_cancelled` - Appointment cancelled
+        * `appointment_assigned` - New appointment
+        * `verification_update` - Profile verification
         * `announcement` - Announcement
+    Onboarding:
+      type: object
+      properties:
+        profile_completed:
+          type: boolean
+          description: Name, age, gender, registration number and qualification are
+            filled
+        registration_certificate_uploaded:
+          type: boolean
+        availability_set:
+          type: boolean
+        is_complete:
+          type: boolean
+        next_step:
+          allOf:
+          - $ref: '#/components/schemas/NextStepEnum'
+          description: |-
+            Screen to open after sign-in: profile = Step 2 Professional Details, availability = Step 3, done = Home
+
+            * `profile` - profile
+            * `availability` - availability
+            * `done` - done
+      required:
+      - availability_set
+      - is_complete
+      - next_step
+      - profile_completed
+      - registration_certificate_uploaded
+    OtherCurrency:
+      type: object
+      properties:
+        currency:
+          type: string
+        amount:
+          type: integer
+        count:
+          type: integer
+      required:
+      - amount
+      - count
+      - currency
     PaginatedAppointmentList:
       type: object
       required:
@@ -8147,6 +10531,101 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Notification'
+    PatchedAppointmentCall:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        mode:
+          oneOf:
+          - $ref: '#/components/schemas/ModeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        provider:
+          type: string
+          description: Calling service used by the app, e.g. agora, zego, jitsi
+          maxLength: 50
+        external_call_id:
+          type: string
+          description: The provider's call, room or channel id
+          maxLength: 255
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        duration_seconds:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+        duration_minutes:
+          type: integer
+          nullable: true
+          readOnly: true
+          description: duration_seconds rounded up to whole minutes
+        end_reason:
+          type: string
+          maxLength: 100
+        metadata:
+          description: Any extra details the app wants to keep
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedDoctorAppointmentStatus:
+      type: object
+      properties:
+        status:
+          allOf:
+          - $ref: '#/components/schemas/DoctorAppointmentStatusStatusEnum'
+          description: |-
+            Only "completed" can be set by the doctor
+
+            * `completed` - completed
+    PatchedDoctorMeUpdate:
+      type: object
+      properties:
+        full_name:
+          type: string
+          description: '"Dr." is added by the app; send the name only'
+          maxLength: 150
+        age:
+          type: integer
+          maximum: 100
+          minimum: 18
+          nullable: true
+        gender:
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        registration_number:
+          type: string
+          description: Medical Council Registration Number
+          maxLength: 100
+        qualification:
+          type: string
+          description: 'e.g. MBBS, MD. Suggestions: GET /api/v1/doctors/qualifications/'
+          maxLength: 255
+        speciality_id:
+          type: integer
+          nullable: true
+          description: id from GET /api/v1/doctors/specialities/; null = General Physician
+        experience_years:
+          type: integer
+          maximum: 70
+          minimum: 0
+        city:
+          type: string
+          maxLength: 100
     PatchedFamilyMember:
       type: object
       properties:
@@ -8633,6 +11112,16 @@ components:
       - payment_id
       - razorpay_payment_id
       - razorpay_signature
+    PeriodEnum:
+      enum:
+      - daily
+      - monthly
+      - financial_year
+      type: string
+      description: |-
+        * `daily` - daily
+        * `monthly` - monthly
+        * `financial_year` - financial_year
     PlatformEnum:
       enum:
       - android
@@ -8786,6 +11275,13 @@ components:
           description: PNG or JPG, up to 5 MB.
       required:
       - photo
+    Qualification:
+      type: object
+      properties:
+        name:
+          type: string
+      required:
+      - name
     RecordDoctor:
       type: object
       properties:
@@ -8929,6 +11425,19 @@ components:
       - short_name
       - slug
       - title
+    SpecialityRef:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+          description: e.g. Dermatology
+      required:
+      - id
+      - name
     SupportContacts:
       type: object
       properties:
@@ -9089,6 +11598,16 @@ components:
       - status_label
       - time
       - title
+    VerificationStatusEnum:
+      enum:
+      - pending
+      - verified
+      - rejected
+      type: string
+      description: |-
+        * `pending` - Pending Review
+        * `verified` - Verified
+        * `rejected` - Rejected
     VerifiedIdentity:
       type: object
       properties:
@@ -9126,6 +11645,24 @@ components:
       required:
       - kind
       - url
+    WeekdayEnum:
+      enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      type: integer
+      description: |-
+        * `0` - Mon
+        * `1` - Tue
+        * `2` - Wed
+        * `3` - Thu
+        * `4` - Fri
+        * `5` - Sat
+        * `6` - Sun
     Error:
       description: 'Error body: `{"detail": "message"}` (JWT errors add `code`), `{"field":
         ["message"]}` for invalid fields, or `["message"]` for a general validation

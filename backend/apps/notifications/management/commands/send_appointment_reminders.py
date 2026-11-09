@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.appointments.models import Appointment
 from apps.notifications.models import Notification
-from apps.notifications.service import notify_appointment
+from apps.notifications.service import notify_appointment, notify_doctor
 
 
 class Command(BaseCommand):
@@ -32,5 +32,6 @@ class Command(BaseCommand):
                 appointment.reminder_sent_at = timezone.now()
                 appointment.save(update_fields=['reminder_sent_at'])
                 notify_appointment(appointment, Notification.Kind.APPOINTMENT_REMINDER)
+                notify_doctor(appointment, Notification.Kind.APPOINTMENT_REMINDER)
                 sent += 1
         self.stdout.write(f'Sent {sent} appointment reminder(s).')

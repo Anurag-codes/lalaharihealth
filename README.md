@@ -279,7 +279,7 @@ To book for a relative, send `family_member_id` to `POST /api/v1/consultations/`
 blank patient fields are filled from that member. Records keep the name and
 relation used at booking, even after the member is removed.
 
-Verified doctors sign in with `POST /api/v1/auth/token/`, list assigned
+Verified doctors sign in to the doctor app with Firebase phone OTP (see **Doctor app APIs** below), list assigned
 consultations at `GET /api/v1/doctors/me/consultations/?status=upcoming`, and
 write the record with
 `PUT /api/v1/doctors/me/consultations/{id}/record/`. The prescription list sent
@@ -312,7 +312,8 @@ Case Preview, and is locked on Submit Case, so later fee changes do not affect s
 **Doctor assignment after payment.** Staff call `POST /api/v1/appointments/{id}/assign-doctor/` with `{"doctor_id"}` once
 the appointment is `finding_doctor`. Any active, verified doctor of the booking's category can be assigned (a general
 physician for general bookings, the same speciality for specialist bookings), whatever their own fee. A doctor who
-already has an appointment at that time is rejected.
+already has an unfinished appointment at that time is rejected; once the doctor marks that consultation completed,
+they can be assigned another patient at the same time. The doctor gets a "New appointment booked" notification.
 
 Verified doctors can still mark when they are free from the doctor app:
 `POST /api/v1/doctors/me/slots/` with `{"date": "2026-10-18", "start_time": "19:00"}`. This creates
@@ -351,6 +352,41 @@ Operations:
   It notifies confirmed appointments starting within `APPOINTMENT_REMINDER_MINUTES`, once per appointment.
 - **Push.** Push uses the same `FIREBASE_*` service-account settings as phone login. Set
   `PUSH_NOTIFICATIONS_ENABLED=False` to keep inbox-only notifications.
+
+### Doctor app APIs
+
+Examples for every request and response are in Swagger under **Doctor app: authentication**, **Doctor app: profile**
+and **Doctor app: appointments**. Doctors use doctor JWTs; patient tokens are rejected and vice versa.
+
+| Doctor app screen | Endpoint |
+| --- | --- |
+| Sign Up → Verify Your Number | The app verifies the OTP with Firebase Phone Auth, then `POST /api/v1/auth/doctor/phone/firebase/` with `{"id_token"}` returns `access`, `refresh`, `is_new_user` and `doctor`. Refresh with `POST /api/v1/auth/doctor/token/refresh/`, log out with `POST /api/v1/auth/doctor/logout/`. |
+| After sign-in | Open the screen given by `doctor.onboarding.next_step`: `profile` (Step 2), `availability` (Step 3) or `done` (Home). `GET /api/v1/doctors/me/` returns the same profile. |
+| Step 2 Professional Details | `PATCH /api/v1/doctors/me/` with `full_name`, `age`, `gender`, `registration_number`, `qualification` and `speciality_id` (from `GET /api/v1/doctors/specialities/`, `null` = General Physician). Photo: `PUT`/`DELETE /api/v1/doctors/me/photo/`. Registration certificate: `POST /api/v1/doctors/me/documents/` (multipart, `document_type=medical_registration`). Qualification suggestions: `GET /api/v1/doctors/qualifications/?search=`. |
+| Step 3 Weekly Availability → Start Consulting | `PUT /api/v1/doctors/me/availability/` replaces the week: 1 to 3 windows per open day (24-hour `HH:MM`, 15-minute steps, no overlaps), at least 6 hours per open day. Staff use it to contact the doctor and assign consultations; patients never see it. |
+| Home (day timeline) | `GET /api/v1/doctors/me/schedule/?date=YYYY-MM-DD`: confirmed and completed appointments, 15 minutes each, with `can_join`. |
+| Appointment details / call | `GET /api/v1/doctors/me/appointments/{id}/` returns the patient's name, age, gender, phone, reason and fee. The app runs the call. Optional call details: `POST /api/v1/doctors/me/appointments/{id}/calls/`, then `PATCH .../calls/{call_id}/` when it ends. After the consultation, `PATCH /api/v1/doctors/me/appointments/{id}/` with `{"status": "completed"}` (allowed from 5 minutes before the start). |
+| Prescription | `PUT /api/v1/doctors/me/consultations/{consultation_id}/record/` |
+| Earnings (Daily / Monthly / Financial Year) | `GET /api/v1/doctors/me/earnings/?period=daily&date=YYYY-MM-DD` (`period` = `daily`, `monthly` or `financial_year`): total, count, average, chart and the Video / Audio / Chat split. Only completed consultations count, using the fee the patient paid. |
+| Notifications | The same `/api/v1/notifications/` endpoints, plus device registration for push. |
+| Profile → Verification Documents | `GET /api/v1/doctors/me/documents/`, download with `download_url` (auth required), `DELETE /api/v1/doctors/me/documents/{id}/`. Uploading `medical_registration`, `degree_certificate` or `government_id` replaces the previous file of that type; up to 5 `other` files. |
+
+- **Doctor accounts.** A doctor account is separate from a patient account on the same number. On first sign-in, the
+  newest website For Doctors form entry with the same phone number is copied into the profile: name, email, city,
+  qualification, experience, speciality, treatment systems, fee, photo and documents (as `other` documents). Every new
+  doctor is **Pending Review**. A doctor account created by staff with that phone number is reused.
+- **Verification.** Staff set **Verification status** in Django admin → Doctor profiles. The doctor gets a notification,
+  and only verified doctors can open the schedule, appointments and earnings or be assigned. Registration number,
+  qualification and speciality are locked in the app once verified. Documents are private: open them from the
+  doctor profile in Django admin with the **Download** link.
+- **Completion.** When the doctor marks a consultation completed, the patient is notified. Staff confirm it with
+  `POST /api/v1/appointments/{id}/confirm-completion/` or the admin action "Confirm completion" (filter Appointments by
+  *completion confirmed*). Appointment reminders go to both the patient and the doctor.
+- **Deploy.** Run `python manage.py migrate`. Doctor documents are now stored privately in `private_documents/`;
+  migration `doctors.0011` moves existing files there from `media/doctors/documents/` (same relative paths) and logs
+  any file it could not move. Make sure the app user can write to both folders when migrating.
+- **Form matching.** A 10-digit number in the For Doctors form is read as Indian (+91) and only for Indian
+  applications; other numbers must be typed with their country code to be matched.
 
 ### Location-based pricing
 

@@ -24,6 +24,18 @@ def require_patient(user):
         raise PermissionDenied('An active patient account is required.')
 
 
+def require_doctor(user):
+    if not user.is_active or user.role != User.Role.DOCTOR or user.is_staff or user.is_superuser:
+        raise PermissionDenied('An active doctor account is required.')
+
+
+def require_role(user, role):
+    if role == User.Role.DOCTOR:
+        require_doctor(user)
+    else:
+        require_patient(user)
+
+
 def rate_limit(scope, identifier, limit, window_seconds=3600, cooldown_seconds=0):
     key = salted_hmac('patient-auth-rate', f'{scope}:{identifier}', algorithm='sha256').hexdigest()
     now = timezone.now()
@@ -112,16 +124,19 @@ def consume_email_otp(challenge_id, code, link_user=None):
     return email
 
 
-def resolve_identity(kind, value, link_user=None, firebase_uid=None):
-    """Call inside an atomic block; database uniqueness arbitrates concurrent sign-ins."""
+def resolve_identity(kind, value, link_user=None, firebase_uid=None, role=User.Role.PATIENT):
+    """Call inside an atomic block; database uniqueness arbitrates concurrent sign-ins.
+
+    Identities are scoped by role: the same phone can sign in to one patient and one separate doctor account.
+    """
     if link_user:
         user = User.objects.select_for_update().get(pk=link_user.pk)
-        require_patient(user)
+        require_role(user, role)
     else:
         user = None
-    identity = VerifiedIdentity.objects.select_for_update().filter(kind=kind, value=value).first()
+    identity = VerifiedIdentity.objects.select_for_update().filter(role=role, kind=kind, value=value).first()
     if firebase_uid:
-        uid_identity = VerifiedIdentity.objects.filter(firebase_uid=firebase_uid).first()
+        uid_identity = VerifiedIdentity.objects.filter(role=role, firebase_uid=firebase_uid).first()
         if uid_identity and (identity is None or uid_identity.pk != identity.pk):
             raise ValidationError('This Firebase account is already associated with another phone number. Contact support.')
     created = False
@@ -129,20 +144,27 @@ def resolve_identity(kind, value, link_user=None, firebase_uid=None):
         if user and identity.user_id != user.pk:
             raise ValidationError('This contact is already linked to another account. Accounts cannot be merged automatically.')
         user = User.objects.select_for_update().get(pk=identity.user_id)
-        require_patient(user)
+        require_role(user, role)
         if firebase_uid and identity.firebase_uid != firebase_uid:
             raise ValidationError('This phone number has a different Firebase identity. Contact support to recover the account.')
     else:
         if user and VerifiedIdentity.objects.filter(user=user, kind=kind).exists():
             raise ValidationError('This account already has a verified contact of this type. Contact support to change it.')
-        # Existing profile fields are not proof of ownership. Require explicit migration or linking.
-        legacy = User.objects.filter(email__iexact=value) if kind == 'email' else User.objects.filter(phone_number=value)
-        if legacy.exclude(pk=user.pk if user else None).exists():
+        legacy = User.objects.filter(role=role)
+        legacy = legacy.filter(email__iexact=value) if kind == 'email' else legacy.filter(phone_number=value)
+        legacy = legacy.exclude(pk=user.pk if user else None)
+        staff_doctor = staff_created_doctor(legacy, kind) if role == User.Role.DOCTOR and user is None else None
+        if staff_doctor is not None:
+            # Staff typed this number on the doctor account and Firebase proved ownership of it, so claim that account.
+            user = User.objects.select_for_update().get(pk=staff_doctor.pk)
+            require_doctor(user)
+        elif legacy.exists():
+            # Existing profile fields are not proof of ownership. Require explicit migration or linking.
             raise ValidationError('This contact is present on an existing account. Sign in to that account to link it, or contact support.')
         if user is None:
-            user = User.objects.create_user(username=f'patient_{secrets.token_hex(16)}', password=None, role=User.Role.PATIENT)
+            user = User.objects.create_user(username=f'{role}_{secrets.token_hex(16)}', password=None, role=role)
             created = True
-        identity = VerifiedIdentity.objects.create(user=user, kind=kind, value=value, firebase_uid=firebase_uid)
+        identity = VerifiedIdentity.objects.create(user=user, role=role, kind=kind, value=value, firebase_uid=firebase_uid)
     if kind == VerifiedIdentity.Kind.EMAIL:
         user.email = value
         user.is_email_verified = True
@@ -151,8 +173,23 @@ def resolve_identity(kind, value, link_user=None, firebase_uid=None):
         user.phone_number = value
         user.is_phone_verified = True
         user.save(update_fields=['phone_number', 'is_phone_verified'])
-    PatientProfile.objects.get_or_create(user=user)
+    if role == User.Role.DOCTOR:
+        from apps.doctors.onboarding import ensure_doctor_profile
+
+        ensure_doctor_profile(user)
+    else:
+        PatientProfile.objects.get_or_create(user=user)
     return user, created
+
+
+def staff_created_doctor(candidates, kind):
+    """The single doctor account staff created with this phone and no verified phone yet, if there is exactly one."""
+    if kind != VerifiedIdentity.Kind.PHONE:
+        return None
+    matches = list(candidates.filter(is_active=True, is_staff=False, is_superuser=False)[:2])
+    if len(matches) != 1 or VerifiedIdentity.objects.filter(user=matches[0], kind=kind).exists():
+        return None
+    return matches[0]
 
 
 def email_identity(email, link_user=None):
@@ -163,7 +200,7 @@ def email_identity(email, link_user=None):
         raise ValidationError('A simultaneous account update occurred. Please sign in again or contact support.') from None
 
 
-def phone_identity(id_token, claims, link_user=None):
+def phone_identity(id_token, claims, link_user=None, role=User.Role.PATIENT):
     digest = hashlib.sha256(id_token.encode()).hexdigest()
     try:
         with transaction.atomic():
@@ -175,7 +212,7 @@ def phone_identity(id_token, claims, link_user=None):
             )
             return resolve_identity(
                 VerifiedIdentity.Kind.PHONE, claims['phone_number'],
-                link_user=link_user, firebase_uid=claims['uid'],
+                link_user=link_user, firebase_uid=claims['uid'], role=role,
             )
     except IntegrityError:
         raise ValidationError('This token or contact was already used in another request. Please sign in again.') from None
@@ -185,4 +222,11 @@ def patient_tokens(user):
     require_patient(user)
     refresh = RefreshToken.for_user(user)
     refresh['auth_scope'] = 'patient'
+    return {'access': str(refresh.access_token), 'refresh': str(refresh)}
+
+
+def doctor_tokens(user):
+    require_doctor(user)
+    refresh = RefreshToken.for_user(user)
+    refresh['auth_scope'] = 'doctor'
     return {'access': str(refresh.access_token), 'refresh': str(refresh)}

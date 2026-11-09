@@ -36,6 +36,8 @@ class Notification(models.Model):
         APPOINTMENT_REMINDER = 'appointment_reminder', 'Appointment reminder'
         CONSULTATION_COMPLETED = 'consultation_completed', 'Consultation completed'
         APPOINTMENT_CANCELLED = 'appointment_cancelled', 'Appointment cancelled'
+        APPOINTMENT_ASSIGNED = 'appointment_assigned', 'New appointment'
+        VERIFICATION_UPDATE = 'verification_update', 'Profile verification'
         ANNOUNCEMENT = 'announcement', 'Announcement'
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='notifications', on_delete=models.CASCADE)

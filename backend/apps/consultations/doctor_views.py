@@ -168,11 +168,10 @@ class DoctorConsultationRecordView(NoStoreResponseMixin, generics.GenericAPIView
             'diagnosis', 'doctor_notes', 'follow_up_date', 'follow_up_notes', 'record_updated_at', 'status',
         ])
         if data['mark_completed'] and appointment.status != Appointment.Status.COMPLETED:
-            from apps.notifications.models import Notification
-            from apps.notifications.service import notify_appointment
+            from apps.appointments.completion import complete_appointment
 
-            appointment.save(update_fields=appointment.set_status(Appointment.Status.COMPLETED))
-            notify_appointment(appointment, Notification.Kind.CONSULTATION_COMPLETED)
+            appointment.consultation = consultation
+            complete_appointment(appointment)
 
         consultation.prescription_items.all().delete()
         PrescriptionItem.objects.bulk_create([

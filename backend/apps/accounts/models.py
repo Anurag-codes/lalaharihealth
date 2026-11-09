@@ -23,19 +23,26 @@ class User(AbstractUser):
 
 
 class VerifiedIdentity(models.Model):
+    """A verified email/phone that signs in to one account. The same phone may own one patient and one doctor account."""
+
     class Kind(models.TextChoices):
         EMAIL = 'email', 'Email'
         PHONE = 'phone', 'Phone'
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='verified_identities')
+    role = models.CharField(max_length=10, choices=User.Role.choices, default=User.Role.PATIENT)
     kind = models.CharField(max_length=5, choices=Kind.choices)
     value = models.CharField(max_length=254)
-    firebase_uid = models.CharField(max_length=128, unique=True, null=True, blank=True)
+    firebase_uid = models.CharField(max_length=128, null=True, blank=True)
     verified_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['kind', 'value'], name='unique_verified_contact'),
+            models.UniqueConstraint(fields=['role', 'kind', 'value'], name='unique_verified_contact_per_role'),
+            models.UniqueConstraint(
+                fields=['role', 'firebase_uid'], condition=models.Q(firebase_uid__isnull=False),
+                name='unique_firebase_uid_per_role',
+            ),
             models.UniqueConstraint(fields=['user', 'kind'], name='one_contact_kind_per_user'),
         ]
 

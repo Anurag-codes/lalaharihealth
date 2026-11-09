@@ -5,7 +5,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.settings import api_settings
 
 from .models import User, VerifiedIdentity
-from .services import require_patient
+from .services import require_doctor, require_patient
 
 
 class EmailOtpRequestSerializer(serializers.Serializer):
@@ -81,6 +81,18 @@ class PatientRefreshSerializer(TokenRefreshSerializer):
         if user is None:
             raise InvalidToken('The patient account no longer exists.')
         require_patient(user)
+        return super().validate(attrs)
+
+
+class DoctorRefreshSerializer(TokenRefreshSerializer):
+    def validate(self, attrs):
+        refresh = RefreshToken(attrs['refresh'])
+        if refresh.get('auth_scope') != 'doctor':
+            raise InvalidToken('Use a doctor sign-in token.')
+        user = User.objects.filter(pk=refresh.get(api_settings.USER_ID_CLAIM)).first()
+        if user is None:
+            raise InvalidToken('The doctor account no longer exists.')
+        require_doctor(user)
         return super().validate(attrs)
 
 

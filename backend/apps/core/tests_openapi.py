@@ -21,7 +21,7 @@ def _resolve(node, components, read_only_ok, depth=0):
     if 'required' in node:
         node['required'] = [name for name in node['required'] if not props.get(name, {}).get(skip)]
     if node.pop('nullable', False):
-        node = {'anyOf': [node, {'type': 'null'}]}
+        node = {'anyOf': [node, {'type': 'null'}], **{key: node[key] for key in ('readOnly', 'writeOnly') if key in node}}
     if 'oneOf' in node:  # drf-spectacular uses oneOf for blank/URL choices that overlap without format checks
         node['anyOf'] = node.pop('oneOf')
     return node

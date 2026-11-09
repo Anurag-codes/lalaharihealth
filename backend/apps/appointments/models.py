@@ -58,6 +58,12 @@ class Appointment(models.Model):
     paid_at = models.DateTimeField(null=True, blank=True)
     doctor_assigned_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    completion_confirmed_at = models.DateTimeField(
+        null=True, blank=True, help_text='When staff confirmed the consultation the doctor marked completed.',
+    )
+    completion_confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='+', on_delete=models.SET_NULL, null=True, blank=True,
+    )
     cancelled_at = models.DateTimeField(null=True, blank=True)
     reminder_sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -82,3 +88,26 @@ class Appointment(models.Model):
 
     def __str__(self):
         return f'Appointment #{self.pk} at {self.slot_time}'
+
+
+class AppointmentCall(models.Model):
+    """A call or chat session the doctor app ran for an appointment. The app handles calling; every field is optional."""
+
+    appointment = models.ForeignKey(Appointment, related_name='calls', on_delete=models.CASCADE)
+    mode = models.CharField(max_length=10, choices=Consultation.Mode.choices, blank=True)
+    provider = models.CharField(max_length=50, blank=True, help_text='Calling service used by the app, e.g. agora, zego, jitsi')
+    external_call_id = models.CharField(max_length=255, blank=True, help_text="The provider's call, room or channel id")
+    started_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+    end_reason = models.CharField(max_length=100, blank=True)
+    metadata = models.JSONField(default=dict, blank=True, help_text='Any extra details the app wants to keep')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+    def __str__(self):
+        return f'Call #{self.pk} for appointment #{self.appointment_id}'

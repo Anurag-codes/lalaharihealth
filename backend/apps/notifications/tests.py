@@ -155,7 +155,10 @@ class NotificationEventTests(HomeTestBase):
         call_command('send_appointment_reminders', stdout=out)
         call_command('send_appointment_reminders', stdout=out)
         self.assertIn('Sent 1 appointment reminder(s).', out.getvalue())
-        self.assertEqual(Notification.objects.filter(kind='appointment_reminder').count(), 1)
+        reminders = Notification.objects.filter(kind='appointment_reminder')
+        self.assertEqual(reminders.filter(user=self.patient).count(), 1)
+        self.assertEqual(reminders.filter(user=self.doctor).count(), 1)
+        self.assertEqual(reminders.count(), 2)
 
 
 class NotificationApiTests(HomeTestBase):
