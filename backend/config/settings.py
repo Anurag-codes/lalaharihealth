@@ -332,3 +332,9 @@ CONSULTATION_JOIN_EARLY_MINUTES = 5
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
 RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')
 RAZORPAY_WEBHOOK_SECRET = config('RAZORPAY_WEBHOOK_SECRET', default='')
+
+HMS_ACCESS_KEY = config('HMS_ACCESS_KEY', default='')
+HMS_APP_SECRET = config('HMS_APP_SECRET', default='')
+HMS_TEMPLATE_ID = config('HMS_TEMPLATE_ID', default='')
+HMS_DOCTOR_ROLE = config('HMS_DOCTOR_ROLE', default='doctor')
+HMS_PATIENT_ROLE = config('HMS_PATIENT_ROLE', default='patient')

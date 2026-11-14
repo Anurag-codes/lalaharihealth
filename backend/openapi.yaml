@@ -482,6 +482,77 @@ paths:
                 Error:
                   value:
                     detail: Not found.
+  /api/v1/appointments/{appointment_id}/video/join/:
+    post:
+      operationId: appointments_video_join_create
+      description: POST {} with your backend access JWT. Only the assigned active
+        patient and verified doctor can join a confirmed, unfinished video appointment,
+        from five minutes before its start until completion/cancellation. The server
+        creates/reuses one private 100ms room under database row locks and assigns
+        your role and user identity. The SDK auth token expires after 300 seconds;
+        request a fresh token for joining again. Token expiry does not end an already
+        connected SDK session. No management credentials are returned. A room/code/name
+        is not authorization. Save call_id; the doctor PATCHes the existing call-details
+        endpoint only after actual SDK connection/end events. Token issuance creates
+        an unknown call placeholder, never an in_progress call. Both participants
+        and reconnects reuse that placeholder; joining after a terminal call outcome
+        creates a new attempt in the same room. No recording or transcription is requested.
+        503 means missing/unsafe configuration, unsupported database or provider failure;
+        retry the same endpoint with backoff. Do not log or share auth_token.
+      summary: Join your appointment with 100ms video
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Appointment booking
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoJoinResponse'
+              examples:
+                PatientJoin:
+                  value:
+                    provider: 100ms
+                    appointment_id: 18
+                    room_id: room_example
+                    role: patient
+                    user_id: user-8
+                    auth_token: <short-lived-100ms-app-token>
+                    expires_in: 300
+                    expires_at: '2026-11-14T23:35:00+05:30'
+                    call_id: 5
+                    mode: video
+                  summary: Patient join
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
   /api/v1/appointments/slot-dates/:
     get:
       operationId: appointments_slot_dates_list
@@ -3511,8 +3582,9 @@ paths:
                     calls:
                     - id: 5
                       mode: video
-                      provider: agora
+                      provider: zoho_meeting
                       external_call_id: apt-18-room
+                      status: completed
                       started_at: '2026-10-18T10:31:00+05:30'
                       ended_at: '2026-10-18T10:43:30+05:30'
                       duration_seconds: 750
@@ -3559,11 +3631,21 @@ paths:
   /api/v1/doctors/me/appointments/{appointment_id}/calls/:
     post:
       operationId: doctors_me_appointments_calls_create
-      description: Optional. Store details of a call or chat the app ran for this
-        appointment. Every field is optional, e.g. send provider and started_at when
-        the call starts and PATCH ended_at when it ends. duration_seconds is calculated
-        from started_at and ended_at when not sent. Allowed for confirmed or completed
-        appointments. Verified doctors only (403 while Pending Review).
+      description: 'Store an app-run call attempt, including Zoho Meeting SDK audio/video.
+        The app creates/joins the Zoho session; this API does not issue Zoho credentials
+        or verify provider events. Send provider=zoho_meeting, the SDK session id
+        as external_call_id, mode=audio/video and status=in_progress with started_at
+        when connected. Save the returned id and PATCH this call when it ends. Outcomes:
+        completed (normal end after connection), failed (SDK/network failure), missed
+        (no answer), cancelled (cancelled attempt). Terminal outcomes require ended_at;
+        completed also requires started_at. Duration is derived from both timestamps;
+        omit it. Each retry is a new call. Legacy clients can omit status (unknown).
+        Allowed for confirmed or completed appointments of the assigned verified doctor.
+        For 100ms, use the appointment video/join endpoint and PATCH its returned
+        call_id; POST with provider=100ms is rejected to avoid duplicate records.
+        Never send SDK secrets or access tokens in metadata. Call outcomes do not
+        complete the consultation or affect earnings. Verified doctors only (403 while
+        Pending Review).'
       summary: Save call details
       parameters:
       - in: path
@@ -3582,8 +3664,9 @@ paths:
               CallStarted:
                 value:
                   mode: video
-                  provider: agora
+                  provider: zoho_meeting
                   external_call_id: apt-18-room
+                  status: in_progress
                   started_at: '2026-10-18T10:31:00+05:30'
                 summary: Call started
           application/x-www-form-urlencoded:
@@ -3593,8 +3676,9 @@ paths:
               CallStarted:
                 value:
                   mode: video
-                  provider: agora
+                  provider: zoho_meeting
                   external_call_id: apt-18-room
+                  status: in_progress
                   started_at: '2026-10-18T10:31:00+05:30'
                 summary: Call started
           multipart/form-data:
@@ -3604,8 +3688,9 @@ paths:
               CallStarted:
                 value:
                   mode: video
-                  provider: agora
+                  provider: zoho_meeting
                   external_call_id: apt-18-room
+                  status: in_progress
                   started_at: '2026-10-18T10:31:00+05:30'
                 summary: Call started
       security:
@@ -3622,8 +3707,9 @@ paths:
                   value:
                     id: 5
                     mode: video
-                    provider: agora
+                    provider: zoho_meeting
                     external_call_id: apt-18-room
+                    status: in_progress
                     started_at: '2026-10-18T10:31:00+05:30'
                     ended_at: null
                     duration_seconds: null
@@ -3669,8 +3755,13 @@ paths:
   /api/v1/doctors/me/appointments/{appointment_id}/calls/{call_id}/:
     patch:
       operationId: doctors_me_appointments_calls_partial_update
-      description: Send only changed fields. Verified doctors only (403 while Pending
-        Review).
+      description: Report SDK callbacks with status and timestamps. A terminal outcome
+        and its timestamps/duration cannot be changed; repeating the same PATCH is
+        harmless. Use a new POST for a new attempt. failed/missed/cancelled are not
+        successful calls; unknown is not proof of completion. These app-reported outcomes
+        do not change appointment status. Separately PATCH /api/v1/doctors/me/appointments/{appointment_id}/
+        with {"status":"completed"} only after the consultation is actually finished.
+        Verified doctors only (403 while Pending Review).
       summary: Update call details (e.g. when the call ends)
       parameters:
       - in: path
@@ -3693,27 +3784,48 @@ paths:
             examples:
               CallEnded:
                 value:
+                  status: completed
                   ended_at: '2026-10-18T10:43:30+05:30'
                   end_reason: doctor_ended
                 summary: Call ended
+              CallFailed:
+                value:
+                  status: failed
+                  ended_at: '2026-10-18T10:32:00+05:30'
+                  end_reason: network_error
+                summary: Call failed
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/PatchedAppointmentCall'
             examples:
               CallEnded:
                 value:
+                  status: completed
                   ended_at: '2026-10-18T10:43:30+05:30'
                   end_reason: doctor_ended
                 summary: Call ended
+              CallFailed:
+                value:
+                  status: failed
+                  ended_at: '2026-10-18T10:32:00+05:30'
+                  end_reason: network_error
+                summary: Call failed
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedAppointmentCall'
             examples:
               CallEnded:
                 value:
+                  status: completed
                   ended_at: '2026-10-18T10:43:30+05:30'
                   end_reason: doctor_ended
                 summary: Call ended
+              CallFailed:
+                value:
+                  status: failed
+                  ended_at: '2026-10-18T10:32:00+05:30'
+                  end_reason: network_error
+                summary: Call failed
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -3728,8 +3840,9 @@ paths:
                   value:
                     id: 5
                     mode: video
-                    provider: agora
+                    provider: zoho_meeting
                     external_call_id: apt-18-room
+                    status: completed
                     started_at: '2026-10-18T10:31:00+05:30'
                     ended_at: '2026-10-18T10:43:30+05:30'
                     duration_seconds: 750
@@ -3752,6 +3865,77 @@ paths:
                   value:
                     field_name:
                     - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/doctors/me/appointments/{appointment_id}/video/join/:
+    post:
+      operationId: doctors_me_appointments_video_join_create
+      description: POST {} with your backend access JWT. Only the assigned active
+        patient and verified doctor can join a confirmed, unfinished video appointment,
+        from five minutes before its start until completion/cancellation. The server
+        creates/reuses one private 100ms room under database row locks and assigns
+        your role and user identity. The SDK auth token expires after 300 seconds;
+        request a fresh token for joining again. Token expiry does not end an already
+        connected SDK session. No management credentials are returned. A room/code/name
+        is not authorization. Save call_id; the doctor PATCHes the existing call-details
+        endpoint only after actual SDK connection/end events. Token issuance creates
+        an unknown call placeholder, never an in_progress call. Both participants
+        and reconnects reuse that placeholder; joining after a terminal call outcome
+        creates a new attempt in the same room. No recording or transcription is requested.
+        503 means missing/unsafe configuration, unsupported database or provider failure;
+        retry the same endpoint with backoff. Do not log or share auth_token.
+      summary: Join your appointment with 100ms video
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - 'Doctor app: appointments'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoJoinResponse'
+              examples:
+                DoctorJoin:
+                  value:
+                    provider: 100ms
+                    appointment_id: 18
+                    room_id: room_example
+                    role: doctor
+                    user_id: user-7
+                    auth_token: <short-lived-100ms-app-token>
+                    expires_in: 300
+                    expires_at: '2026-11-14T23:35:00+05:30'
+                    call_id: 5
+                    mode: video
+                  summary: Doctor join
+          description: ''
         '401':
           description: Missing, invalid or expired access token. Refresh the token
             and retry, or log in again.
@@ -7668,6 +7852,18 @@ components:
           type: string
           description: The provider's call, room or channel id
           maxLength: 255
+        status:
+          allOf:
+          - $ref: '#/components/schemas/AppointmentCallStatusEnum'
+          description: |-
+            SDK outcome reported by the assigned doctor app; not provider-verified or consultation completion.
+
+            * `unknown` - Not reported
+            * `in_progress` - In progress
+            * `completed` - Completed
+            * `failed` - Failed
+            * `missed` - Missed
+            * `cancelled` - Cancelled
         started_at:
           type: string
           format: date-time
@@ -7705,6 +7901,22 @@ components:
       - duration_minutes
       - id
       - updated_at
+    AppointmentCallStatusEnum:
+      enum:
+      - unknown
+      - in_progress
+      - completed
+      - failed
+      - missed
+      - cancelled
+      type: string
+      description: |-
+        * `unknown` - Not reported
+        * `in_progress` - In progress
+        * `completed` - Completed
+        * `failed` - Failed
+        * `missed` - Missed
+        * `cancelled` - Cancelled
     AppointmentPatient:
       type: object
       properties:
@@ -10590,6 +10802,18 @@ components:
           type: string
           description: The provider's call, room or channel id
           maxLength: 255
+        status:
+          allOf:
+          - $ref: '#/components/schemas/AppointmentCallStatusEnum'
+          description: |-
+            SDK outcome reported by the assigned doctor app; not provider-verified or consultation completion.
+
+            * `unknown` - Not reported
+            * `in_progress` - In progress
+            * `completed` - Completed
+            * `failed` - Failed
+            * `missed` - Missed
+            * `cancelled` - Cancelled
         started_at:
           type: string
           format: date-time
@@ -11669,6 +11893,41 @@ components:
       description: |-
         * `email` - Email
         * `phone` - Phone
+    VideoJoinResponse:
+      type: object
+      properties:
+        provider:
+          type: string
+        appointment_id:
+          type: integer
+        room_id:
+          type: string
+        role:
+          type: string
+        user_id:
+          type: string
+        auth_token:
+          type: string
+        expires_in:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+        call_id:
+          type: integer
+        mode:
+          type: string
+      required:
+      - appointment_id
+      - auth_token
+      - call_id
+      - expires_at
+      - expires_in
+      - mode
+      - provider
+      - role
+      - room_id
+      - user_id
     VideoSource:
       type: object
       properties:

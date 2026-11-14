@@ -397,6 +397,197 @@ and **Doctor app: appointments**. Doctors use doctor JWTs; patient tokens are re
 - **Form matching.** A 10-digit number in the For Doctors form is read as Indian (+91) and only for Indian
   applications; other numbers must be typed with their country code to be matched.
 
+#### Zoho Meeting SDK call outcomes (doctor app)
+
+The app handles Zoho Meeting SDK session creation/joining and audio/video calling.
+These APIs record the assigned verified doctor's SDK callbacks; they do not create
+Zoho sessions, issue SDK credentials, or independently verify that a call happened.
+Use the doctor's backend access JWT. Do not put Zoho secrets or access tokens in
+`metadata` or `external_call_id`.
+
+1. When the SDK reports a connected call, send
+   `POST /api/v1/doctors/me/appointments/{appointment_id}/calls/`:
+
+   ```json
+   {
+     "mode": "video",
+     "provider": "zoho_meeting",
+     "external_call_id": "<Zoho session id>",
+     "status": "in_progress",
+     "started_at": "2026-11-14T22:30:00+05:30"
+   }
+   ```
+
+   Use `"audio"` for an audio call. Save the returned call `id`.
+2. When the SDK reports the end, send
+   `PATCH /api/v1/doctors/me/appointments/{appointment_id}/calls/{call_id}/`:
+
+   ```json
+   {
+     "status": "completed",
+     "ended_at": "2026-11-14T22:42:30+05:30",
+     "end_reason": "normal"
+   }
+   ```
+
+   `completed` means the connected call ended normally; `failed` means an SDK or
+   network failure, `missed` means no answer, and `cancelled` means a cancelled
+   attempt. All terminal outcomes require `ended_at`; `completed` also requires
+   `started_at`. Send actual SDK event timestamps, not the later upload time.
+   If the attempt never connected, POST its terminal outcome directly with no
+   `started_at`. Do not report `in_progress` merely because the room was created.
+   Omit `duration_seconds`: the backend calculates it when both timestamps exist.
+   A supplied duration must match those timestamps for explicitly reported outcomes.
+3. Retry the same PATCH after connectivity failures. Terminal outcomes and their
+   timestamps/duration cannot be changed; a new call attempt uses a new POST.
+   Read the saved outcomes in `calls` from
+   `GET /api/v1/doctors/me/appointments/{appointment_id}/` (also shown in admin).
+
+Existing clients may omit `status`; those logs remain `unknown`, not successful.
+Call logging remains allowed for confirmed/completed appointments so delayed
+callbacks can be saved. A completed/failed call does **not** complete or cancel
+the appointment or affect earnings. After the actual consultation is finished,
+the doctor separately sends `{"status":"completed"}` to
+`PATCH /api/v1/doctors/me/appointments/{appointment_id}/`, or completes it through
+the existing consultation record API. Staff confirmation remains unchanged.
+
+#### 100ms private video consultations
+
+100ms rooms and SDK authentication are now managed by the backend. The app still
+performs the actual call. This integration is for appointments booked with
+`mode=video`; audio/chat bookings cannot use these video join endpoints.
+
+**Manual 100ms setup**
+
+- Create a dedicated conferencing template in the 100ms dashboard with roles
+  `doctor` and `patient` (or configure their exact names below). Each role must
+  have `maxPeerCount: 1`, publish microphone/camera, and subscribe to the other
+  role. This enforces one active doctor peer and one active patient peer.
+- Disable `changeRole` for both roles. Explicitly disable `browserRecording`,
+  `rtmpStreaming` and `hlsStreaming` permissions (their provider defaults may
+  permit recording/streaming). The backend checks these restrictions before
+  issuing any join token.
+- Disable every automatic SFU/composite/track/stream recording configuration,
+  transcription/captions/AI-notes plugin and transcription destination in that
+  template. The backend explicitly disables room SFU recording and never starts
+  recording/transcription. Template APIs do not expose every newer recording
+  configuration consistently, so verify the dashboard settings manually.
+- Do not create or share room codes or Prebuilt guest links for consultation
+  rooms. API-created rooms use role/user-specific signed auth tokens, not codes.
+  Disable any codes subsequently created manually in the dashboard.
+- Set the region appropriate for your patients (for example India) on the template.
+  Ensure the account supports at least five simultaneous conferencing rooms /
+  ten active peers. The backend isolates appointments; it does not impose a
+  global one-call lock or a five-call cap. Confirm your actual plan's limits
+  with 100ms and test SDK reconnection on devices.
+
+Put these values only in the server's backend `.env`, never in the mobile app,
+Git, logs or example credentials:
+
+```env
+HMS_ACCESS_KEY=<100ms app access key>
+HMS_APP_SECRET=<matching 100ms app secret>
+HMS_TEMPLATE_ID=<dedicated template ID>
+HMS_DOCTOR_ROLE=doctor
+HMS_PATIENT_ROLE=patient
+```
+
+PyJWT and the HTTP client are already backend dependencies. Deploy and run
+`python manage.py migrate` (migration `appointments.0007_appointment_video_room`)
+then restart the API. PostgreSQL 15+ is required by the current Django version:
+join endpoints explicitly return
+503 on databases without row locks rather than providing unsafe concurrent
+room creation.
+
+**Exact join contracts**
+
+| Participant | Endpoint | Authentication |
+| --- | --- | --- |
+| Assigned doctor | `POST /api/v1/doctors/me/appointments/{appointment_id}/video/join/` | Doctor backend access JWT |
+| Booking patient | `POST /api/v1/appointments/{appointment_id}/video/join/` | Patient backend access JWT |
+
+Both requests use `Content-Type: application/json` and
+`Authorization: Bearer <backend-access-jwt>` with body `{}`. Room, user identity
+and role are server-controlled; nonempty request bodies are rejected.
+Both return **200**:
+
+```json
+{
+  "provider": "100ms",
+  "appointment_id": 18,
+  "room_id": "<private-100ms-room-id>",
+  "role": "doctor",
+  "user_id": "user-7",
+  "auth_token": "<short-lived-100ms-app-auth-token>",
+  "expires_in": 300,
+  "expires_at": "2026-11-14T23:35:00+05:30",
+  "call_id": 5,
+  "mode": "video"
+}
+```
+
+The patient response has role `patient` and that patient's `user_id`; room and
+active attempt's `call_id` are shared. `role` uses the configured template role
+name, not a name chosen by the client. Pass `auth_token` to the 100ms SDK with the
+participant's display name. Never log the token or use it for our backend APIs.
+The signed token binds `room_id`, `role` and a stable internal `user_id`, has type
+`app`, and expires **300 seconds** after issuance. Request another token when
+joining/rejoining after expiry. Expiry limits new joins; it does not disconnect an
+already connected SDK session. Previously issued tokens cannot be instantly
+revoked by changing appointment state; they remain valid up to their expiry.
+Clients must leave the SDK session when the consultation ends.
+
+The server requires the assigned patient and active, verified doctor, a confirmed
+and unfinished video appointment/consultation, and the existing join window:
+**five minutes before start until appointment completion/cancellation**.
+Completed, cancelled, unpaid/unassigned, non-video and too-early appointments
+cannot join. These checks happen on the backend for every token request.
+
+**Room retry and call reporting**
+
+One opaque provisioning name is persisted per appointment before contacting
+100ms. PostgreSQL row locks serialize concurrent joins for that appointment.
+Provider timeouts return 503; retry with backoff. The next request finds the same
+remote room by name rather than creating another one. Known disabled rooms are
+never intentionally re-enabled. Different appointments have independent rooms.
+
+Save `call_id` from the join response. Issuing a token creates/reuses an
+`unknown` call placeholder with no start timestamp; it is not proof that anybody
+connected. The assigned doctor reports actual SDK events with:
+
+```http
+PATCH /api/v1/doctors/me/appointments/18/calls/5/
+Authorization: Bearer <doctor-backend-access-jwt>
+Content-Type: application/json
+```
+
+Connected: `{"status":"in_progress","started_at":"<SDK-connected-timestamp>"}`.
+Normal final end:
+`{"status":"completed","ended_at":"<SDK-ended-timestamp>","end_reason":"normal"}`.
+Permanent unsuccessful end: use `failed`, `missed` or `cancelled` with `ended_at`.
+Do not mark recoverable SDK reconnection events terminal. Token retries and
+reconnects during an active attempt reuse the same `call_id`; joining after a
+terminal outcome starts a new attempt in the same room. Retry callbacks against
+their original call ID; repeating the same PATCH is harmless. Do not POST a new
+`provider=100ms` call record: the API rejects that to prevent duplicate records.
+The managed provider, room ID and video mode cannot be changed through PATCH.
+Patient tokens cannot write doctor call outcomes.
+
+Call outcomes remain app-reported and do not complete consultations or affect
+earnings. Separately use the existing doctor completion/clinical-record endpoint
+after the consultation is actually finished.
+
+Errors: **400** invalid body, appointment/mode/time or participant eligibility;
+**401** invalid/missing backend JWT; **403** wrong account role/unverified doctor;
+**404** appointment not assigned to the requester; **503** missing/unsafe 100ms
+configuration, unsupported database, disabled/mismatched room or provider failure.
+Provider response bodies and credentials are not returned in these errors.
+
+Official references: [rooms and name-based reuse](https://www.100ms.live/docs/server-side/v2/api-reference/Rooms/create-via-api),
+[token claims](https://www.100ms.live/docs/get-started/v2/get-started/security-and-tokens),
+[template role limits](https://www.100ms.live/docs/server-side/v2/api-reference/policy/create-template-via-api),
+[SDK reconnection](https://www.100ms.live/docs/react-native/v2/how-to-guides/handle-interruptions/reconnection-handling).
+
 ### Location-based pricing
 
 The general physician fee depends on the user's country. Rates are stored in the `CountryPricing` table (Django admin ? **Country pricing**). Only India is seeded: INR ₹200, with specialists choosing ₹200?₹2,000 in steps of 100. India is also the fallback for any country without an active row. Add a row per country with its currency, symbol, general fee and specialist min/max/step.

@@ -6,6 +6,7 @@ from apps.appointments.doctor_app import (
     DoctorEarningsView, DoctorScheduleView,
 )
 from apps.appointments.doctor_views import DoctorSlotDetailView, DoctorSlotListCreateView
+from apps.appointments.video_calls import DoctorVideoJoinView
 from apps.consultations.doctor_views import DoctorConsultationListView, DoctorConsultationRecordView
 from .app_views import (
     DoctorAvailabilityView, DoctorDocumentDetailView, DoctorDocumentDownloadView, DoctorDocumentListView,
@@ -28,6 +29,7 @@ urlpatterns = [
     path('me/availability/', DoctorAvailabilityView.as_view(), name='doctor-availability'),
     path('me/schedule/', DoctorScheduleView.as_view(), name='doctor-schedule'),
     path('me/appointments/<int:appointment_id>/', DoctorAppointmentDetailView.as_view(), name='doctor-appointment-detail'),
+    path('me/appointments/<int:appointment_id>/video/join/', DoctorVideoJoinView.as_view(), name='doctor-video-join'),
     path('me/appointments/<int:appointment_id>/calls/', DoctorAppointmentCallListView.as_view(), name='doctor-appointment-calls'),
     path(
         'me/appointments/<int:appointment_id>/calls/<int:call_id>/', DoctorAppointmentCallDetailView.as_view(),

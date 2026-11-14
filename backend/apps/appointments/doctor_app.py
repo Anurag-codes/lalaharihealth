@@ -76,7 +76,7 @@ class AppointmentCallSerializer(serializers.ModelSerializer):
     class Meta:
         model = AppointmentCall
         fields = [
-            'id', 'mode', 'provider', 'external_call_id', 'started_at', 'ended_at', 'duration_seconds',
+            'id', 'mode', 'provider', 'external_call_id', 'status', 'started_at', 'ended_at', 'duration_seconds',
             'duration_minutes', 'end_reason', 'metadata', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'duration_minutes', 'created_at', 'updated_at']
@@ -97,13 +97,52 @@ class AppointmentCallSerializer(serializers.ModelSerializer):
         unsupported = set(self.initial_data) - set(self.fields)
         if unsupported:
             raise serializers.ValidationError({field: 'Unknown field.' for field in sorted(unsupported)})
+        if attrs.get('provider') == '100ms' and (not self.instance or self.instance.provider != '100ms'):
+            raise serializers.ValidationError({'provider': '100ms calls are created by the appointment join endpoint. PATCH its returned call_id.'})
+        if self.instance and self.instance.provider == '100ms':
+            changed = {
+                field: 'The server-managed 100ms room and mode cannot be changed.'
+                for field in ('provider', 'external_call_id', 'mode')
+                if field in attrs and attrs[field] != getattr(self.instance, field)
+            }
+            if changed:
+                raise serializers.ValidationError(changed)
         started = attrs.get('started_at', getattr(self.instance, 'started_at', None))
         ended = attrs.get('ended_at', getattr(self.instance, 'ended_at', None))
+        current_status = getattr(self.instance, 'status', AppointmentCall.Status.UNKNOWN)
+        status = attrs.get('status', current_status)
+        if current_status in AppointmentCall.TERMINAL_STATUSES:
+            if status != current_status:
+                raise serializers.ValidationError({'status': 'A finished call outcome cannot be changed. Create a new call for a retry.'})
+            changed = {
+                field: 'A finished call timestamp or duration cannot be changed.'
+                for field in ('started_at', 'ended_at', 'duration_seconds')
+                if field in attrs and attrs[field] != getattr(self.instance, field)
+            }
+            if changed:
+                raise serializers.ValidationError(changed)
+        elif current_status == AppointmentCall.Status.IN_PROGRESS and status == AppointmentCall.Status.UNKNOWN:
+            raise serializers.ValidationError({'status': 'An in-progress call cannot return to unknown.'})
+        if status != AppointmentCall.Status.UNKNOWN:
+            if status in (AppointmentCall.Status.IN_PROGRESS, AppointmentCall.Status.COMPLETED) and not started:
+                raise serializers.ValidationError({'started_at': 'Report when the SDK call connected.'})
+            if status == AppointmentCall.Status.IN_PROGRESS and ended:
+                raise serializers.ValidationError({'ended_at': 'An in-progress call cannot have an end time.'})
+            if status in AppointmentCall.TERMINAL_STATUSES and not ended:
+                raise serializers.ValidationError({'ended_at': 'Report when the SDK call attempt ended.'})
+            duration = attrs.get('duration_seconds', getattr(self.instance, 'duration_seconds', None))
+            if not (started and ended) and duration is not None:
+                raise serializers.ValidationError({'duration_seconds': 'Duration requires both start and end times.'})
         if started and ended:
             if ended < started:
                 raise serializers.ValidationError({'ended_at': 'Call end must be after its start.'})
-            if 'duration_seconds' not in attrs and ('started_at' in attrs or 'ended_at' in attrs):
-                attrs['duration_seconds'] = int((ended - started).total_seconds())
+            calculated_duration = int((ended - started).total_seconds())
+            if status != AppointmentCall.Status.UNKNOWN:
+                if 'duration_seconds' in attrs and attrs['duration_seconds'] != calculated_duration:
+                    raise serializers.ValidationError({'duration_seconds': 'Duration must match the start and end times.'})
+                attrs['duration_seconds'] = calculated_duration
+            elif 'duration_seconds' not in attrs and ('started_at' in attrs or 'ended_at' in attrs):
+                attrs['duration_seconds'] = calculated_duration
         return attrs
 
 
@@ -219,7 +258,8 @@ SCHEDULE_ITEM_EXAMPLE = {
     'time_display': '10:30 AM - 10:45 AM', 'mode': 'video', 'mode_label': 'Video Call', 'status': 'confirmed', 'can_join': True,
 }
 CALL_EXAMPLE = {
-    'id': 5, 'mode': 'video', 'provider': 'agora', 'external_call_id': 'apt-18-room', 'started_at': '2026-10-18T10:31:00+05:30',
+    'id': 5, 'mode': 'video', 'provider': 'zoho_meeting', 'external_call_id': 'apt-18-room', 'status': 'completed',
+    'started_at': '2026-10-18T10:31:00+05:30',
     'ended_at': '2026-10-18T10:43:30+05:30', 'duration_seconds': 750, 'duration_minutes': 13, 'end_reason': 'doctor_ended',
     'metadata': {'network': 'wifi'}, 'created_at': '2026-10-18T10:31:00+05:30', 'updated_at': '2026-10-18T10:43:31+05:30',
 }
@@ -340,17 +380,25 @@ class DoctorAppointmentCallListView(NoStoreResponseMixin, generics.GenericAPIVie
     @extend_schema(
         tags=[TAG], summary='Save call details',
         description=(
-            'Optional. Store details of a call or chat the app ran for this appointment. Every field is optional, e.g. send '
-            'provider and started_at when the call starts and PATCH ended_at when it ends. duration_seconds is calculated from '
-            'started_at and ended_at when not sent. Allowed for confirmed or completed appointments.' + AUTH
+            'Store an app-run call attempt, including Zoho Meeting SDK audio/video. The app creates/joins the Zoho session; '
+            'this API does not issue Zoho credentials or verify provider events. Send provider=zoho_meeting, the SDK session id '
+            'as external_call_id, mode=audio/video and status=in_progress with started_at when connected. Save the returned id '
+            'and PATCH this call when it ends. Outcomes: completed (normal end after connection), failed (SDK/network failure), '
+            'missed (no answer), cancelled (cancelled attempt). Terminal outcomes require ended_at; completed also requires '
+            'started_at. Duration is derived from both timestamps; omit it. Each retry is a new call. Legacy clients can omit '
+            'status (unknown). Allowed for confirmed or completed appointments of the assigned verified doctor. '
+            'For 100ms, use the appointment video/join endpoint and PATCH its returned call_id; POST with provider=100ms is rejected '
+            'to avoid duplicate records. Never send SDK secrets or access tokens in metadata. '
+            'Call outcomes do not complete the consultation or affect earnings.' + AUTH
         ),
         responses={201: AppointmentCallSerializer},
         examples=[
             OpenApiExample('Call started', request_only=True, value={
-                'mode': 'video', 'provider': 'agora', 'external_call_id': 'apt-18-room', 'started_at': '2026-10-18T10:31:00+05:30',
+                'mode': 'video', 'provider': 'zoho_meeting', 'external_call_id': 'apt-18-room', 'status': 'in_progress',
+                'started_at': '2026-10-18T10:31:00+05:30',
             }),
             OpenApiExample('Saved', value={**CALL_EXAMPLE, 'ended_at': None, 'duration_seconds': None, 'duration_minutes': None,
-                                           'end_reason': '', 'metadata': {}}, response_only=True, status_codes=['201']),
+                                           'status': 'in_progress', 'end_reason': '', 'metadata': {}}, response_only=True, status_codes=['201']),
         ],
     )
     def post(self, request, appointment_id):
@@ -370,16 +418,27 @@ class DoctorAppointmentCallDetailView(NoStoreResponseMixin, generics.GenericAPIV
 
     @extend_schema(
         tags=[TAG], summary='Update call details (e.g. when the call ends)',
-        description='Send only changed fields.' + AUTH,
+        description=(
+            'Report SDK callbacks with status and timestamps. A terminal outcome and its timestamps/duration cannot be changed; '
+            'repeating the same PATCH is harmless. Use a new POST for a new attempt. failed/missed/cancelled are not successful '
+            'calls; unknown is not proof of completion. These app-reported outcomes do not change appointment status. '
+            'Separately PATCH /api/v1/doctors/me/appointments/{appointment_id}/ with {"status":"completed"} only after the '
+            'consultation is actually finished.' + AUTH
+        ),
         examples=[
-            OpenApiExample('Call ended', request_only=True, value={'ended_at': '2026-10-18T10:43:30+05:30', 'end_reason': 'doctor_ended'}),
+            OpenApiExample('Call ended', request_only=True, value={
+                'status': 'completed', 'ended_at': '2026-10-18T10:43:30+05:30', 'end_reason': 'doctor_ended',
+            }),
+            OpenApiExample('Call failed', request_only=True, value={
+                'status': 'failed', 'ended_at': '2026-10-18T10:32:00+05:30', 'end_reason': 'network_error',
+            }),
             OpenApiExample('Updated', value=CALL_EXAMPLE, response_only=True),
         ],
     )
     def patch(self, request, appointment_id, call_id):
         with transaction.atomic():
             call = get_object_or_404(
-                AppointmentCall.objects.select_for_update().filter(
+                AppointmentCall.objects.select_for_update(of=('self',)).filter(
                     appointment__doctor=request.user, appointment__status__in=CALL_STATUSES, appointment_id=appointment_id,
                 ),
                 pk=call_id,

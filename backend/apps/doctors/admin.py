@@ -1,4 +1,6 @@
+from django import forms
 from django.contrib import admin
+from django.db import models
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.urls import path, reverse
@@ -17,9 +19,22 @@ class SpecialityAdmin(admin.ModelAdmin):
     search_fields = ('name', 'short_name')
 
 
+class DoctorDocumentFileInput(forms.ClearableFileInput):
+    template_name = 'admin/doctors/document_file.html'
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        if value and value.instance.pk:
+            context['widget']['download_url'] = reverse(
+                'admin:doctors_doctorprofile_document', args=[value.instance.pk],
+            )
+        return context
+
+
 class DoctorDocumentInline(admin.TabularInline):
     model = DoctorDocument
     extra = 0
+    formfield_overrides = {models.FileField: {'widget': DoctorDocumentFileInput}}
     fields = ('document_type', 'file', 'original_name', 'uploaded_at', 'download')
     readonly_fields = ('uploaded_at', 'download')
 

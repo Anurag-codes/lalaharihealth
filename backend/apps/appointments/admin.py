@@ -20,7 +20,7 @@ class AppointmentSlotAdmin(admin.ModelAdmin):
 class AppointmentCallInline(admin.TabularInline):
     model = AppointmentCall
     extra = 0
-    fields = ('mode', 'provider', 'external_call_id', 'started_at', 'ended_at', 'duration_seconds', 'end_reason', 'metadata')
+    fields = ('mode', 'provider', 'external_call_id', 'status', 'started_at', 'ended_at', 'duration_seconds', 'end_reason', 'metadata')
     readonly_fields = fields
     can_delete = False
 

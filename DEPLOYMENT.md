@@ -146,6 +146,60 @@ posts on `/blogs` and `/blogs/<slug>`; these reads are not persistently cached.
 The homepage blog preview and the three default resources on `/blogs` are fixed
 site content and do not require the API.
 
+Doctor verification uploads use `/srv/lalaharihealth/backend/private_documents/`,
+not `backend/media/`. The stored relative path `doctors/documents/YYYY/MM/file.pdf`
+is inside that private directory; only doctor profile photos use `media/doctors/photos/`.
+Include `private_documents/` in persistent storage and backups, and ensure the
+`lalahari` service user can write there. Do not expose it with an Nginx media alias.
+Doctors download files through the authenticated API `download_url`; staff use
+the file link or **Download** in Django admin. Run migrations: `doctors.0011`
+moves existing public verification uploads to private storage. If a database
+entry has no file in either location, restore it from backup or upload it again;
+the migration cannot recreate missing files.
+
+For app-run Zoho Meeting audio/video calls, deploy migration
+`appointments.0006_appointmentcall_status` with `python manage.py migrate` and
+restart the API. Existing call logs remain `unknown`; new doctor-app callbacks
+can explicitly report in-progress, completed, failed, missed or cancelled calls.
+No Zoho backend environment variables are required for this call-logging-only
+integration. Session creation/joining stays in the app's SDK integration; call
+completion remains separate from consultation completion. See the README's
+Zoho Meeting SDK call outcomes section for requests and retry behavior.
+
+### 100ms appointment video setup
+
+For 100ms SDK video consultations, configure `HMS_ACCESS_KEY`, `HMS_APP_SECRET`
+and `HMS_TEMPLATE_ID` in the server's backend `.env` using the matching app
+credentials and a dedicated 100ms conferencing template. Optional
+`HMS_DOCTOR_ROLE` / `HMS_PATIENT_ROLE` default to `doctor` / `patient`.
+Never put signing secrets or management tokens in the app or repository.
+
+In the 100ms dashboard, set both roles to `maxPeerCount: 1`, allow microphone /
+camera and mutual subscription, disable role changes, and explicitly disable
+browser recording, RTMP streaming and HLS streaming permissions. Disable all
+automatic recording, transcription and caption/AI plugins on the template;
+verify newer recording configurations manually. Do not create/share room codes
+for these private rooms. Set the desired region and confirm account capacity
+for five simultaneous two-person rooms. The API rejects unsafe role settings.
+
+Deploy migration `appointments.0007_appointment_video_room` with
+`python manage.py migrate`, then restart `lalaharihealth-api`. No new package
+installation is required specifically for this integration. PostgreSQL 15+
+(required by the current Django version) with row locking is required; SQLite
+join requests return 503. Each appointment has a
+persisted opaque provisioning name and one reusable private room, including
+after a provider timeout. Rooms use the template selected when first reserved;
+changing the environment template ID affects new reservations, not existing rooms.
+
+Doctor join: `POST /api/v1/doctors/me/appointments/{id}/video/join/`.
+Patient join: `POST /api/v1/appointments/{id}/video/join/`.
+Both send `{}` with the correct backend access JWT and receive the room ID,
+role-specific SDK `auth_token` (300 seconds), expiry and `call_id`. Responses
+are `no-store`. No management token or app secret is returned.
+The assigned doctor PATCHes the existing call-details endpoint only after actual
+SDK events. See the README's **100ms private video consultations** section for
+complete contracts, retry behavior and security/expiry limitations.
+
 Back up PostgreSQL before each migration. The production database is separate from all other app databases.
 
 ```bash

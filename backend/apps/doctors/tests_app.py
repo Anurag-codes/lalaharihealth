@@ -457,6 +457,7 @@ class DoctorAppointmentTests(DoctorAppBase):
         self.assertEqual(updated.status_code, 200, updated.data)
         self.assertEqual(updated.data['duration_seconds'], 750)
         self.assertEqual(updated.data['duration_minutes'], 13)
+        self.assertEqual(updated.data['status'], 'unknown')
         backwards = self.doctor_client.patch(f'{url}{created.data["id"]}/', {'ended_at': '2026-10-18T10:00:00+05:30'}, format='json')
         self.assertEqual(backwards.status_code, 400)
         self.assertEqual(self.doctor_client.post(url, {'unknown': 1}, format='json').status_code, 400)
@@ -466,6 +467,82 @@ class DoctorAppointmentTests(DoctorAppBase):
         stranger = APIClient()
         stranger.force_authenticate(self.make_doctor('doc2'))
         self.assertEqual(stranger.post(url, {}, format='json').status_code, 404)
+
+    def test_zoho_call_outcome_and_callback_retry(self):
+        appointment = self.assigned()
+        url = f'/api/v1/doctors/me/appointments/{appointment.pk}/calls/'
+        created = self.doctor_client.post(url, {
+            'mode': 'audio', 'provider': 'zoho_meeting', 'external_call_id': 'meeting-1',
+            'status': 'in_progress', 'started_at': '2026-10-18T10:31:00+05:30',
+        }, format='json')
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data['status'], 'in_progress')
+        detail_url = f'{url}{created.data["id"]}/'
+        self.assertEqual(self.doctor_client.patch(
+            detail_url, {'status': 'unknown'}, format='json',
+        ).status_code, 400)
+        payload = {
+            'status': 'completed', 'ended_at': '2026-10-18T10:43:30+05:30', 'end_reason': 'normal',
+        }
+        for _ in range(2):
+            updated = self.doctor_client.patch(detail_url, payload, format='json')
+            self.assertEqual(updated.status_code, 200, updated.data)
+            self.assertEqual(updated.data['status'], 'completed')
+            self.assertEqual(updated.data['duration_seconds'], 750)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, 'confirmed')
+        self.assertIsNone(appointment.completed_at)
+        self.assertEqual(self.doctor_client.get(
+            f'/api/v1/doctors/me/appointments/{appointment.pk}/',
+        ).data['calls'][0]['status'], 'completed')
+        self.assertEqual(self.doctor_client.patch(
+            detail_url, {'status': 'failed'}, format='json',
+        ).status_code, 400)
+        self.assertEqual(self.doctor_client.patch(
+            detail_url, {'ended_at': '2026-10-18T10:44:00+05:30'}, format='json',
+        ).status_code, 400)
+
+    def test_call_outcome_validation_and_unsuccessful_attempts(self):
+        appointment = self.assigned()
+        url = f'/api/v1/doctors/me/appointments/{appointment.pk}/calls/'
+        for payload in (
+            {'status': 'paid'},
+            {'status': 'in_progress'},
+            {'status': 'completed', 'ended_at': '2026-10-18T10:43:30+05:30'},
+            {'status': 'failed'},
+            {'status': 'in_progress', 'started_at': '2026-10-18T10:31:00+05:30',
+             'ended_at': '2026-10-18T10:43:30+05:30'},
+            {'status': 'completed', 'started_at': '2026-10-18T10:31:00+05:30',
+             'ended_at': '2026-10-18T10:43:30+05:30', 'duration_seconds': 999},
+        ):
+            with self.subTest(payload=payload):
+                self.assertEqual(self.doctor_client.post(url, payload, format='json').status_code, 400)
+        for status in ('failed', 'missed', 'cancelled'):
+            with self.subTest(status=status):
+                response = self.doctor_client.post(url, {
+                    'provider': 'zoho_meeting', 'mode': 'video', 'status': status,
+                    'ended_at': '2026-10-18T10:43:30+05:30', 'end_reason': 'sdk_callback',
+                }, format='json')
+                self.assertEqual(response.status_code, 201, response.data)
+                self.assertEqual(response.data['status'], status)
+                self.assertIsNone(response.data['duration_seconds'])
+        legacy = self.doctor_client.post(url, {}, format='json')
+        self.assertEqual(legacy.status_code, 201, legacy.data)
+        self.assertEqual(legacy.data['status'], 'unknown')
+
+    def test_call_outcome_updates_require_assigned_verified_doctor(self):
+        appointment = self.assigned()
+        url = f'/api/v1/doctors/me/appointments/{appointment.pk}/calls/'
+        created = self.doctor_client.post(url, {}, format='json')
+        detail_url = f'{url}{created.data["id"]}/'
+        payload = {'status': 'missed', 'ended_at': '2026-10-18T10:43:30+05:30'}
+        stranger = APIClient()
+        stranger.force_authenticate(self.make_doctor('other_caller'))
+        self.assertEqual(stranger.patch(detail_url, payload, format='json').status_code, 404)
+        self.client.force_authenticate(appointment.patient)
+        self.assertEqual(self.client.patch(detail_url, payload, format='json').status_code, 403)
+        DoctorProfile.objects.filter(user=self.doctor).update(verification_status='pending')
+        self.assertEqual(self.doctor_client.patch(detail_url, payload, format='json').status_code, 403)
 
     def test_earnings_by_period(self):
         today = timezone.localdate()
@@ -552,7 +629,10 @@ class DoctorAdminTests(DoctorAppBase):
         self.assertEqual(self.client.get(f'/admin/doctors/doctorprofile/document/{document.pk}/').status_code, 302)
         page = APIClient()
         page.force_login(self.admin)
-        self.assertContains(page.get(f'/admin/doctors/doctorprofile/{self.profile.pk}/change/'), 'Download')
+        change_page = page.get(f'/admin/doctors/doctorprofile/{self.profile.pk}/change/')
+        self.assertContains(change_page, 'Download')
+        self.assertContains(change_page, f'href="/admin/doctors/doctorprofile/document/{document.pk}/"', count=2)
+        self.assertNotContains(change_page, f'href="{document.file.url}"')
 
     def test_confirm_completion_action(self):
         appointment = self.book_and_pay()

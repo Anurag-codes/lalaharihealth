@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -91,9 +93,23 @@ class Appointment(models.Model):
 
 
 class AppointmentCall(models.Model):
-    """A call or chat session the doctor app ran for an appointment. The app handles calling; every field is optional."""
+    """An app-reported call or chat session, separate from consultation completion."""
+
+    class Status(models.TextChoices):
+        UNKNOWN = 'unknown', 'Not reported'
+        IN_PROGRESS = 'in_progress', 'In progress'
+        COMPLETED = 'completed', 'Completed'
+        FAILED = 'failed', 'Failed'
+        MISSED = 'missed', 'Missed'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    TERMINAL_STATUSES = (Status.COMPLETED, Status.FAILED, Status.MISSED, Status.CANCELLED)
 
     appointment = models.ForeignKey(Appointment, related_name='calls', on_delete=models.CASCADE)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.UNKNOWN,
+        help_text='SDK outcome reported by the assigned doctor app; not provider-verified or consultation completion.',
+    )
     mode = models.CharField(max_length=10, choices=Consultation.Mode.choices, blank=True)
     provider = models.CharField(max_length=50, blank=True, help_text='Calling service used by the app, e.g. agora, zego, jitsi')
     external_call_id = models.CharField(max_length=255, blank=True, help_text="The provider's call, room or channel id")
@@ -111,3 +127,18 @@ class AppointmentCall(models.Model):
 
     def __str__(self):
         return f'Call #{self.pk} for appointment #{self.appointment_id}'
+
+
+class AppointmentVideoRoom(models.Model):
+    appointment = models.OneToOneField(Appointment, related_name='video_room', on_delete=models.CASCADE)
+    provisioning_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    template_id = models.CharField(max_length=100, editable=False)
+    room_id = models.CharField(max_length=100, unique=True, null=True, blank=True, editable=False)
+    current_call = models.OneToOneField(
+        AppointmentCall, related_name='managed_video_room', on_delete=models.SET_NULL,
+        null=True, blank=True, editable=False,
+    )
+
+    @property
+    def room_name(self):
+        return f'consultation-{self.provisioning_id.hex}'
