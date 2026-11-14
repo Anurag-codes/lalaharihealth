@@ -16,7 +16,10 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.consultations.models import Consultation
 from apps.doctors.models import DoctorProfile
-from .hms import AUTH_TOKEN_SECONDS, VideoServiceUnavailable, checked_room, configured_roles, signed_token, validate_template
+from .hms import (
+    AUTH_TOKEN_SECONDS, VideoServiceUnavailable, checked_room, configured_roles, provision_room, signed_token,
+    validate_template,
+)
 from .models import Appointment, AppointmentCall, AppointmentVideoRoom
 
 HMS_SETTINGS = {
@@ -323,6 +326,29 @@ class VideoProviderTests(SimpleTestCase):
                     validate_template('template-test', configured_roles())
         with patch('apps.appointments.hms.request_json', return_value=template()):
             validate_template('template-test', configured_roles())
+
+    def test_empty_room_lookup_without_data_creates_room(self):
+        reservation = SimpleNamespace(room_id=None, room_name='consultation-test', template_id='template-test')
+        room = {
+            'id': 'room-new', 'name': 'consultation-test', 'template_id': 'template-test',
+            'enabled': True, 'recording_info': {'enabled': False},
+        }
+        for empty in ({'limit': 10}, {'limit': 10, 'data': None}):
+            calls = []
+
+            def provider(method, path, **kwargs):
+                calls.append((method, path))
+                if method == 'GET' and path == '/rooms':
+                    return empty
+                return room
+
+            with self.subTest(empty=empty), patch('apps.appointments.hms.request_json', side_effect=provider):
+                self.assertEqual(provision_room(reservation), 'room-new')
+                self.assertIn(('POST', '/rooms'), calls)
+        for malformed in ({'data': 'room-new'}, ['room-new']):
+            with self.subTest(malformed=malformed), patch('apps.appointments.hms.request_json', return_value=malformed):
+                with self.assertRaises(VideoServiceUnavailable):
+                    provision_room(reservation)
 
     def test_invalid_provider_room_shape_fails_explicitly(self):
         reservation = SimpleNamespace(room_name='consultation-test', template_id='template-test')

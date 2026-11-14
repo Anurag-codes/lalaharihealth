@@ -129,10 +129,15 @@ def provision_room(reservation):
     # The reservation name is committed before any remote request, including one that times out.
     for enabled in ('true', 'false'):
         result = request_json('GET', '/rooms', params={'name': reservation.room_name, 'enabled': enabled, 'limit': 10})
-        if not isinstance(result, dict) or not isinstance(result.get('data'), list):
+        # 100ms omits "data" (or sends null) when no room matches the name.
+        rooms = result.get('data') if isinstance(result, dict) else None
+        if rooms is None and isinstance(result, dict):
+            rooms = []
+        if not isinstance(rooms, list):
+            logger.error('100ms room list had an unexpected shape: %s.', type(result).__name__)
             raise VideoServiceUnavailable('100ms returned an invalid room list.')
         matches = [
-            room for room in result['data']
+            room for room in rooms
             if isinstance(room, dict) and isinstance(room.get('name'), str) and room['name'].lower() == reservation.room_name
         ]
         if len(matches) > 1:
