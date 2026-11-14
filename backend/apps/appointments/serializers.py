@@ -59,6 +59,10 @@ class AppointmentRequestSerializer(serializers.Serializer):
 
 class DoctorAssignmentSerializer(serializers.Serializer):
     doctor_id = serializers.IntegerField(min_value=1)
+    starts_at = BookingTimeField(
+        required=False,
+        help_text='Optional replacement appointment time. Omit to keep the patient-requested time.',
+    )
 
 
 class AppointmentSerializer(serializers.ModelSerializer):
@@ -90,7 +94,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
         read_only_fields = fields
         extra_kwargs = {
             'slot': {'help_text': 'The assigned doctor\'s availability slot at this time, if they opened one; null before a doctor is assigned'},
-            'slot_time': {'help_text': 'Appointment time chosen by the patient'},
+            'slot_time': {'help_text': 'Appointment time initially requested by the patient; staff may change it during doctor assignment'},
             'doctor': {'help_text': 'Assigned by staff after payment; null until then'},
         }
 

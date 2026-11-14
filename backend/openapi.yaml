@@ -298,11 +298,17 @@ paths:
       operationId: appointments_assign_doctor_create
       description: 'The doctor must be active and verified, and a general physician
         for general bookings or of the booking''s speciality. The doctor''s own consultation_fee
-        does not matter: the patient paid the fixed category fee. 400 if the doctor
-        already has another unfinished appointment at the same time; once that consultation
-        is completed the doctor can be assigned another patient at that time. The
-        doctor gets a "New appointment" notification. If the doctor opened an availability
-        slot at that time in the doctor app, it is linked (shown as booked there).'
+        does not matter: the patient paid the fixed category fee. Optionally send
+        starts_at to assign at another available time; omit it to keep the requested
+        time. A replacement must be future, 15-minute aligned, between 08:00 and 23:45
+        India time, within 30 days. 400 if the doctor already has another unfinished
+        appointment at the same time; once that consultation is completed the doctor
+        can be assigned another patient at that time. The doctor gets a "New appointment"
+        notification. If the doctor opened an availability slot at that time in the
+        doctor app, it is linked (shown as booked there). Appointment and consultation
+        times are updated together, without changing the fee. Both participants are
+        notified of the confirmed time. Only paid finding_doctor appointments can
+        be assigned; confirmed appointments cannot be rescheduled here.'
       summary: 'Staff only: assign a verified doctor to a paid appointment'
       parameters:
       - in: path
@@ -318,9 +324,15 @@ paths:
             schema:
               $ref: '#/components/schemas/DoctorAssignment'
             examples:
-              Assign:
+              AssignAtRequestedTime:
                 value:
                   doctor_id: 7
+                summary: Assign at requested time
+              AssignAtAnotherTime:
+                value:
+                  doctor_id: 7
+                  starts_at: '2026-11-16T11:00:00+05:30'
+                summary: Assign at another time
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/DoctorAssignment'
@@ -7750,7 +7762,8 @@ components:
           type: string
           format: date-time
           readOnly: true
-          description: Appointment time chosen by the patient
+          description: Appointment time initially requested by the patient; staff
+            may change it during doctor assignment
         schedule_date:
           type: string
           readOnly: true
@@ -9237,6 +9250,11 @@ components:
         doctor_id:
           type: integer
           minimum: 1
+        starts_at:
+          type: string
+          format: date-time
+          description: Optional replacement appointment time. Omit to keep the patient-requested
+            time.
       required:
       - doctor_id
     DoctorAuthResponse:

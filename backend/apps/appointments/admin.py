@@ -1,12 +1,70 @@
+from django import forms
 from django.contrib import admin
-from django.db import transaction
+from django.db import connection, transaction
+from django.http import Http404
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 
+from apps.accounts.models import User
+from apps.consultations.models import Consultation
 from apps.notifications.models import Notification
 from apps.notifications.service import notify_appointment
 from apps.payments.models import Payment
 
 from .models import Appointment, AppointmentCall, AppointmentSlot
+from .assignment import apply_assignment, assignment_doctors, prepare_assignment
+
+
+class DoctorChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, user):
+        return f'Dr. {user.get_full_name() or user.username} (User ID: {user.pk})'
+
+
+class AppointmentAssignmentForm(forms.ModelForm):
+    doctor = DoctorChoiceField(
+        queryset=User.objects.none(), required=False,
+        help_text='Assign an active, verified doctor of this booking category. Optionally change Slot time before saving.',
+    )
+
+    class Meta:
+        model = Appointment
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.original_slot_time = self.instance.slot_time
+        self.assignment_plan = None
+        if self.instance.pk and 'doctor' in self.fields:
+            self.fields['doctor'].queryset = User.objects.filter(
+                doctor_profile__in=assignment_doctors(self.instance.consultation),
+            )
+
+    def clean(self):
+        cleaned = super().clean()
+        if 'doctor' not in self.fields or self.instance.status != Appointment.Status.FINDING_DOCTOR:
+            return cleaned
+        doctor, starts_at = cleaned.get('doctor'), cleaned.get('slot_time')
+        if doctor is None:
+            if starts_at and starts_at != self.original_slot_time:
+                self.add_error('doctor', 'Choose a doctor when changing the appointment time.')
+            return cleaned
+        if starts_at is None:
+            return cleaned
+        try:
+            self.assignment_plan = prepare_assignment(
+                self.instance.pk, doctor.pk, starts_at if starts_at != self.original_slot_time else None,
+            )
+        except Http404:
+            self.add_error('doctor', 'Choose an active, verified doctor of the appointment category.')
+        except ValidationError as error:
+            if isinstance(error.detail, dict):
+                for field, messages in error.detail.items():
+                    form_field = {'doctor_id': 'doctor', 'starts_at': 'slot_time'}.get(field)
+                    values = messages if isinstance(messages, (list, tuple)) else [messages]
+                    self.add_error(form_field, [str(message) for message in values])
+            else:
+                self.add_error(None, [str(message) for message in error.detail])
+        return cleaned
 
 
 @admin.register(AppointmentSlot)
@@ -45,6 +103,7 @@ class CompletionConfirmedFilter(admin.SimpleListFilter):
 
 @admin.register(Appointment)
 class AppointmentAdmin(admin.ModelAdmin):
+    form = AppointmentAssignmentForm
     list_display = ('id', 'patient', 'doctor', 'slot_time', 'status', 'completed_at', 'completion_confirmed_at')
     list_filter = ('status', CompletionConfirmedFilter)
     readonly_fields = (
@@ -53,6 +112,29 @@ class AppointmentAdmin(admin.ModelAdmin):
     )
     inlines = [AppointmentCallInline]
     actions = ['release_unstarted_reservations', 'confirm_completion']
+
+    def get_object(self, request, object_id, from_field=None):
+        obj = super().get_object(request, object_id, from_field)
+        if obj is not None and request.method == 'POST' and connection.in_atomic_block:
+            # Serialize admin saves with API assignment before binding editable fields.
+            consultation = Consultation.objects.select_for_update().filter(pk=obj.consultation_id).first()
+            if consultation is None:
+                return None
+            return self.get_queryset(request).select_for_update().filter(pk=obj.pk).first()
+        return obj
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.status == Appointment.Status.FINDING_DOCTOR and self.has_change_permission(request, obj):
+            return tuple(field for field in self.readonly_fields if field not in ('doctor', 'slot_time'))
+        return self.readonly_fields
+
+    def save_model(self, request, obj, form, change):
+        if form.assignment_plan is not None:
+            assigned = apply_assignment(form.assignment_plan)
+            # Keep the admin's bound instance in sync before its normal model save.
+            for field in ('doctor', 'slot', 'slot_time', 'status', 'doctor_assigned_at', 'reminder_sent_at'):
+                setattr(obj, field, getattr(assigned, field))
+        super().save_model(request, obj, form, change)
 
     @admin.action(description='Confirm completion of consultations the doctor marked completed')
     def confirm_completion(self, request, queryset):

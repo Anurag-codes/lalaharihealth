@@ -9,18 +9,13 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 from apps.consultations.models import Consultation
-from apps.doctors.models import DoctorProfile
-from apps.notifications.models import Notification
-from apps.notifications.service import notify_appointment, notify_doctor
-from apps.payments.models import Payment
 from .availability import booking_times_for_date
-from .models import Appointment, AppointmentSlot
+from .assignment import assign_doctor
+from .models import Appointment
 from .serializers import (
 	AppointmentRequestSerializer, AppointmentSerializer, AppointmentSlotSerializer,
 	DoctorAssignmentSerializer, SlotDateSerializer, SlotDatesQuerySerializer, SlotQuerySerializer,
 )
-
-FREED_STATUSES = (Appointment.Status.CANCELLED, Appointment.Status.COMPLETED)
 
 APPOINTMENT_EXAMPLE = {
 	'id': 12345, 'appointment_number': 'APT-12345', 'consultation': 42, 'slot': None,
@@ -184,45 +179,28 @@ class AssignDoctorView(generics.GenericAPIView):
 		description=(
 			"The doctor must be active and verified, and a general physician for general bookings or of the booking's "
 			"speciality. The doctor's own consultation_fee does not matter: the patient paid the fixed category fee. "
+			'Optionally send starts_at to assign at another available time; omit it to keep the requested time. '
+			'A replacement must be future, 15-minute aligned, between 08:00 and 23:45 India time, within 30 days. '
 			'400 if the doctor already has another unfinished appointment at the same time; once that consultation is completed the '
 			'doctor can be assigned another patient at that time. The doctor gets a "New appointment" notification. If the doctor opened an availability slot '
-			'at that time in the doctor app, it is linked (shown as booked there).'
+			'at that time in the doctor app, it is linked (shown as booked there). Appointment and consultation times are updated '
+			'together, without changing the fee. Both participants are notified of the confirmed time. '
+			'Only paid finding_doctor appointments can be assigned; confirmed appointments cannot be rescheduled here.'
 		),
 		responses=AppointmentSerializer,
-		examples=[OpenApiExample('Assign', request_only=True, value={'doctor_id': 7})],
+		examples=[
+			OpenApiExample('Assign at requested time', request_only=True, value={'doctor_id': 7}),
+			OpenApiExample('Assign at another time', request_only=True, value={
+				'doctor_id': 7, 'starts_at': '2026-11-16T11:00:00+05:30',
+			}),
+		],
 	)
 	def post(self, request, appointment_id):
 		serializer = self.get_serializer(data=request.data)
 		serializer.is_valid(raise_exception=True)
-		with transaction.atomic():
-			appointment = get_object_or_404(Appointment.objects.select_for_update(), pk=appointment_id)
-			if appointment.status != Appointment.Status.FINDING_DOCTOR:
-				raise serializers.ValidationError('Only paid appointments awaiting matching can be assigned.')
-			if not Payment.objects.filter(consultation=appointment.consultation, status=Payment.Status.SUCCESS).exists():
-				raise serializers.ValidationError('Confirmed payment is required.')
-			consultation = appointment.consultation
-			doctors = DoctorProfile.objects.select_for_update().filter(
-				is_active=True, user__is_active=True, user__role='doctor', verification_status='verified',
-				speciality_id=consultation.speciality_id,
-			)
-			profile = get_object_or_404(doctors, user_id=serializer.validated_data['doctor_id'])
-			# A doctor sees one patient per 15-minute time; once that consultation is completed the doctor can take another.
-			if Appointment.objects.filter(doctor=profile.user, slot_time=appointment.slot_time).exclude(pk=appointment.pk).exclude(status__in=FREED_STATUSES).exists():
-				raise serializers.ValidationError('Doctor already has an appointment at this time.')
-			# Link the doctor's own free slot at this time, if any, so the doctor app shows it as booked.
-			slot = AppointmentSlot.objects.select_for_update().filter(
-				doctor=profile.user, starts_at=appointment.slot_time, is_active=True,
-			).first()
-			if slot is not None and slot.appointments.exclude(pk=appointment.pk).exclude(status__in=FREED_STATUSES).count() >= slot.capacity:
-				slot = None
-			appointment.slot = slot
-			appointment.doctor = profile.user
-			update_fields = ['doctor', 'slot'] + appointment.set_status(Appointment.Status.CONFIRMED)
-			appointment.save(update_fields=update_fields)
-			appointment.consultation.doctor = profile.user
-			appointment.consultation.save(update_fields=['doctor'])
-			notify_appointment(appointment, Notification.Kind.DOCTOR_ASSIGNED)
-			notify_doctor(appointment, Notification.Kind.APPOINTMENT_ASSIGNED)
+		appointment = assign_doctor(
+			appointment_id, serializer.validated_data['doctor_id'], serializer.validated_data.get('starts_at'),
+		)
 		return Response(AppointmentSerializer(appointment).data)
 
 

@@ -318,7 +318,32 @@ tie, or the speciality's own fee when it has no verified doctors yet. The same a
 Case Preview, and is locked on Submit Case, so later fee changes do not affect submitted appointments.
 
 **Doctor assignment after payment.** Staff call `POST /api/v1/appointments/{id}/assign-doctor/` with `{"doctor_id"}` once
-the appointment is `finding_doctor`. Any active, verified doctor of the booking's category can be assigned (a general
+the appointment is `finding_doctor`. Optionally send `starts_at` to assign at another time if the doctor is busy at
+the patient's requested time; omit it to keep the original time:
+
+```json
+{
+  "doctor_id": 7,
+  "starts_at": "2026-11-16T11:00:00+05:30"
+}
+```
+
+`doctor_id` is the doctor's **User ID**, not Doctor Profile ID. The replacement time must be future, on a
+15-minute boundary, between 08:00 and 23:45 India time, within the next 30 days (the same booking rules).
+The server checks the doctor's conflicts at the replacement time. Appointment `slot_time`, consultation
+`scheduled_at`, and the linked doctor availability slot are updated together; the paid fee does not change.
+Both patient and doctor notifications include the confirmed time. The app should refresh appointment details
+and use the returned actual schedule, including for the video join window.
+
+**Assign through Django admin.** Open **Appointments**, filter **Status = Finding doctor**, and open a paid
+appointment. Select **Doctor**, keep or edit **Slot time** using the date/time inputs, then click **Save**.
+The dropdown lists active, verified doctors of the booking category. Doctor and time are editable only while
+awaiting assignment, and a time change requires selecting a doctor. Invalid times, failed payment checks or
+conflicts appear as form errors without partially saving the assignment. API and admin use the same checked
+assignment transaction. After confirmation, Doctor and Slot time remain read-only; this is not a rescheduling
+API for already-confirmed appointments. No migration or new environment variables are required.
+
+Any active, verified doctor of the booking's category can be assigned (a general
 physician for general bookings, the same speciality for specialist bookings), whatever their own fee. A doctor who
 already has an unfinished appointment at that time is rejected; once the doctor marks that consultation completed,
 they can be assigned another patient at the same time. The doctor gets a "New appointment booked" notification.

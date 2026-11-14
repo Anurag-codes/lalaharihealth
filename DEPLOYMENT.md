@@ -200,6 +200,17 @@ The assigned doctor PATCHes the existing call-details endpoint only after actual
 SDK events. See the README's **100ms private video consultations** section for
 complete contracts, retry behavior and security/expiry limitations.
 
+### Staff assignment at a replacement time
+
+The staff assignment API accepts optional `starts_at` alongside `doctor_id`.
+In Django admin, paid **Finding doctor** appointments expose an editable Doctor
+dropdown and Slot time date/time fields. Save assigns the doctor and confirms the
+actual time using the same payment, category, future-time and conflict checks
+as the API. Already-confirmed appointments remain read-only for doctor/time.
+Deployment requires updated backend code and an API restart; there is no new
+migration or environment setting for this change. See the README's Doctor
+assignment after payment section for the request and admin steps.
+
 Back up PostgreSQL before each migration. The production database is separate from all other app databases.
 
 ```bash

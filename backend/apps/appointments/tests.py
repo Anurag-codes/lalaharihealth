@@ -8,6 +8,8 @@ from rest_framework.test import APITestCase
 from apps.consultations.models import Consultation
 from apps.doctors.models import DoctorProfile
 from apps.payments.models import Payment
+from apps.notifications.models import Notification
+from apps.notifications.tests import HomeTestBase
 from apps.treatments.models import Condition
 from .availability import local_datetime
 from .models import Appointment, AppointmentSlot
@@ -67,6 +69,52 @@ class BookingFlowTests(APITestCase):
     def assign(self, appointment_id, doctor):
         self.client.force_authenticate(User.objects.get_or_create(username='staff', defaults={'is_staff': True})[0])
         return self.client.post(f'/api/v1/appointments/{appointment_id}/assign-doctor/', {'doctor_id': doctor.pk}, format='json')
+
+    def test_assignment_can_move_to_free_time_when_requested_time_is_busy(self):
+        busy = self.pay(self.submit(self.draft(), self.at(10)).data['id'])
+        self.assertEqual(self.assign(busy.pk, self.doctor).status_code, 200)
+        replacement = self.slot(self.doctor, 11)
+        appointment = self.pay(self.submit(self.draft(), self.at(10)).data['id'])
+        fee = appointment.consultation.fee_charged
+        self.client.force_authenticate(User.objects.get(username='staff'))
+        response = self.client.post(f'/api/v1/appointments/{appointment.pk}/assign-doctor/', {
+            'doctor_id': self.doctor.pk, 'starts_at': self.at(11).isoformat(),
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        appointment.refresh_from_db()
+        appointment.consultation.refresh_from_db()
+        self.assertEqual(appointment.slot_time, self.at(11))
+        self.assertEqual(appointment.consultation.scheduled_at, self.at(11))
+        self.assertEqual(appointment.slot_id, replacement.pk)
+        self.assertEqual(appointment.status, 'confirmed')
+        self.assertEqual(appointment.consultation.fee_charged, fee)
+        self.assertEqual(response.data['schedule_time'], '11:00 AM')
+        notification = Notification.objects.get(appointment=appointment, kind='doctor_assigned')
+        self.assertIn('11:00 AM', notification.body)
+        self.client.force_authenticate(self.doctor)
+        schedule = self.client.get('/api/v1/doctors/me/schedule/', {'date': self.day.isoformat()})
+        changed = next(item for item in schedule.data if item['id'] == appointment.pk)
+        self.assertEqual(datetime.fromisoformat(changed['starts_at']), self.at(11))
+
+    def test_replacement_assignment_rejects_busy_or_invalid_time_without_changes(self):
+        busy = self.pay(self.submit(self.draft(), self.at(11)).data['id'])
+        self.assertEqual(self.assign(busy.pk, self.doctor).status_code, 200)
+        appointment = self.pay(self.submit(self.draft(), self.at(10)).data['id'])
+        self.client.force_authenticate(User.objects.get(username='staff'))
+        url = f'/api/v1/appointments/{appointment.pk}/assign-doctor/'
+        for starts_at in (self.at(11), self.at(10, 7), self.at(7), timezone.now() - timedelta(hours=1), self.at(10, day=self.day + timedelta(days=31))):
+            with self.subTest(starts_at=starts_at):
+                response = self.client.post(url, {
+                    'doctor_id': self.doctor.pk, 'starts_at': starts_at.isoformat(),
+                }, format='json')
+                self.assertEqual(response.status_code, 400, response.data)
+                appointment.refresh_from_db()
+                appointment.consultation.refresh_from_db()
+                self.assertEqual(appointment.status, 'finding_doctor')
+                self.assertEqual(appointment.slot_time, self.at(10))
+                self.assertEqual(appointment.consultation.scheduled_at, self.at(10))
+                self.assertIsNone(appointment.doctor_id)
+        self.assertFalse(Notification.objects.filter(appointment=appointment, kind='doctor_assigned').exists())
 
     # Symptoms dropdowns
 
@@ -276,3 +324,89 @@ class BookingFlowTests(APITestCase):
         self.assertEqual(clash.status_code, 400)
         self.assertIn('already has an appointment', str(clash.data))
         self.assertEqual(self.assign(second, self.doctor2).status_code, 200)
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'], PUSH_NOTIFICATIONS_ENABLED=False)
+class AppointmentAssignmentAdminTests(HomeTestBase):
+    def setUp(self):
+        super().setUp()
+        self.appointment = self.book_and_pay()
+        self.admin_user = User.objects.create_superuser(
+            username='assignment_admin', password='unused-test-password', email='admin@example.com',
+        )
+        self.admin_login()
+
+    def admin_login(self):
+        self.client.force_authenticate(user=None)
+        self.client.force_login(self.admin_user)
+
+    def change_url(self):
+        return f'/admin/appointments/appointment/{self.appointment.pk}/change/'
+
+    def payload(self, starts_at, doctor):
+        data = {
+            'doctor': doctor.pk, 'slot_time_0': timezone.localtime(starts_at).date().isoformat(),
+            'slot_time_1': timezone.localtime(starts_at).strftime('%H:%M:%S'),
+            'calls-TOTAL_FORMS': '0', 'calls-INITIAL_FORMS': '0',
+        }
+        for field in ('paid_at', 'doctor_assigned_at', 'cancelled_at', 'reminder_sent_at'):
+            value = getattr(self.appointment, field)
+            local = timezone.localtime(value) if value else None
+            data[f'{field}_0'] = local.date().isoformat() if local else ''
+            data[f'{field}_1'] = local.strftime('%H:%M:%S') if local else ''
+        return data
+
+    def test_admin_can_assign_doctor_and_replacement_time(self):
+        page = self.client.get(self.change_url())
+        form = page.context['adminform'].form
+        self.assertIn('doctor', form.fields)
+        self.assertIn('slot_time', form.fields)
+        slot = self.slot(self.doctor, 11)
+        response = self.client.post(self.change_url(), self.payload(self.at(11), self.doctor))
+        self.assertEqual(response.status_code, 302, response.context and response.context['adminform'].form.errors)
+        self.appointment.refresh_from_db()
+        self.appointment.consultation.refresh_from_db()
+        self.assertEqual(self.appointment.doctor_id, self.doctor.pk)
+        self.assertEqual(self.appointment.slot_time, self.at(11))
+        self.assertEqual(self.appointment.consultation.scheduled_at, self.at(11))
+        self.assertEqual(self.appointment.slot_id, slot.pk)
+        self.assertEqual(self.appointment.status, 'confirmed')
+        self.assertEqual(Notification.objects.filter(appointment=self.appointment, kind='doctor_assigned').count(), 1)
+        self.assertEqual(Notification.objects.filter(appointment=self.appointment, kind='appointment_assigned').count(), 1)
+
+    def test_admin_rejects_conflict_invalid_time_and_missing_payment_as_form_errors(self):
+        busy = self.book_and_pay(hour=11)
+        self.assertEqual(self.assign(busy, self.doctor).status_code, 200)
+        self.admin_login()
+        for at in (self.at(11), self.at(10, 7)):
+            response = self.client.post(self.change_url(), self.payload(at, self.doctor))
+            self.assertEqual(response.status_code, 200)
+            errors = response.context['adminform'].form.errors
+            if at == self.at(11):
+                self.assertIn('Doctor already has an appointment at this time.', errors['doctor'])
+            else:
+                self.assertIn('Choose a 15-minute time, e.g. 10:00 or 10:15.', errors['slot_time'])
+            self.appointment.refresh_from_db()
+            self.assertEqual(self.appointment.status, 'finding_doctor')
+            self.assertEqual(self.appointment.slot_time, self.at(10))
+            self.assertIsNone(self.appointment.doctor_id)
+        Payment.objects.filter(consultation=self.appointment.consultation).update(status='pending')
+        response = self.client.post(self.change_url(), self.payload(self.at(12), self.doctor))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Confirmed payment is required.', response.context['adminform'].form.non_field_errors())
+        self.assertFalse(Notification.objects.filter(appointment=self.appointment, kind='doctor_assigned').exists())
+
+    def test_admin_assignment_fields_are_locked_after_confirmation(self):
+        self.assertEqual(self.assign(self.appointment, self.doctor).status_code, 200)
+        self.appointment.refresh_from_db()
+        self.admin_login()
+        page = self.client.get(self.change_url())
+        form = page.context['adminform'].form
+        self.assertNotIn('doctor', form.fields)
+        self.assertNotIn('slot_time', form.fields)
+        other = self.make_doctor('another_doc')
+        response = self.client.post(self.change_url(), self.payload(self.at(12), other))
+        self.assertEqual(response.status_code, 302, response.context and response.context['adminform'].form.errors)
+        self.appointment.refresh_from_db()
+        self.assertEqual(self.appointment.doctor_id, self.doctor.pk)
+        self.assertEqual(self.appointment.slot_time, self.at(10))
