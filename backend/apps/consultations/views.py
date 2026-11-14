@@ -69,8 +69,13 @@ CASE_PREVIEW_EXAMPLE = {
 
 
 def owned_consultation(request, consultation_id, editable=False):
-	queryset = Consultation.objects.select_for_update() if editable else Consultation.objects.all()
-	consultation = get_object_or_404(queryset, pk=consultation_id, patient=request.user)
+	from apps.patients.access import accessible_consultations
+
+	queryset = (
+		Consultation.objects.select_for_update().filter(patient=request.user)
+		if editable else accessible_consultations(request.user)
+	)
+	consultation = get_object_or_404(queryset, pk=consultation_id)
 	if editable and consultation.status != Consultation.Status.DRAFT:
 		raise serializers.ValidationError('Booked consultations cannot be edited.')
 	return consultation
@@ -98,7 +103,9 @@ class ConsultationListCreateView(generics.GenericAPIView):
 
 	@extend_schema(tags=['Mobile intake'], summary='List your consultation drafts and bookings', responses=ConsultationSerializer(many=True))
 	def get(self, request):
-		queryset = Consultation.objects.filter(patient=request.user).order_by('-created_at')
+		from apps.patients.access import accessible_consultations
+
+		queryset = accessible_consultations(request.user).order_by('-created_at')
 		page = self.paginate_queryset(queryset)
 		return self.get_paginated_response(ConsultationSerializer(page, many=True, context={'request': request}).data)
 
@@ -208,7 +215,7 @@ class CasePreviewView(generics.GenericAPIView):
 			'Open after "Request Appointment" with the chosen `starts_at` (from `GET /api/v1/appointments/slots/`; URL-encode '
 			'the "+" of the offset). Nothing is reserved yet. `fee` is the fixed category fee that Submit Case will lock. '
 			'`ready_to_submit` is false with `missing_steps` (patient_details, history, schedule) when something is incomplete '
-			'or the time is no longer selectable (passed, not on a 15-minute step, outside 08:00 AM-11:45 PM or beyond 30 days). '
+			'or the time is no longer selectable (passed, not on a 15-minute step, outside 12:00 AM-11:45 PM or beyond 30 days). '
 			'Submit with `POST /api/v1/appointments/`, the same `starts_at` and `information_confirmed: true`.'
 		),
 		parameters=[OpenApiParameter(

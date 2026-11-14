@@ -10,7 +10,7 @@ info:
     2. Select Patient: GET /api/v1/patients/booking-patients/ lists Myself and family members (add one with POST /api/v1/patients/family-members/). POST /api/v1/consultations/ with family_member_id (null = Myself) and mode; blank patient fields are auto-filled. The patient never picks a speciality. A 400 listing missing fields means show the Patient Details form and send patient_name, patient_age, patient_gender and patient_phone.
     3. Symptoms: GET /api/v1/consultations/conditions/ returns the whole disease -> type -> variant tree as one array (not paginated). PUT /api/v1/consultations/{id}/history/ with condition, condition_type and condition_variant (required when that level has options), condition_details, duration_value, duration_unit, ongoing_medication and treatment_details. Saving this sets the specialist category automatically from the disease/type mapping staff keep in Django admin (no mapping = General Physician); each disease and type in the conditions list shows its speciality and fee.
     4. Optional POST /api/v1/consultations/{id}/documents/ as multipart with one file per request. PDF/PNG/JPG up to 10 MB. Skip means no upload call; private downloads require authentication.
-    5. Schedule Appointment: GET /api/v1/appointments/slot-dates/?days=7 for the date strip and GET /api/v1/appointments/slots/?date=YYYY-MM-DD for every 15-minute time (Asia/Kolkata, 08:00-23:45), the same for all categories. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" reserves nothing.
+    5. Schedule Appointment: GET /api/v1/appointments/slot-dates/?days=7 for the date strip and GET /api/v1/appointments/slots/?date=YYYY-MM-DD for every 15-minute time (Asia/Kolkata, 00:00-23:45, 96 per full day), the same for all categories. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" reserves nothing.
     6. Case Preview: GET /api/v1/consultations/{id}/preview/?starts_at=. "Submit Case": POST /api/v1/appointments/ with consultation_id, starts_at and information_confirmed=true. The fee is fixed per category (GET /api/v1/pricing/consultation-fee/?category=): general = the country rate from the pricing table (default India INR 200) using the country_code sent in step 1; specialists = INR, the most common fee of that speciality's verified doctors. It is locked when the case is submitted. The appointment is created without a doctor.
     7. Checkout: POST /api/v1/payments/orders/ with appointment_id and method (card/upi). Use returned order id, public key, amount in minor units of the currency (paise, cents...) and currency with Razorpay mobile Checkout. Never submit card numbers, CVVs or UPI credentials to this API. Configure automatic capture in Razorpay.
     8. POST /api/v1/payments/verify/ with payment_id, razorpay_payment_id and razorpay_signature. Only gateway-confirmed captured payments succeed; signed webhooks also reconcile capture.
@@ -29,6 +29,9 @@ paths:
   /api/v1/appointments/:
     get:
       operationId: appointments_list
+      description: Your bookings plus submitted family bookings matching your verified
+        patient phone identity. can_manage_payment is true only for the original booker;
+        family viewers cannot create or verify payments.
       summary: My appointments
       parameters:
       - name: page
@@ -75,6 +78,7 @@ paths:
                       amount: 200
                       currency: INR
                       payment_status: success
+                      can_manage_payment: true
                       created_at: '2026-10-18T18:37:16+05:30'
           description: ''
         '401':
@@ -88,13 +92,10 @@ paths:
                 Error:
                   value:
                     detail: Authentication credentials were not provided.
-      description: 'My appointments, newest first, paginated with `?page=`. Each has
-        status, slot time, doctor and fee. Send `Authorization: Bearer <access>` (access
-        JWT from login).'
     post:
       operationId: appointments_create
       description: |-
-        Call from Case Preview after the patient ticks "I confirm the information provided above is correct." `information_confirmed` must be true. `starts_at` is the time picked on Schedule Appointment: a future 15-minute time from 08:00 AM to 11:45 PM India time within 30 days. No doctor is chosen here.
+        Call from Case Preview after the patient ticks "I confirm the information provided above is correct." `information_confirmed` must be true. `starts_at` is the time picked on Schedule Appointment: a future 15-minute time from 12:00 AM to 11:45 PM India time within 30 days. No doctor is chosen here.
 
         The fee is fixed and server-set (same as `GET /api/v1/pricing/consultation-fee/`): the general physician fee of the step 1 country_code (default INR 200), or for a speciality the INR mode of its verified doctors' fees. It is locked now and does not change later. Repeating the same request returns the existing appointment.
 
@@ -165,6 +166,7 @@ paths:
                     amount: 200
                     currency: INR
                     payment_status: not_started
+                    can_manage_payment: true
                     created_at: '2026-10-16T18:20:00+05:30'
                   summary: 'Same request repeated: existing appointment'
           description: ''
@@ -196,6 +198,7 @@ paths:
                     amount: 200
                     currency: INR
                     payment_status: not_started
+                    can_manage_payment: true
                     created_at: '2026-10-16T18:20:00+05:30'
                   summary: Appointment created
           description: ''
@@ -227,7 +230,9 @@ paths:
       operationId: appointments_retrieve
       description: 'Checkout shows `appointment_number`, `schedule_date`, `schedule_time`
         and `amount`. After payment, poll this: `finding_doctor` = payment successful
-        and a doctor is being matched; `confirmed` adds `doctor_name`.'
+        and a doctor is being matched; `confirmed` adds `doctor_name`. Also accessible
+        to the family member whose verified phone matches the booking snapshot. Only
+        the original booker has can_manage_payment=true.'
       summary: 'Checkout / "Finding Your Doctor": appointment summary and status'
       parameters:
       - in: path
@@ -269,6 +274,7 @@ paths:
                     amount: 200
                     currency: INR
                     payment_status: success
+                    can_manage_payment: true
                     created_at: '2026-10-16T18:20:00+05:30'
                   summary: Finding doctor
           description: ''
@@ -300,15 +306,17 @@ paths:
         for general bookings or of the booking''s speciality. The doctor''s own consultation_fee
         does not matter: the patient paid the fixed category fee. Optionally send
         starts_at to assign at another available time; omit it to keep the requested
-        time. A replacement must be future, 15-minute aligned, between 08:00 and 23:45
+        time. A replacement must be future, 15-minute aligned, between 00:00 and 23:45
         India time, within 30 days. 400 if the doctor already has another unfinished
         appointment at the same time; once that consultation is completed the doctor
         can be assigned another patient at that time. The doctor gets a "New appointment"
         notification. If the doctor opened an availability slot at that time in the
         doctor app, it is linked (shown as booked there). Appointment and consultation
         times are updated together, without changing the fee. Both participants are
-        notified of the confirmed time. Only paid finding_doctor appointments can
-        be assigned; confirmed appointments cannot be rescheduled here.'
+        notified of the confirmed time. Confirmed appointments may be changed before
+        the consultation or a call starts; omit doctor_id to keep the assigned doctor.
+        Issued video join credentials prevent changes for safety. Identical confirmed
+        submissions are harmless.'
       summary: 'Staff only: assign a verified doctor to a paid appointment'
       parameters:
       - in: path
@@ -347,7 +355,6 @@ paths:
               Example:
                 value:
                   doctor_id: 3
-        required: true
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -380,6 +387,7 @@ paths:
                     amount: 200
                     currency: INR
                     payment_status: success
+                    can_manage_payment: false
                     created_at: '2026-10-18T18:37:16+05:30'
           description: ''
         '400':
@@ -471,6 +479,7 @@ paths:
                     amount: 200
                     currency: INR
                     payment_status: success
+                    can_manage_payment: true
                     created_at: '2026-10-16T18:20:00+05:30'
           description: ''
         '401':
@@ -497,20 +506,23 @@ paths:
   /api/v1/appointments/{appointment_id}/video/join/:
     post:
       operationId: appointments_video_join_create
-      description: POST {} with your backend access JWT. Only the assigned active
-        patient and verified doctor can join a confirmed, unfinished video appointment,
-        from five minutes before its start until completion/cancellation. The server
-        creates/reuses one private 100ms room under database row locks and assigns
-        your role and user identity. The SDK auth token expires after 300 seconds;
-        request a fresh token for joining again. Token expiry does not end an already
-        connected SDK session. No management credentials are returned. A room/code/name
-        is not authorization. Save call_id; the doctor PATCHes the existing call-details
-        endpoint only after actual SDK connection/end events. Token issuance creates
-        an unknown call placeholder, never an in_progress call. Both participants
-        and reconnects reuse that placeholder; joining after a terminal call outcome
-        creates a new attempt in the same room. No recording or transcription is requested.
-        503 means missing/unsafe configuration, unsupported database or provider failure;
-        retry the same endpoint with backoff. Do not log or share auth_token.
+      description: POST {} with your backend access JWT. Only the active original
+        booker, the family beneficiary with a verified phone matching the booking
+        snapshot, and the assigned verified doctor are authorized for a confirmed,
+        unfinished video appointment, from five minutes before its start until completion/cancellation.
+        The server creates/reuses one private 100ms room under database row locks
+        and assigns your role and user identity. The SDK auth token expires after
+        300 seconds; request a fresh token for joining again. Token expiry does not
+        end an already connected SDK session. No management credentials are returned.
+        A room/code/name is not authorization. Save call_id; the doctor PATCHes the
+        existing call-details endpoint only after actual SDK connection/end events.
+        Token issuance creates an unknown call placeholder, never an in_progress call.
+        Both participants and reconnects reuse that placeholder; joining after a terminal
+        call outcome creates a new attempt in the same room. The template still permits
+        only one active patient peer, not simultaneous booker and beneficiary peers.
+        No recording or transcription is requested. 503 means missing/unsafe configuration,
+        unsupported database or provider failure; retry the same endpoint with backoff.
+        Do not log or share auth_token.
       summary: Join your appointment with 100ms video
       parameters:
       - in: path
@@ -569,7 +581,7 @@ paths:
     get:
       operationId: appointments_slot_dates_list
       description: One entry per day starting today with the number of selectable
-        times (64 for a full day, fewer today as times pass), so the app can grey
+        times (96 for a full day, fewer today as times pass), so the app can grey
         out days with none.
       summary: 'Schedule Appointment: date strip (Today and the next days)'
       parameters:
@@ -603,11 +615,11 @@ paths:
                   - date: '2026-10-17'
                     day_label: Sat
                     day_number: 17
-                    available_slot_count: 64
+                    available_slot_count: 96
                   - date: '2026-10-18'
                     day_label: Sun
                     day_number: 18
-                    available_slot_count: 64
+                    available_slot_count: 96
                   summary: Date strip
           description: ''
         '400':
@@ -636,12 +648,12 @@ paths:
   /api/v1/appointments/slots/:
     get:
       operationId: appointments_slots_list
-      description: Every 15-minute time from 08:00 AM to 11:45 PM India time on that
-        date, for any category. Past times are left out; dates before today or more
-        than 30 days ahead return an empty list. The patient only picks a preferred
-        time - no doctor is chosen; staff assign a doctor after payment. Tapping "Request
-        Appointment" only opens Case Preview with this `starts_at` - nothing is reserved
-        until "Submit Case".
+      description: Every 15-minute time from 12:00 AM to 11:45 PM India time on that
+        date (96 starts per full day), for any category. Past times are left out;
+        dates before today or more than 30 days ahead return an empty list. The patient
+        only picks a preferred time - no doctor is chosen; staff assign a doctor after
+        payment. Tapping "Request Appointment" only opens Case Preview with this `starts_at`
+        - nothing is reserved until "Submit Case".
       summary: 'Schedule Appointment: selectable times for a date'
       parameters:
       - in: query
@@ -667,10 +679,10 @@ paths:
               examples:
                 Times:
                   value:
-                  - starts_at: '2026-10-18T08:00:00+05:30'
-                    time_display: 08:00 AM
-                  - starts_at: '2026-10-18T08:15:00+05:30'
-                    time_display: 08:15 AM
+                  - starts_at: '2026-10-18T00:00:00+05:30'
+                    time_display: 12:00 AM
+                  - starts_at: '2026-10-18T00:15:00+05:30'
+                    time_display: 12:15 AM
                   - starts_at: '2026-10-18T08:30:00+05:30'
                     time_display: 08:30 AM
           description: ''
@@ -2806,7 +2818,7 @@ paths:
         is reserved yet. `fee` is the fixed category fee that Submit Case will lock.
         `ready_to_submit` is false with `missing_steps` (patient_details, history,
         schedule) when something is incomplete or the time is no longer selectable
-        (passed, not on a 15-minute step, outside 08:00 AM-11:45 PM or beyond 30 days).
+        (passed, not on a 15-minute step, outside 12:00 AM-11:45 PM or beyond 30 days).
         Submit with `POST /api/v1/appointments/`, the same `starts_at` and `information_confirmed:
         true`.'
       summary: 'Case Preview: everything entered, before "Submit Case"'
@@ -3901,20 +3913,23 @@ paths:
   /api/v1/doctors/me/appointments/{appointment_id}/video/join/:
     post:
       operationId: doctors_me_appointments_video_join_create
-      description: POST {} with your backend access JWT. Only the assigned active
-        patient and verified doctor can join a confirmed, unfinished video appointment,
-        from five minutes before its start until completion/cancellation. The server
-        creates/reuses one private 100ms room under database row locks and assigns
-        your role and user identity. The SDK auth token expires after 300 seconds;
-        request a fresh token for joining again. Token expiry does not end an already
-        connected SDK session. No management credentials are returned. A room/code/name
-        is not authorization. Save call_id; the doctor PATCHes the existing call-details
-        endpoint only after actual SDK connection/end events. Token issuance creates
-        an unknown call placeholder, never an in_progress call. Both participants
-        and reconnects reuse that placeholder; joining after a terminal call outcome
-        creates a new attempt in the same room. No recording or transcription is requested.
-        503 means missing/unsafe configuration, unsupported database or provider failure;
-        retry the same endpoint with backoff. Do not log or share auth_token.
+      description: POST {} with your backend access JWT. Only the active original
+        booker, the family beneficiary with a verified phone matching the booking
+        snapshot, and the assigned verified doctor are authorized for a confirmed,
+        unfinished video appointment, from five minutes before its start until completion/cancellation.
+        The server creates/reuses one private 100ms room under database row locks
+        and assigns your role and user identity. The SDK auth token expires after
+        300 seconds; request a fresh token for joining again. Token expiry does not
+        end an already connected SDK session. No management credentials are returned.
+        A room/code/name is not authorization. Save call_id; the doctor PATCHes the
+        existing call-details endpoint only after actual SDK connection/end events.
+        Token issuance creates an unknown call placeholder, never an in_progress call.
+        Both participants and reconnects reuse that placeholder; joining after a terminal
+        call outcome creates a new attempt in the same room. The template still permits
+        only one active patient peer, not simultaneous booker and beneficiary peers.
+        No recording or transcription is requested. 503 means missing/unsafe configuration,
+        unsupported database or provider failure; retry the same endpoint with backoff.
+        Do not log or share auth_token.
       summary: Join your appointment with 100ms video
       parameters:
       - in: path
@@ -5200,11 +5215,12 @@ paths:
         Bearer <access>` (access JWT from login).'
     post:
       operationId: doctors_me_slots_create
-      description: Creates 15-minute slots on `date` starting at `start_time` until
-        `end_time` (or until 23:45, the last slot of the day). Patients pick any 15-minute
-        time themselves; these slots tell staff when you are free, and a slot is marked
-        booked when staff assign you a paid appointment at that time. Past times and
-        slots that already exist are skipped. Verified doctors only.
+      description: Creates 15-minute slots on `date` starting at `start_time` (00:00-23:45)
+        until the exclusive `end_time` (or through 23:45 when omitted). Start at 00:00
+        and omit end_time to open all 96 slots of a future day. Patients pick any
+        15-minute time themselves; these slots tell staff when you are free, and a
+        slot is marked booked when staff assign you a paid appointment at that time.
+        Past times and slots that already exist are skipped. Verified doctors only.
       summary: 'Doctor app: open 15-minute slots from a chosen time'
       tags:
       - Doctor schedule
@@ -5219,6 +5235,11 @@ paths:
                   date: '2026-10-18'
                   start_time: '19:00'
                 summary: From 7 PM to end of day
+              FullDay:
+                value:
+                  date: '2026-10-18'
+                  start_time: 00:00
+                summary: Full day
               EveningWindow:
                 value:
                   date: '2026-10-18'
@@ -5930,7 +5951,10 @@ paths:
         completed, cancelled. `next_action` tells the app where the case card button
         goes: complete_history (Step 2), select_slot (Schedule Appointment), pay (checkout),
         wait_for_doctor, join_consultation, view_record (Medical Records detail).
-        `tracker` is the 4-step progress bar. Paginated (20 per page).'
+        Family beneficiaries also see submitted bookings matching their verified phone,
+        but not the booker''s drafts or other relatives. They have can_manage_payment=false
+        and never receive a pay action. `tracker` is the 4-step progress bar. Paginated
+        (20 per page).'
       summary: 'My Cases: every booking with its progress tracker'
       parameters:
       - name: page
@@ -5985,6 +6009,7 @@ paths:
                       stage: draft
                       status_label: Draft
                       next_action: complete_history
+                      can_manage_payment: true
                       tracker:
                       - key: submitted
                         label: Case submitted
@@ -6025,6 +6050,7 @@ paths:
                       stage: finding_doctor
                       status_label: Finding doctor
                       next_action: wait_for_doctor
+                      can_manage_payment: true
                       tracker:
                       - key: submitted
                         label: Case submitted
@@ -6114,6 +6140,7 @@ paths:
                     stage: finding_doctor
                     status_label: Finding doctor
                     next_action: wait_for_doctor
+                    can_manage_payment: true
                     tracker:
                     - key: submitted
                       label: Case submitted
@@ -6527,8 +6554,9 @@ paths:
         Expert Care specialities, the support number for "Prefer to book by call?",
         upcoming appointments (paid bookings that are finding a doctor or confirmed,
         soonest first, up to 10) and the My Cases badge. "How it works" and the trust
-        badges are static app content. photo_url needs the same Authorization header
-        to download.'
+        badges are static app content. Includes family bookings made by another account
+        when the booked phone matches your verified identity. photo_url needs the
+        same Authorization header to download.'
       summary: Home screen data
       parameters:
       - in: query
@@ -6656,8 +6684,11 @@ paths:
   /api/v1/patients/medical-records/:
     get:
       operationId: patients_medical_records_list
-      description: Booked consultations, newest first. status is upcoming, completed
-        or cancelled. All modes (chat, audio, video) are online.
+      description: Booked consultations, newest first, including those booked for
+        you by family when the snapshot phone matches your verified patient identity.
+        Shared records appear as self; no other relatives or private drafts are shared.
+        status is upcoming, completed or cancelled. All modes (chat, audio, video)
+        are online.
       summary: Appointment history for you and your family
       parameters:
       - in: query
@@ -7821,6 +7852,11 @@ components:
         payment_status:
           type: string
           readOnly: true
+        can_manage_payment:
+          type: boolean
+          readOnly: true
+          description: Only the original booker can create/verify a payment. False
+            for a family-member viewer.
         created_at:
           type: string
           format: date-time
@@ -7828,6 +7864,7 @@ components:
       required:
       - amount
       - appointment_number
+      - can_manage_payment
       - chief_complaint
       - consultation
       - consultation_title
@@ -8317,6 +8354,7 @@ components:
           type: string
         patient_relation:
           type: string
+          readOnly: true
         patient_relation_label:
           type: string
           readOnly: true
@@ -8359,6 +8397,9 @@ components:
           readOnly: true
           description: complete_history, select_slot, pay, wait_for_doctor, join_consultation,
             view_record or null
+        can_manage_payment:
+          type: boolean
+          readOnly: true
         tracker:
           type: array
           items:
@@ -8371,6 +8412,7 @@ components:
       - amount
       - appointment_id
       - appointment_number
+      - can_manage_payment
       - chief_complaint
       - consultation_id
       - created_at
@@ -9250,13 +9292,13 @@ components:
         doctor_id:
           type: integer
           minimum: 1
+          description: Required for initial assignment; omit to keep the confirmed
+            doctor.
         starts_at:
           type: string
           format: date-time
-          description: Optional replacement appointment time. Omit to keep the patient-requested
-            time.
-      required:
-      - doctor_id
+          description: Optional replacement appointment time; future, 15-minute aligned
+            and within 30 days. Omit to keep the current time.
     DoctorAuthResponse:
       type: object
       properties:
@@ -9284,14 +9326,14 @@ components:
         start_time:
           type: string
           format: time
-          description: First slot shown to patients, HH:MM in 15-minute steps, from
-            08:00
+          description: First doctor availability slot, HH:MM in 15-minute steps, from
+            00:00 to 23:45
         end_time:
           type: string
           format: time
           nullable: true
-          description: 'Optional. When availability ends (last slot starts 15 minutes
-            earlier). Default: the day ends at 23:59.'
+          description: Optional exclusive end time on the same date (last slot starts
+            15 minutes earlier). Omit to include the 23:45 slot.
       required:
       - date
       - start_time

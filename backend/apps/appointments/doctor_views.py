@@ -47,13 +47,15 @@ class DoctorSlotListCreateView(generics.GenericAPIView):
     @extend_schema(
         tags=['Doctor schedule'], summary='Doctor app: open 15-minute slots from a chosen time',
         description=(
-            'Creates 15-minute slots on `date` starting at `start_time` until `end_time` (or until 23:45, the last slot of the day). '
+            'Creates 15-minute slots on `date` starting at `start_time` (00:00-23:45) until the exclusive `end_time` '
+            '(or through 23:45 when omitted). Start at 00:00 and omit end_time to open all 96 slots of a future day. '
             'Patients pick any 15-minute time themselves; these slots tell staff when you are free, and a slot is marked booked '
             'when staff assign you a paid appointment at that time. Past times and slots that already exist are skipped. Verified doctors only.'
         ),
         request=DoctorAvailabilitySerializer, responses={201: DoctorAvailabilityResultSerializer},
         examples=[
             OpenApiExample('From 7 PM to end of day', request_only=True, value={'date': '2026-10-18', 'start_time': '19:00'}),
+            OpenApiExample('Full day', request_only=True, value={'date': '2026-10-18', 'start_time': '00:00'}),
             OpenApiExample('Evening window', request_only=True, value={'date': '2026-10-18', 'start_time': '19:00', 'end_time': '21:00'}),
             OpenApiExample('Created', response_only=True, status_codes=['201'], value={'created_count': 8, 'slots': [SLOT_EXAMPLE]}),
         ],

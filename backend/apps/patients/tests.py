@@ -6,12 +6,17 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.files.storage import FileSystemStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
+from django.http import Http404
 from django.test import override_settings
 from django.utils import timezone
 from PIL import Image
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from apps.appointments.models import Appointment
+from apps.accounts.models import VerifiedIdentity
+from apps.appointments.video_calls import eligible_appointment
 from apps.consultations.models import Consultation, ConsultationDocument, PrescriptionItem
 from apps.doctors.models import DoctorProfile
 from .models import FamilyMember, PatientProfile, years_since
@@ -78,6 +83,169 @@ class ProfileApiTestBase(APITestCase):
             consultation=consultation, patient=owner, doctor=doctor, slot_time=slot_time, status=appointment_status,
         )
         return consultation
+
+
+class FamilyBookingAccessTests(ProfileApiTestBase):
+    def setUp(self):
+        super().setUp()
+        self.member = self.add_member(phone_number='9876543211')
+
+    def family_booking(self, phone=None, **fields):
+        consultation = self.booking(member=self.member, fee_charged=200, **fields)
+        consultation.patient_phone = phone or self.member.phone_number
+        consultation.save(update_fields=['patient_phone'])
+        return consultation
+
+    def phone_login(self):
+        self.client.force_authenticate(None)
+        self.client.credentials()
+        claims = {
+            'uid': 'firebase-family-member', 'phone_number': '+919876543211',
+            'auth_time': int(timezone.now().timestamp()), 'exp': int(timezone.now().timestamp()) + 3600,
+            'firebase': {'sign_in_provider': 'phone'},
+        }
+        with patch('apps.accounts.views.verify_phone_token', return_value=claims):
+            response = self.client.post('/api/v1/auth/patient/phone/firebase/', {
+                'id_token': 'family-member-test-token',
+            }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {response.data["access"]}')
+        return User.objects.get(pk=response.data['user']['id'])
+
+    def test_phone_sign_in_exposes_only_member_bookings_across_app_screens(self):
+        bookings = [self.family_booking(phone=phone) for phone in ('9876543211', '919876543211', '+919876543211')]
+        own = self.booking()
+        own.patient_phone = '+919876543211'
+        own.save(update_fields=['patient_phone'])
+        unrelated = self.family_booking(phone='+919876543212')
+        overseas = self.family_booking(phone='9876543211', country_code='US')
+        Consultation.objects.create(
+            patient=self.patient, family_member=self.member, patient_relation='spouse',
+            patient_phone='+919876543211', status='draft',
+        )
+        recipient = self.phone_login()
+        ids = {row.appointment.pk for row in bookings}
+        appointments = self.client.get('/api/v1/appointments/')
+        self.assertEqual(appointments.status_code, 200, appointments.data)
+        self.assertEqual({row['id'] for row in appointments.data['results']}, ids)
+        self.assertTrue(all(not row['can_manage_payment'] for row in appointments.data['results']))
+        for booking in bookings:
+            detail = self.client.get(f'/api/v1/appointments/{booking.appointment.pk}/')
+            self.assertEqual(detail.status_code, 200, detail.data)
+            self.assertFalse(detail.data['can_manage_payment'])
+            booking.appointment.refresh_from_db()
+            self.assertEqual(booking.appointment.patient_id, self.patient.pk)
+        for hidden in (own, unrelated, overseas):
+            self.assertEqual(self.client.get(f'/api/v1/appointments/{hidden.appointment.pk}/').status_code, 404)
+            self.assertEqual(self.client.get(f'/api/v1/patients/cases/{hidden.pk}/').status_code, 404)
+        home = self.client.get('/api/v1/patients/home/')
+        self.assertEqual(home.data['active_case_count'], 3)
+        self.assertEqual({row['appointment_id'] for row in home.data['upcoming_appointments']}, ids)
+        cases = self.client.get('/api/v1/patients/cases/').data
+        self.assertEqual(cases['count'], 3)
+        self.assertTrue(all(row['patient_relation'] == 'self' for row in cases['results']))
+        records = self.client.get('/api/v1/patients/medical-records/?family_member_id=self').data
+        self.assertEqual(records['count'], 3)
+        self.assertTrue(all(row['patient']['is_self'] and row['patient']['family_member_id'] is None for row in records['results']))
+        self.assertEqual(self.client.get('/api/v1/patients/profile/').data['medical_record_count'], 3)
+        self.client.force_authenticate(self.patient)
+        owner = self.client.get(f'/api/v1/appointments/{bookings[0].appointment.pk}/')
+        self.assertTrue(owner.data['can_manage_payment'])
+        self.assertNotEqual(recipient.pk, self.patient.pk)
+
+    def test_matching_profile_phone_or_doctor_identity_is_not_proof(self):
+        booking = self.family_booking()
+        shadow = User.objects.create_user(
+            username='unverified-family', role='patient', phone_number='+919876543211', is_phone_verified=True,
+        )
+        self.client.force_authenticate(shadow)
+        url = f'/api/v1/appointments/{booking.appointment.pk}/'
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.get('/api/v1/patients/cases/').data['count'], 0)
+        doctor = self.make_doctor()
+        VerifiedIdentity.objects.create(user=doctor, role='doctor', kind='phone', value='+919876543211')
+        self.client.force_authenticate(doctor)
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(url).status_code, 401)
+
+    def test_profile_edits_and_deletion_do_not_redirect_historical_access(self):
+        booking = self.family_booking()
+        recipient = self.phone_login()
+        url = f'/api/v1/appointments/{booking.appointment.pk}/'
+        self.client.force_authenticate(self.patient)
+        changed = self.client.patch(f'/api/v1/patients/family-members/{self.member.pk}/', {
+            'phone_number': '+919876543212',
+        }, format='json')
+        self.assertEqual(changed.status_code, 200, changed.data)
+        self.client.force_authenticate(recipient)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        new_contact = User.objects.create_user(username='new-family-contact', role='patient')
+        VerifiedIdentity.objects.create(user=new_contact, role='patient', kind='phone', value='+919876543212')
+        self.client.force_authenticate(new_contact)
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.client.force_authenticate(self.patient)
+        self.assertEqual(self.client.delete(f'/api/v1/patients/family-members/{self.member.pk}/').status_code, 204)
+        self.client.force_authenticate(recipient)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        booking.refresh_from_db()
+        self.assertIsNone(booking.family_member_id)
+
+    def test_member_reads_records_and_documents_but_cannot_edit_or_pay(self):
+        booking = self.family_booking(
+            status='completed', appointment_status='completed', diagnosis='Acute pharyngitis',
+            record_updated_at=timezone.now(),
+        )
+        document = ConsultationDocument.objects.create(
+            consultation=booking, original_name='report.pdf', file=SimpleUploadedFile('report.pdf', b'%PDF-1.4 test'),
+        )
+        recipient = self.phone_login()
+        record = self.client.get(f'/api/v1/patients/medical-records/{booking.pk}/')
+        self.assertEqual(record.status_code, 200, record.data)
+        self.assertEqual(record.data['diagnosis'], 'Acute pharyngitis')
+        download_url = f'/api/v1/consultations/{booking.pk}/documents/{document.pk}/download/'
+        download = self.client.get(download_url)
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(b''.join(download.streaming_content), b'%PDF-1.4 test')
+        download.close()
+        self.assertEqual(self.client.patch(f'/api/v1/consultations/{booking.pk}/', {'patient_name': 'Changed'}, format='json').status_code, 404)
+        self.assertEqual(self.client.delete(f'/api/v1/consultations/{booking.pk}/documents/{document.pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/v1/patients/family-members/{self.member.pk}/').status_code, 404)
+        pending = self.family_booking(appointment_status='awaiting_payment')
+        case = self.client.get(f'/api/v1/patients/cases/{pending.pk}/')
+        self.assertFalse(case.data['can_manage_payment'])
+        self.assertIsNone(case.data['next_action'])
+        with patch('apps.payments.views.gateway_client') as gateway:
+            gateway.return_value.order.create.return_value = {'id': 'order-test'}
+            payload = {'appointment_id': pending.appointment.pk, 'method': 'upi'}
+            self.assertEqual(self.client.post('/api/v1/payments/orders/', payload, format='json').status_code, 404)
+            gateway.return_value.order.create.assert_not_called()
+            self.client.force_authenticate(self.patient)
+            order = self.client.post('/api/v1/payments/orders/', payload, format='json')
+            self.assertEqual(order.status_code, 200, order.data)
+            self.client.force_authenticate(recipient)
+            verification = self.client.post('/api/v1/payments/verify/', {
+                'payment_id': order.data['payment_id'], 'razorpay_payment_id': 'pay-test', 'razorpay_signature': '0' * 64,
+            }, format='json')
+            self.assertEqual(verification.status_code, 404)
+        booking.refresh_from_db()
+        self.assertNotEqual(booking.patient_name, 'Changed')
+        self.assertTrue(ConsultationDocument.objects.filter(pk=document.pk).exists())
+
+    def test_member_and_booker_are_authorized_for_same_video_appointment(self):
+        doctor = self.make_doctor()
+        booking = self.family_booking(doctor=doctor)
+        Appointment.objects.filter(pk=booking.appointment.pk).update(slot_time=timezone.now() + timedelta(minutes=2))
+        recipient = self.phone_login()
+        with transaction.atomic():
+            for user in (recipient, self.patient):
+                eligible = eligible_appointment(user, booking.appointment.pk, 'patient')
+                self.assertEqual(eligible.pk, booking.appointment.pk)
+            with self.assertRaises(Http404):
+                eligible_appointment(self.other, booking.appointment.pk, 'patient')
+            Appointment.objects.filter(pk=booking.appointment.pk).update(status='cancelled')
+            with self.assertRaises(ValidationError):
+                eligible_appointment(recipient, booking.appointment.pk, 'patient')
 
 
 class PatientProfileTests(ProfileApiTestBase):

@@ -459,6 +459,7 @@
    "amount": 200,
    "currency": "INR",
    "payment_status": "not_started",
+   "can_manage_payment": true,
    "created_at": "2026-10-18T18:37:16+05:30"
   },
   "errors": {
@@ -495,6 +496,7 @@
    "amount": 200,
    "currency": "INR",
    "payment_status": "success",
+   "can_manage_payment": false,
    "created_at": "2026-10-18T18:37:16+05:30"
   },
   "errors": {
@@ -513,16 +515,16 @@
   "status": 200,
   "response": [
    {
-    "starts_at": "2026-10-20T08:00:00+05:30",
-    "time_display": "08:00 AM"
+    "starts_at": "2026-10-20T00:00:00+05:30",
+    "time_display": "12:00 AM"
    },
    {
-    "starts_at": "2026-10-20T08:15:00+05:30",
-    "time_display": "08:15 AM"
+    "starts_at": "2026-10-20T00:15:00+05:30",
+    "time_display": "12:15 AM"
    },
    {
-    "starts_at": "2026-10-20T08:30:00+05:30",
-    "time_display": "08:30 AM"
+    "starts_at": "2026-10-20T00:30:00+05:30",
+    "time_display": "12:30 AM"
    }
   ]
  },
@@ -728,13 +730,13 @@
     "date": "2026-10-19",
     "day_label": "Mon",
     "day_number": 19,
-    "available_slot_count": 64
+    "available_slot_count": 96
    },
    {
     "date": "2026-10-20",
     "day_label": "Tue",
     "day_number": 20,
-    "available_slot_count": 64
+    "available_slot_count": 96
    }
   ]
  },
@@ -951,6 +953,7 @@
    "amount": 200,
    "currency": "INR",
    "payment_status": "success",
+   "can_manage_payment": true,
    "created_at": "2026-10-18T18:37:16+05:30"
   },
   "errors": {
@@ -1049,6 +1052,7 @@
      "stage": "completed",
      "status_label": "Completed",
      "next_action": "view_record",
+     "can_manage_payment": true,
      "tracker": [
       {
        "key": "submitted",
@@ -1095,6 +1099,7 @@
      "stage": "awaiting_payment",
      "status_label": "Awaiting payment",
      "next_action": "pay",
+     "can_manage_payment": true,
      "tracker": [
       {
        "key": "submitted",
@@ -1137,6 +1142,7 @@
      "stage": "draft",
      "status_label": "Draft",
      "next_action": "complete_history",
+     "can_manage_payment": true,
      "tracker": [
       {
        "key": "submitted",
@@ -1195,6 +1201,7 @@
    "stage": "finding_doctor",
    "status_label": "Finding doctor",
    "next_action": "wait_for_doctor",
+   "can_manage_payment": true,
    "tracker": [
     {
      "key": "submitted",
@@ -2184,6 +2191,7 @@
      "amount": 200,
      "currency": "INR",
      "payment_status": "success",
+     "can_manage_payment": true,
      "created_at": "2026-10-18T18:37:16+05:30"
     }
    ]

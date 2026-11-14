@@ -281,10 +281,15 @@ class MedicalRecordListSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(RecordPatientSerializer)
     def get_patient(self, obj):
+        from apps.patients.access import is_beneficiary_view
+
+        request = self.context.get('request')
+        shared = is_beneficiary_view(obj, request.user if request else None)
+        relation = 'self' if shared else obj.patient_relation
         return {
             'name': obj.patient_name, 'age': obj.patient_age, 'gender': obj.patient_gender,
-            'relation': obj.patient_relation, 'relation_label': relation_label(obj.patient_relation),
-            'is_self': obj.patient_relation == 'self', 'family_member_id': obj.family_member_id,
+            'relation': relation, 'relation_label': relation_label(relation),
+            'is_self': relation == 'self', 'family_member_id': None if shared else obj.family_member_id,
         }
 
     def get_mode_label(self, obj) -> str:

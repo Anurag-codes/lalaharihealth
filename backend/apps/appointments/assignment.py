@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
 
@@ -11,7 +12,7 @@ from apps.notifications.models import Notification
 from apps.notifications.service import notify_appointment, notify_doctor
 from apps.payments.models import Payment
 from .availability import booking_time_error
-from .models import Appointment, AppointmentSlot
+from .models import Appointment, AppointmentCall, AppointmentSlot, AppointmentVideoRoom
 
 FREED_STATUSES = (Appointment.Status.CANCELLED, Appointment.Status.COMPLETED)
 
@@ -26,32 +27,61 @@ def assignment_doctors(consultation):
 @dataclass
 class AssignmentPlan:
     appointment: Appointment
-    profile: DoctorProfile
+    profile: DoctorProfile | None
     starts_at: datetime
     slot: AppointmentSlot | None
+    unchanged: bool = False
 
 
-def prepare_assignment(appointment_id, doctor_id, starts_at=None):
+def assignment_lock_reason(appointment, consultation=None):
+    consultation = consultation or appointment.consultation
+    if consultation.status in (Consultation.Status.ONGOING, Consultation.Status.COMPLETED, Consultation.Status.CANCELLED):
+        return 'The consultation has started or is completed or cancelled; its assignment cannot be changed.'
+    if appointment.calls.filter(
+        Q(started_at__isnull=False) | Q(status__in=(AppointmentCall.Status.IN_PROGRESS, AppointmentCall.Status.COMPLETED))
+        | Q(duration_seconds__gt=0),
+    ).exists():
+        return 'A call has started or completed; its appointment assignment cannot be changed.'
+    if AppointmentVideoRoom.objects.filter(appointment=appointment, room_id__isnull=False).exclude(room_id='').exists():
+        return 'Issued video join credentials forbid rescheduling or changing the doctor; contact support.'
+    return None
+
+
+def prepare_assignment(appointment_id, doctor_id=None, starts_at=None):
     """Validate and lock an assignment inside the caller's transaction without saving changes."""
     snapshot = get_object_or_404(Appointment.objects.only('consultation_id', 'status'), pk=appointment_id)
-    if snapshot.status != Appointment.Status.FINDING_DOCTOR:
-        raise ValidationError('Only paid appointments awaiting matching can be assigned.')
     # Match clinical-record completion's consultation -> appointment lock order.
     consultation = get_object_or_404(Consultation.objects.select_for_update(), pk=snapshot.consultation_id)
     appointment = get_object_or_404(
         Appointment.objects.select_for_update(of=('self',)).select_related('patient'), pk=appointment_id,
     )
-    if appointment.status != Appointment.Status.FINDING_DOCTOR:
-        raise ValidationError('Only paid appointments awaiting matching can be assigned.')
+    if appointment.status not in (Appointment.Status.FINDING_DOCTOR, Appointment.Status.CONFIRMED):
+        raise ValidationError('Only paid appointments awaiting matching or confirmed appointments can be assigned.')
+    target_time = starts_at if starts_at is not None else appointment.slot_time
+    if doctor_id is None:
+        if appointment.status == Appointment.Status.FINDING_DOCTOR or appointment.doctor_id is None:
+            raise ValidationError({'doctor_id': 'Choose a doctor for this appointment.'})
+        doctor_id = appointment.doctor_id
+    appointment.consultation = consultation
+    if (appointment.status == Appointment.Status.CONFIRMED and doctor_id == appointment.doctor_id
+            and target_time == appointment.slot_time):
+        return AssignmentPlan(appointment, None, target_time, appointment.slot, unchanged=True)
+    if appointment.status == Appointment.Status.CONFIRMED:
+        reason = assignment_lock_reason(appointment, consultation)
+        if reason:
+            raise ValidationError(reason)
     if not Payment.objects.filter(consultation=consultation, status=Payment.Status.SUCCESS).exists():
         raise ValidationError('Confirmed payment is required.')
-    if starts_at is not None:
-        error = booking_time_error(starts_at)
+    if starts_at is not None or appointment.status == Appointment.Status.CONFIRMED:
+        error = booking_time_error(target_time)
         if error:
             raise ValidationError({'starts_at': error})
-    target_time = starts_at if starts_at is not None else appointment.slot_time
+    # Serialize swaps in the same doctor order, including the previous doctor.
+    list(DoctorProfile.objects.select_for_update(of=('self',)).filter(
+        user_id__in={doctor_id, appointment.doctor_id} - {None},
+    ).order_by('user_id'))
     profile = get_object_or_404(
-        assignment_doctors(consultation).select_for_update().select_related('user'), user_id=doctor_id,
+        assignment_doctors(consultation).select_related('user'), user_id=doctor_id,
     )
     if Appointment.objects.filter(
         doctor=profile.user, slot_time=target_time,
@@ -62,17 +92,21 @@ def prepare_assignment(appointment_id, doctor_id, starts_at=None):
     ).first()
     if slot is not None and slot.appointments.exclude(pk=appointment.pk).exclude(status__in=FREED_STATUSES).count() >= slot.capacity:
         slot = None
-    appointment.consultation = consultation
     return AssignmentPlan(appointment, profile, target_time, slot)
 
 
 def apply_assignment(plan):
     """Save a previously validated, still-locked plan inside the caller's transaction."""
     appointment = plan.appointment
+    if plan.unchanged:
+        return appointment
     changed_time = appointment.slot_time != plan.starts_at
+    changed_doctor = appointment.doctor_id != plan.profile.user_id
     appointment.doctor, appointment.slot, appointment.slot_time = plan.profile.user, plan.slot, plan.starts_at
-    update_fields = ['doctor', 'slot', 'slot_time'] + appointment.set_status(Appointment.Status.CONFIRMED)
-    if changed_time:
+    update_fields = ['doctor', 'slot', 'slot_time']
+    if appointment.status != Appointment.Status.CONFIRMED:
+        update_fields += appointment.set_status(Appointment.Status.CONFIRMED)
+    if changed_time or changed_doctor:
         appointment.reminder_sent_at = None
         update_fields.append('reminder_sent_at')
     appointment.save(update_fields=update_fields)
@@ -84,6 +118,6 @@ def apply_assignment(plan):
     return appointment
 
 
-def assign_doctor(appointment_id, doctor_id, starts_at=None):
+def assign_doctor(appointment_id, doctor_id=None, starts_at=None):
     with transaction.atomic():
         return apply_assignment(prepare_assignment(appointment_id, doctor_id, starts_at))

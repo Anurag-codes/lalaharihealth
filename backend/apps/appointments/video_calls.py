@@ -13,6 +13,7 @@ from apps.accounts.services import require_doctor, require_patient
 from apps.accounts.views import IsPatient, NoStoreResponseMixin
 from apps.consultations.doctor_views import IsVerifiedDoctor, is_verified_doctor
 from apps.consultations.models import Consultation
+from apps.patients.access import accessible_appointments
 from .doctor_app import join_opens_at
 from .hms import AUTH_TOKEN_SECONDS, VideoServiceUnavailable, configured_roles, provision_room, signed_token, validate_template
 from .models import Appointment, AppointmentCall, AppointmentVideoRoom
@@ -21,13 +22,13 @@ from .models import Appointment, AppointmentCall, AppointmentVideoRoom
 def eligible_appointment(user, appointment_id, participant_role):
     if participant_role == 'doctor':
         require_doctor(user)
-        scope = {'doctor': user}
+        queryset = Appointment.objects.filter(doctor=user)
     else:
         require_patient(user)
-        scope = {'patient': user}
+        queryset = accessible_appointments(user)
     appointment = get_object_or_404(
-        Appointment.objects.select_for_update(of=('self',)).select_related('consultation', 'doctor', 'patient'),
-        pk=appointment_id, **scope,
+        queryset.select_for_update(of=('self',)).select_related('consultation', 'doctor', 'patient'),
+        pk=appointment_id,
     )
     if (
         appointment.status != Appointment.Status.CONFIRMED
@@ -114,7 +115,8 @@ JOIN_EXAMPLE = {
     'expires_at': '2026-11-14T23:35:00+05:30', 'call_id': 5, 'mode': 'video',
 }
 JOIN_DESCRIPTION = (
-    'POST {} with your backend access JWT. Only the assigned active patient and verified doctor can join a confirmed, '
+    'POST {} with your backend access JWT. Only the active original booker, the family beneficiary with a verified phone '
+    'matching the booking snapshot, and the assigned verified doctor are authorized for a confirmed, '
     'unfinished video appointment, from five minutes before its start until completion/cancellation. '
     'The server creates/reuses one private 100ms room under database row locks and assigns your role and user identity. '
     'The SDK auth token expires after 300 seconds; request a fresh token for joining again. Token expiry does not end '
@@ -122,6 +124,7 @@ JOIN_DESCRIPTION = (
     'Save call_id; the doctor PATCHes the existing call-details endpoint only after actual SDK connection/end events. '
     'Token issuance creates an unknown call placeholder, never an in_progress call. Both participants and reconnects reuse '
     'that placeholder; joining after a terminal call outcome creates a new attempt in the same room. '
+    'The template still permits only one active patient peer, not simultaneous booker and beneficiary peers. '
     'No recording or transcription is requested. 503 means missing/unsafe configuration, unsupported database or provider '
     'failure; retry the same endpoint with backoff. Do not log or share auth_token.'
 )

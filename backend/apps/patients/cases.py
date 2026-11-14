@@ -18,6 +18,7 @@ from apps.doctors.serializers import SpecialitySerializer
 from apps.notifications.models import Notification
 from apps.pricing.serializers import PricingQuerySerializer
 from apps.pricing.service import format_amount, resolve_pricing
+from .access import accessible_appointments, accessible_consultations, is_beneficiary_view
 
 DEFAULT_GREETING_NAME = 'LalaHari Health Member'
 ACTIVE_STAGES = ('draft', 'awaiting_payment', 'finding_doctor', 'confirmed')
@@ -88,7 +89,7 @@ def tracker(consultation, appointment, stage):
 
 def case_queryset(user):
     return (
-        Consultation.objects.filter(patient=user)
+        accessible_consultations(user)
         .select_related('speciality', 'appointment__doctor__doctor_profile')
         .order_by('-created_at')
     )
@@ -134,7 +135,7 @@ class CaseSerializer(serializers.Serializer):
     chief_complaint = serializers.SerializerMethodField()
     speciality = serializers.SerializerMethodField()
     patient_name = serializers.CharField()
-    patient_relation = serializers.CharField()
+    patient_relation = serializers.SerializerMethodField()
     patient_relation_label = serializers.SerializerMethodField()
     mode = serializers.CharField()
     mode_label = serializers.SerializerMethodField(help_text='Always "Online"')
@@ -148,6 +149,7 @@ class CaseSerializer(serializers.Serializer):
     next_action = serializers.SerializerMethodField(
         help_text='complete_history, select_slot, pay, wait_for_doctor, join_consultation, view_record or null',
     )
+    can_manage_payment = serializers.SerializerMethodField()
     tracker = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField()
 
@@ -169,7 +171,15 @@ class CaseSerializer(serializers.Serializer):
         return obj.speciality.name if obj.speciality_id else None
 
     def get_patient_relation_label(self, obj) -> str:
-        return relation_label(obj.patient_relation)
+        return relation_label(self.get_patient_relation(obj))
+
+    def get_patient_relation(self, obj) -> str:
+        request = self.context.get('request')
+        return 'self' if is_beneficiary_view(obj, request.user if request else None) else obj.patient_relation
+
+    def get_can_manage_payment(self, obj) -> bool:
+        request = self.context.get('request')
+        return request is not None and obj.patient_id == request.user.pk
 
     def get_mode_label(self, obj) -> str:
         return 'Online'
@@ -201,7 +211,8 @@ class CaseSerializer(serializers.Serializer):
         return STAGE_LABELS[self.get_stage(obj)]
 
     def get_next_action(self, obj) -> str | None:
-        return next_action(obj, self.get_stage(obj))
+        action = next_action(obj, self.get_stage(obj))
+        return None if action == 'pay' and not self.get_can_manage_payment(obj) else action
 
     @extend_schema_field(TrackerStepSerializer(many=True))
     def get_tracker(self, obj):
@@ -281,6 +292,7 @@ CASE_EXAMPLE = {
     'schedule': {'starts_at': '2026-10-18T10:00:00+05:30', 'date': '18 Oct 2026', 'time': '10:00 AM'},
     'doctor_name': None, 'doctor_specialization': None, 'amount': 200, 'currency': 'INR',
     'stage': 'finding_doctor', 'status_label': 'Finding doctor', 'next_action': 'wait_for_doctor',
+    'can_manage_payment': True,
     'tracker': [
         {'key': 'submitted', 'label': 'Case submitted', 'done': True, 'at': '2026-10-16T18:20:00+05:30'},
         {'key': 'paid', 'label': 'Payment done', 'done': True, 'at': '2026-10-16T18:22:41+05:30'},
@@ -301,8 +313,8 @@ def upcoming_appointments(user, limit=10):
     # Keep a consultation on the list until its 15-minute slot has ended.
     since = timezone.now() - timedelta(minutes=SLOT_MINUTES)
     appointments = (
-        Appointment.objects.filter(
-            patient=user, slot_time__gt=since,
+        accessible_appointments(user).filter(
+            slot_time__gt=since,
             status__in=[Appointment.Status.FINDING_DOCTOR, Appointment.Status.CONFIRMED],
         )
         .select_related('consultation__speciality', 'doctor__doctor_profile')
@@ -335,6 +347,7 @@ class PatientHomeView(NoStoreResponseMixin, generics.GenericAPIView):
             '30-minute match target), Expert Care specialities, the support number for '
             '"Prefer to book by call?", upcoming appointments (paid bookings that are finding a doctor or confirmed, '
             'soonest first, up to 10) and the My Cases badge. "How it works" and the trust badges are static app content. '
+            'Includes family bookings made by another account when the booked phone matches your verified identity. '
             'photo_url needs the same Authorization header to download.'
         ),
         parameters=[PricingQuerySerializer],
@@ -390,6 +403,8 @@ class CaseListView(NoStoreResponseMixin, generics.ListAPIView):
             'awaiting_payment, finding_doctor, confirmed, completed, cancelled. `next_action` tells the app where the '
             'case card button goes: complete_history (Step 2), select_slot (Schedule Appointment), pay (checkout), '
             'wait_for_doctor, join_consultation, view_record (Medical Records detail). '
+            'Family beneficiaries also see submitted bookings matching their verified phone, but not the booker\'s drafts '
+            'or other relatives. They have can_manage_payment=false and never receive a pay action. '
             '`tracker` is the 4-step progress bar. Paginated (20 per page).'
         ),
         parameters=[OpenApiParameter(

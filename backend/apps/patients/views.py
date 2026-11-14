@@ -9,6 +9,7 @@ from apps.accounts.views import IsPatient, NoStoreResponseMixin
 from apps.consultations.models import Consultation
 from apps.consultations.serializers import MedicalRecordDetailSerializer, MedicalRecordListSerializer
 from .models import FamilyMember, PatientProfile
+from .access import accessible_consultations
 from .serializers import BookingPatientSerializer, FamilyMemberSerializer, PatientProfileSerializer, ProfilePhotoUploadSerializer
 
 PROFILE_EXAMPLE = {
@@ -280,7 +281,7 @@ class FamilyMemberDetailView(NoStoreResponseMixin, generics.RetrieveUpdateDestro
 
 def medical_records(user):
     return (
-        Consultation.objects.filter(patient=user).exclude(status=Consultation.Status.DRAFT)
+        accessible_consultations(user).exclude(status=Consultation.Status.DRAFT)
         .select_related('appointment', 'doctor__doctor_profile')
         .prefetch_related('prescription_items', 'documents')
         .order_by('-scheduled_at', '-created_at')
@@ -295,14 +296,18 @@ class MedicalRecordListView(NoStoreResponseMixin, generics.ListAPIView):
         queryset = medical_records(self.request.user)
         member = self.request.query_params.get('family_member_id', '').strip()
         if member == 'self':
-            queryset = queryset.filter(patient_relation='self')
+            from django.db.models import Q
+
+            queryset = queryset.filter(Q(patient=self.request.user, patient_relation='self') | ~Q(patient=self.request.user))
         elif member:
             queryset = queryset.filter(family_member_id=int(member)) if member.isdigit() else queryset.none()
         return queryset
 
     @extend_schema(
         tags=['Medical records'], summary='Appointment history for you and your family',
-        description='Booked consultations, newest first. status is upcoming, completed or cancelled. All modes (chat, audio, video) are online.',
+        description='Booked consultations, newest first, including those booked for you by family when the snapshot phone '
+        'matches your verified patient identity. Shared records appear as self; no other relatives or private drafts are shared. '
+        'status is upcoming, completed or cancelled. All modes (chat, audio, video) are online.',
         parameters=[OpenApiParameter(
             'family_member_id', str, required=False,
             description='Optional filter: "self" for your own records, or a family member id.',

@@ -206,10 +206,36 @@ The staff assignment API accepts optional `starts_at` alongside `doctor_id`.
 In Django admin, paid **Finding doctor** appointments expose an editable Doctor
 dropdown and Slot time date/time fields. Save assigns the doctor and confirms the
 actual time using the same payment, category, future-time and conflict checks
-as the API. Already-confirmed appointments remain read-only for doctor/time.
+as the API. Eligible **Confirmed** appointments also allow doctor/time editing:
+send optional `doctor_id` and/or `starts_at` to the same API, omitting a field to
+retain its current value. Unchanged confirmed requests are idempotent.
+Open `/admin/appointments/appointment/`, then the appointment's change page; these
+controls are not on the Consultations page.
+Once the consultation/call has started or a 100ms room ID has been provisioned,
+doctor/time are locked. Issued video credentials create a safety lock, not proof
+that a call started. A failed reservation without a room ID remains editable.
 Deployment requires updated backend code and an API restart; there is no new
 migration or environment setting for this change. See the README's Doctor
 assignment after payment section for the request and admin steps.
+
+### Independent family-member access
+
+After deploying/restarting the API, a family member signing in with their own
+Firebase-verified patient phone can see bookings whose saved family patient phone
+matches that identity. No migration, account merge or new environment setting is
+needed; existing matching bookings work automatically. Prefer E.164 phone numbers
+in family profiles/Patient Details. Bare Indian ten-digit numbers match +91 only
+for India/default-country bookings, not arbitrary international national numbers.
+Changing/deleting a family profile does not change the historical booking phone.
+
+Existing appointments, Home/My Cases, medical-record/document and patient video
+join APIs support this access. Drafts and other relatives are not shared.
+`can_manage_payment=false` identifies a family viewer; mobile clients must hide
+checkout and use the viewer's own JWT for reads and joins. Payment creation and
+verification remain restricted to the original booker. The 100ms template still
+has one doctor and one patient seat; this does not add a second patient seat.
+See README's independent family-member contract. Existing notification recipients
+and doctor call-reporting responsibilities are unchanged.
 
 Back up PostgreSQL before each migration. The production database is separate from all other app databases.
 
@@ -233,6 +259,22 @@ exit
 sudo systemctl restart lalaharihealth-api lalaharihealth-web
 sudo systemctl status lalaharihealth-api lalaharihealth-web --no-pager
 ```
+
+### Full-day appointment scheduling
+
+Appointments, staff/admin replacement assignment and doctor availability slots now accept any
+15-minute start from 00:00 through 23:45 Asia/Kolkata time. A complete future day has 96 slots;
+today omits past times. Existing booking-window, authorization, payment and conflict rules remain.
+This change needs an API deployment/restart, but no database migration or new environment variables.
+It does not automatically create doctor availability or change existing appointment times.
+
+Coordinate the mobile release to remove 08:00 lower bounds and 64-slot limits. Patients consume
+`GET /api/v1/appointments/slots/?date=YYYY-MM-DD` and `/api/v1/appointments/slot-dates/`.
+Verified doctors open a full future day with
+`POST /api/v1/doctors/me/slots/` and `{"date": "2026-11-16", "start_time": "00:00"}`,
+omitting `end_time`. A supplied end is exclusive and on the same date; `24:00` and overnight
+windows are not accepted. The mobile source is outside this repository; see README's full-day
+app contract. Existing AM/PM display labels and offset-aware appointment timestamps are unchanged.
 
 When deploying the Swagger addition to an already-running server, install the updated backend requirements, collect its self-hosted Swagger assets, and restart the API service:
 

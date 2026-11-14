@@ -298,7 +298,7 @@ Examples for every request and response are in Swagger under **Mobile intake**,
 | Select Patient (logged in) | `GET /api/v1/patients/booking-patients/` returns Myself, then family members. `POST /api/v1/consultations/` with `{"family_member_id": null or id, "mode": "video"}` fills in the details. A 400 that lists missing fields means the app should show Patient Details. "+ Add family member" uses `POST /api/v1/patients/family-members/`. |
 | Symptoms (Known Disease → Specific Type → Sub-condition/Variant) | `GET /api/v1/consultations/conditions/` returns the whole tree at once as a plain array (no pagination or `?page=`). Send `PUT /api/v1/consultations/{id}/history/` with `condition`, `condition_type`, `condition_variant`, `condition_details`, `duration_value`, `duration_unit`, `ongoing_medication` and `treatment_details`. The type and variant are required whenever that level has options. Saving this step also sets the booking's specialist category automatically (see **Disease → specialist mapping** below). Manage the list in Django admin under Conditions / Condition types. |
 | Upload Documents | `POST /api/v1/consultations/{id}/documents/` (optional) |
-| Schedule Appointment | `GET /api/v1/appointments/slot-dates/?days=7` returns the date strip. `GET /api/v1/appointments/slots/?date=YYYY-MM-DD` returns every 15-minute time from 08:00 AM to 11:45 PM (past times left out), for any category. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" only opens Case Preview. |
+| Schedule Appointment | `GET /api/v1/appointments/slot-dates/?days=7` returns the date strip. `GET /api/v1/appointments/slots/?date=YYYY-MM-DD` returns every 15-minute time from 12:00 AM to 11:45 PM (96 starts per full day; past times left out), for any category. The patient picks a preferred time only; no doctor is chosen. "Request Appointment" only opens Case Preview. |
 | Case Preview | `GET /api/v1/consultations/{id}/preview/?starts_at=` (URL-encode the `+` of the offset). "Submit Case" sends `POST /api/v1/appointments/` with `{"consultation_id", "starts_at", "information_confirmed": true}`. This creates the appointment without a doctor and locks the fixed category fee. |
 | Checkout | `GET /api/v1/appointments/{id}/` returns `appointment_number`, `schedule_date`, `schedule_time` and `amount`. Then `POST /api/v1/payments/orders/` → Razorpay SDK → `POST /api/v1/payments/verify/`. |
 | Finding Your Doctor | Poll `GET /api/v1/appointments/{id}/`. `finding_doctor` means payment succeeded. `confirmed` adds `doctor_name`. |
@@ -329,19 +329,30 @@ the patient's requested time; omit it to keep the original time:
 ```
 
 `doctor_id` is the doctor's **User ID**, not Doctor Profile ID. The replacement time must be future, on a
-15-minute boundary, between 08:00 and 23:45 India time, within the next 30 days (the same booking rules).
+15-minute boundary, between 00:00 and 23:45 India time, within the next 30 days (the same booking rules).
 The server checks the doctor's conflicts at the replacement time. Appointment `slot_time`, consultation
 `scheduled_at`, and the linked doctor availability slot are updated together; the paid fee does not change.
 Both patient and doctor notifications include the confirmed time. The app should refresh appointment details
 and use the returned actual schedule, including for the video join window.
 
-**Assign through Django admin.** Open **Appointments**, filter **Status = Finding doctor**, and open a paid
-appointment. Select **Doctor**, keep or edit **Slot time** using the date/time inputs, then click **Save**.
+**Assign/reschedule through Django admin.** Open `/admin/appointments/appointment/` (not the Consultations
+page), then open a paid **Finding doctor** or eligible **Confirmed** appointment. Select/change **Doctor**,
+keep or edit **Slot time** using the date/time inputs, then click **Save**.
 The dropdown lists active, verified doctors of the booking category. Doctor and time are editable only while
-awaiting assignment, and a time change requires selecting a doctor. Invalid times, failed payment checks or
+awaiting assignment or before a confirmed consultation has started. Invalid times, failed payment checks or
 conflicts appear as form errors without partially saving the assignment. API and admin use the same checked
-assignment transaction. After confirmation, Doctor and Slot time remain read-only; this is not a rescheduling
-API for already-confirmed appointments. No migration or new environment variables are required.
+assignment transaction. The existing `POST /api/v1/appointments/{id}/assign-doctor/` also edits confirmed
+appointments: `{"starts_at": "2026-11-16T01:00:00+05:30"}` keeps the doctor,
+`{"doctor_id": 9}` keeps the time, and sending both changes both. Finding-doctor appointments still require
+`doctor_id`. Responses are 200 appointment summaries; unchanged confirmed requests do not duplicate
+notifications or reset timestamps. The confirmed schedule is synchronized in doctor and patient views.
+
+Completed/cancelled/ongoing consultations and calls that started/completed cannot be reassigned or rescheduled.
+A populated 100ms room also locks edits: previously issued join credentials and existing SDK sessions cannot
+be revoked by changing the doctor/time. This safety lock does not mark the call as started. A failed room
+reservation without a room ID remains editable. Admin explains locked fields; the API rejects attempted
+changes explicitly. No migration or new environment variables are required. Deploy the updated backend
+and restart the API service before expecting the live admin to expose these changes.
 
 Any active, verified doctor of the booking's category can be assigned (a general
 physician for general bookings, the same speciality for specialist bookings), whatever their own fee. A doctor who
@@ -350,11 +361,57 @@ they can be assigned another patient at the same time. The doctor gets a "New ap
 
 Verified doctors can still mark when they are free from the doctor app:
 `POST /api/v1/doctors/me/slots/` with `{"date": "2026-10-18", "start_time": "19:00"}`. This creates
-15-minute slots from that time until 23:45 (or until the optional `end_time`). Each slot holds one patient.
+15-minute slots from that time through 23:45, or up to the optional exclusive `end_time` on the same date.
+To open a full future day, send `{"date": "2026-10-18", "start_time": "00:00"}` with `end_time` omitted:
+96 slots are created, from 00:00 through 23:45. `{"start_time": "00:00", "end_time": "01:00"}` with a date
+creates four slots (00:00, 00:15, 00:30, 00:45). Past/existing slots are skipped; inactive future slots are
+reactivated as before. Each slot holds one patient.
 `GET /api/v1/doctors/me/slots/?date=` lists the slots and shows which are booked, and
 `DELETE /api/v1/doctors/me/slots/{id}/` removes a slot that is not booked.
 Patients do not see these slots. When staff assign a doctor who has a slot at the appointment time, that slot is
 linked to the appointment and shows as booked in the doctor app.
+
+**Family member signing in independently.** A family booking remains owned/paid by its original booker.
+When the booked person signs in through Firebase phone OTP (or links that verified phone to their patient
+account), they can also see their submitted appointments, My Cases, Home upcoming cards, medical records
+and private documents. They use the existing patient endpoints and their own backend access JWT:
+
+- `GET /api/v1/appointments/` and `/api/v1/appointments/{appointment_id}/`
+- `GET /api/v1/patients/home/`
+- `GET /api/v1/patients/cases/` and `/api/v1/patients/cases/{consultation_id}/`
+- `GET /api/v1/patients/medical-records/` and `/api/v1/patients/medical-records/{consultation_id}/`
+- `POST /api/v1/appointments/{appointment_id}/video/join/` with `{}` for an eligible video appointment.
+
+Enter the person's own phone in the family profile before booking; it is copied into the booking's
+`patient_phone` snapshot unless explicitly provided in Patient Details. Use E.164 (`+<country code><number>`)
+for reliable matching. Existing country-coded snapshots without `+` are supported when unambiguous;
+legacy Indian ten-digit snapshots match +91 identities only for India/default-country bookings.
+Access requires the server's verified patient phone identity, not a typed profile phone or verified flag.
+Only that person's family bookings are shared, never the booker's own bookings, other relatives or drafts.
+The snapshot is retained after family-profile edits/deletion; changing a family profile phone does not
+redirect historical medical access. Old bookings are visible immediately if their saved phone matches;
+missing/wrong historical phone numbers cannot be inferred automatically.
+
+The beneficiary sees shared cases/medical records as **You/self**. Appointment and case responses contain
+`can_manage_payment`: false for the beneficiary, true for the booker (payment status rules still apply).
+The app must hide checkout for false; shared cases never return `next_action: "pay"`. Creating/verifying
+payments and editing/submitting drafts stay booker-only. Existing notification delivery remains unchanged.
+The patient join endpoint authorizes either the booker or verified beneficiary but the 100ms template
+still permits only one active patient peer, not both at once. Doctor verification, join timing, room reuse,
+call reporting and video-only restrictions remain unchanged. No new family-link API, account merge,
+database migration or provider credentials are needed.
+
+**Mobile app changes for full-day scheduling.** This repository does not contain the mobile app source.
+The app developer must remove hardcoded 08:00 lower bounds and 64-slot limits in patient, doctor and staff
+time pickers. Patients should render the returned `starts_at` / `time_display` values and
+`available_slot_count`, not generate their own restricted list. Doctor pickers must allow 00:00-23:45
+in 15-minute steps; full-day availability uses 00:00 with `end_time` omitted, not 23:45 as the end
+(an explicit end is exclusive). Time fields accept `HH:MM`; `24:00` and overnight start/end windows are
+not supported. Midnight belongs to the selected date, and the 23:45 slot ends at midnight on the next date.
+Use Asia/Kolkata dates and offset-aware `starts_at`, including in Case Preview, booking and optional staff
+replacement assignment. Display labels remain AM/PM for compatibility. Refresh slots for today as time
+passes and use the backend's confirmed schedule for call joining. Past-time, booking-window, payment,
+doctor verification and conflict checks are unchanged. No migration or new configuration is needed.
 
 ### Home screen APIs
 
@@ -529,7 +586,7 @@ room creation.
 | Participant | Endpoint | Authentication |
 | --- | --- | --- |
 | Assigned doctor | `POST /api/v1/doctors/me/appointments/{appointment_id}/video/join/` | Doctor backend access JWT |
-| Booking patient | `POST /api/v1/appointments/{appointment_id}/video/join/` | Patient backend access JWT |
+| Booker or verified family beneficiary | `POST /api/v1/appointments/{appointment_id}/video/join/` | Their own patient backend access JWT |
 
 Both requests use `Content-Type: application/json` and
 `Authorization: Bearer <backend-access-jwt>` with body `{}`. Room, user identity
@@ -562,7 +619,8 @@ already connected SDK session. Previously issued tokens cannot be instantly
 revoked by changing appointment state; they remain valid up to their expiry.
 Clients must leave the SDK session when the consultation ends.
 
-The server requires the assigned patient and active, verified doctor, a confirmed
+The server authorizes the original booker or the verified family beneficiary described above, and the active,
+verified assigned doctor. The template permits only one active patient peer. It requires a confirmed
 and unfinished video appointment/consultation, and the existing join window:
 **five minutes before start until appointment completion/cancellation**.
 Completed, cancelled, unpaid/unassigned, non-video and too-early appointments

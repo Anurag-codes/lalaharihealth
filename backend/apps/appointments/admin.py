@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin
 from django.db import connection, transaction
+from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -12,7 +13,7 @@ from apps.notifications.service import notify_appointment
 from apps.payments.models import Payment
 
 from .models import Appointment, AppointmentCall, AppointmentSlot
-from .assignment import apply_assignment, assignment_doctors, prepare_assignment
+from .assignment import apply_assignment, assignment_doctors, assignment_lock_reason, prepare_assignment
 
 
 class DoctorChoiceField(forms.ModelChoiceField):
@@ -23,7 +24,7 @@ class DoctorChoiceField(forms.ModelChoiceField):
 class AppointmentAssignmentForm(forms.ModelForm):
     doctor = DoctorChoiceField(
         queryset=User.objects.none(), required=False,
-        help_text='Assign an active, verified doctor of this booking category. Optionally change Slot time before saving.',
+        help_text='Assign an active, verified doctor of this booking category. Confirmed appointments may be changed only before the consultation or a call starts and before video join credentials are issued.',
     )
 
     class Meta:
@@ -36,12 +37,14 @@ class AppointmentAssignmentForm(forms.ModelForm):
         self.assignment_plan = None
         if self.instance.pk and 'doctor' in self.fields:
             self.fields['doctor'].queryset = User.objects.filter(
-                doctor_profile__in=assignment_doctors(self.instance.consultation),
+                Q(doctor_profile__in=assignment_doctors(self.instance.consultation)) | Q(pk=self.instance.doctor_id),
             )
+            if self.instance.status == Appointment.Status.CONFIRMED:
+                self.fields['doctor'].required = True
 
     def clean(self):
         cleaned = super().clean()
-        if 'doctor' not in self.fields or self.instance.status != Appointment.Status.FINDING_DOCTOR:
+        if 'doctor' not in self.fields or self.instance.status not in (Appointment.Status.FINDING_DOCTOR, Appointment.Status.CONFIRMED):
             return cleaned
         doctor, starts_at = cleaned.get('doctor'), cleaned.get('slot_time')
         if doctor is None:
@@ -108,7 +111,7 @@ class AppointmentAdmin(admin.ModelAdmin):
     list_filter = ('status', CompletionConfirmedFilter)
     readonly_fields = (
         'status', 'doctor', 'patient', 'consultation', 'slot', 'slot_time', 'completed_at',
-        'completion_confirmed_at', 'completion_confirmed_by',
+        'completion_confirmed_at', 'completion_confirmed_by', 'assignment_edit_notice',
     )
     inlines = [AppointmentCallInline]
     actions = ['release_unstarted_reservations', 'confirm_completion']
@@ -124,9 +127,21 @@ class AppointmentAdmin(admin.ModelAdmin):
         return obj
 
     def get_readonly_fields(self, request, obj=None):
-        if obj and obj.status == Appointment.Status.FINDING_DOCTOR and self.has_change_permission(request, obj):
-            return tuple(field for field in self.readonly_fields if field not in ('doctor', 'slot_time'))
-        return self.readonly_fields
+        fields = self.readonly_fields
+        if not obj or obj.status != Appointment.Status.CONFIRMED or not assignment_lock_reason(obj):
+            fields = tuple(field for field in fields if field != 'assignment_edit_notice')
+        if obj and obj.status in (Appointment.Status.FINDING_DOCTOR, Appointment.Status.CONFIRMED) and self.has_change_permission(request, obj):
+            locked = obj.status == Appointment.Status.CONFIRMED and assignment_lock_reason(obj)
+            submitted_assignment = request.method == 'POST' and any(
+                key in request.POST for key in ('doctor', 'slot_time_0', 'slot_time_1')
+            )
+            if not locked or submitted_assignment:
+                return tuple(field for field in fields if field not in ('doctor', 'slot_time'))
+        return fields
+
+    @admin.display(description='Assignment editing locked')
+    def assignment_edit_notice(self, obj):
+        return assignment_lock_reason(obj) or ''
 
     def save_model(self, request, obj, form, change):
         if form.assignment_plan is not None:

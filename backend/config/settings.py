@@ -196,7 +196,7 @@ SPECTACULAR_SETTINGS = {
         '4. Optional POST /api/v1/consultations/{id}/documents/ as multipart with one file per request. '
         'PDF/PNG/JPG up to 10 MB. Skip means no upload call; private downloads require authentication.\n'
         '5. Schedule Appointment: GET /api/v1/appointments/slot-dates/?days=7 for the date strip and '
-        'GET /api/v1/appointments/slots/?date=YYYY-MM-DD for every 15-minute time (Asia/Kolkata, 08:00-23:45), the same for all categories. '
+        'GET /api/v1/appointments/slots/?date=YYYY-MM-DD for every 15-minute time (Asia/Kolkata, 00:00-23:45, 96 per full day), the same for all categories. '
         'The patient picks a preferred time only; no doctor is chosen. "Request Appointment" reserves nothing.\n'
         '6. Case Preview: GET /api/v1/consultations/{id}/preview/?starts_at=. "Submit Case": POST /api/v1/appointments/ '
         'with consultation_id, starts_at and information_confirmed=true. The fee is fixed per category (GET /api/v1/pricing/consultation-fee/?category=): '

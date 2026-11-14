@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 from apps.consultations.models import Consultation
+from apps.patients.access import accessible_appointments
 from .availability import booking_times_for_date
 from .assignment import assign_doctor
 from .models import Appointment
@@ -23,7 +24,7 @@ APPOINTMENT_EXAMPLE = {
 	'status': 'awaiting_payment', 'status_label': 'Awaiting payment', 'patient_name': 'Rahul Sharma',
 	'consultation_title': 'General Consultation', 'speciality': None,
 	'chief_complaint': 'Headache - Cluster Headache - Chronic', 'mode_label': 'Online', 'doctor': None, 'doctor_name': None, 'doctor_specialization': None,
-	'amount': 200, 'currency': 'INR', 'payment_status': 'not_started', 'created_at': '2026-10-16T18:20:00+05:30',
+	'amount': 200, 'currency': 'INR', 'payment_status': 'not_started', 'can_manage_payment': True, 'created_at': '2026-10-16T18:20:00+05:30',
 }
 
 
@@ -35,15 +36,15 @@ class SlotsView(generics.GenericAPIView):
 	@extend_schema(
 		tags=['Mobile scheduling'], summary='Schedule Appointment: selectable times for a date',
 		description=(
-			'Every 15-minute time from 08:00 AM to 11:45 PM India time on that date, for any category. Past times are left out; '
+			'Every 15-minute time from 12:00 AM to 11:45 PM India time on that date (96 starts per full day), for any category. Past times are left out; '
 			'dates before today or more than 30 days ahead return an empty list. The patient only picks a preferred time - '
 			'no doctor is chosen; staff assign a doctor after payment. '
 			'Tapping "Request Appointment" only opens Case Preview with this `starts_at` - nothing is reserved until "Submit Case".'
 		),
 		parameters=[SlotQuerySerializer], responses=AppointmentSlotSerializer(many=True),
 		examples=[OpenApiExample('Times', response_only=True, value=[
-			{'starts_at': '2026-10-18T08:00:00+05:30', 'time_display': '08:00 AM'},
-			{'starts_at': '2026-10-18T08:15:00+05:30', 'time_display': '08:15 AM'},
+			{'starts_at': '2026-10-18T00:00:00+05:30', 'time_display': '12:00 AM'},
+			{'starts_at': '2026-10-18T00:15:00+05:30', 'time_display': '12:15 AM'},
 			{'starts_at': '2026-10-18T08:30:00+05:30', 'time_display': '08:30 AM'},
 		])],
 	)
@@ -62,14 +63,14 @@ class SlotDatesView(generics.GenericAPIView):
 	@extend_schema(
 		tags=['Mobile scheduling'], summary='Schedule Appointment: date strip (Today and the next days)',
 		description=(
-			'One entry per day starting today with the number of selectable times (64 for a full day, fewer today as times pass), '
+			'One entry per day starting today with the number of selectable times (96 for a full day, fewer today as times pass), '
 			'so the app can grey out days with none.'
 		),
 		parameters=[SlotDatesQuerySerializer], responses=SlotDateSerializer(many=True),
 		examples=[OpenApiExample('Date strip', response_only=True, value=[
 			{'date': '2026-10-16', 'day_label': 'Today', 'day_number': 16, 'available_slot_count': 18},
-			{'date': '2026-10-17', 'day_label': 'Sat', 'day_number': 17, 'available_slot_count': 64},
-			{'date': '2026-10-18', 'day_label': 'Sun', 'day_number': 18, 'available_slot_count': 64},
+			{'date': '2026-10-17', 'day_label': 'Sat', 'day_number': 17, 'available_slot_count': 96},
+			{'date': '2026-10-18', 'day_label': 'Sun', 'day_number': 18, 'available_slot_count': 96},
 		])],
 	)
 	def get(self, request):
@@ -96,7 +97,7 @@ class AppointmentListCreateView(generics.GenericAPIView):
 		description=(
 			'Call from Case Preview after the patient ticks "I confirm the information provided above is correct." '
 			'`information_confirmed` must be true. `starts_at` is the time picked on Schedule Appointment: a future 15-minute '
-			'time from 08:00 AM to 11:45 PM India time within 30 days. No doctor is chosen here.\n\n'
+			'time from 12:00 AM to 11:45 PM India time within 30 days. No doctor is chosen here.\n\n'
 			'The fee is fixed and server-set (same as `GET /api/v1/pricing/consultation-fee/`): the general physician fee of the '
 			'step 1 country_code (default INR 200), or for a speciality the INR mode of its verified doctors\' fees. It is locked '
 			'now and does not change later. Repeating the same request returns the existing appointment.\n\n'
@@ -124,7 +125,7 @@ class AppointmentListCreateView(generics.GenericAPIView):
 			if existing:
 				if existing.slot_time != starts_at:
 					raise serializers.ValidationError('This consultation already has an appointment.')
-				return Response(AppointmentSerializer(existing).data)
+				return Response(AppointmentSerializer(existing, context={'request': request}).data)
 			if consultation.status != Consultation.Status.DRAFT or not consultation.history_completed:
 				raise serializers.ValidationError('Complete the draft health-history step before scheduling.')
 			if not all([consultation.patient_name, consultation.patient_age is not None, consultation.patient_gender, consultation.patient_phone]):
@@ -142,13 +143,17 @@ class AppointmentListCreateView(generics.GenericAPIView):
 				consultation=consultation, patient=request.user, slot=None, slot_time=starts_at,
 				status=Appointment.Status.AWAITING_PAYMENT,
 			)
-		return Response(AppointmentSerializer(appointment).data, status=201)
+		return Response(AppointmentSerializer(appointment, context={'request': request}).data, status=201)
 
-	@extend_schema(tags=['Mobile scheduling'], summary='My appointments', responses=AppointmentSerializer(many=True))
+	@extend_schema(
+		tags=['Mobile scheduling'], summary='My appointments', responses=AppointmentSerializer(many=True),
+		description='Your bookings plus submitted family bookings matching your verified patient phone identity. '
+		'can_manage_payment is true only for the original booker; family viewers cannot create or verify payments.',
+	)
 	def get(self, request):
-		queryset = Appointment.objects.filter(patient=request.user).select_related('consultation', 'doctor__doctor_profile').order_by('-created_at')
+		queryset = accessible_appointments(request.user).select_related('consultation', 'doctor__doctor_profile').order_by('-created_at')
 		page = self.paginate_queryset(queryset)
-		return self.get_paginated_response(AppointmentSerializer(page, many=True).data)
+		return self.get_paginated_response(AppointmentSerializer(page, many=True, context={'request': request}).data)
 
 
 class AppointmentDetailView(generics.GenericAPIView):
@@ -159,14 +164,18 @@ class AppointmentDetailView(generics.GenericAPIView):
 		tags=['Mobile scheduling'], summary='Checkout / "Finding Your Doctor": appointment summary and status',
 		description=(
 			'Checkout shows `appointment_number`, `schedule_date`, `schedule_time` and `amount`. After payment, poll this: '
-			'`finding_doctor` = payment successful and a doctor is being matched; `confirmed` adds `doctor_name`.'
+			'`finding_doctor` = payment successful and a doctor is being matched; `confirmed` adds `doctor_name`. '
+			'Also accessible to the family member whose verified phone matches the booking snapshot. '
+			'Only the original booker has can_manage_payment=true.'
 		),
 		examples=[OpenApiExample('Finding doctor', response_only=True, value={
 			**APPOINTMENT_EXAMPLE, 'status': 'finding_doctor', 'status_label': 'Finding doctor', 'payment_status': 'success',
 		})],
 	)
 	def get(self, request, appointment_id):
-		appointment = get_object_or_404(Appointment.objects.select_related('consultation', 'doctor__doctor_profile'), pk=appointment_id, patient=request.user)
+		appointment = get_object_or_404(
+			accessible_appointments(request.user).select_related('consultation', 'doctor__doctor_profile'), pk=appointment_id,
+		)
 		return Response(self.get_serializer(appointment).data)
 
 
@@ -180,12 +189,13 @@ class AssignDoctorView(generics.GenericAPIView):
 			"The doctor must be active and verified, and a general physician for general bookings or of the booking's "
 			"speciality. The doctor's own consultation_fee does not matter: the patient paid the fixed category fee. "
 			'Optionally send starts_at to assign at another available time; omit it to keep the requested time. '
-			'A replacement must be future, 15-minute aligned, between 08:00 and 23:45 India time, within 30 days. '
+			'A replacement must be future, 15-minute aligned, between 00:00 and 23:45 India time, within 30 days. '
 			'400 if the doctor already has another unfinished appointment at the same time; once that consultation is completed the '
 			'doctor can be assigned another patient at that time. The doctor gets a "New appointment" notification. If the doctor opened an availability slot '
 			'at that time in the doctor app, it is linked (shown as booked there). Appointment and consultation times are updated '
 			'together, without changing the fee. Both participants are notified of the confirmed time. '
-			'Only paid finding_doctor appointments can be assigned; confirmed appointments cannot be rescheduled here.'
+			'Confirmed appointments may be changed before the consultation or a call starts; omit doctor_id to keep the assigned doctor. '
+			'Issued video join credentials prevent changes for safety. Identical confirmed submissions are harmless.'
 		),
 		responses=AppointmentSerializer,
 		examples=[
@@ -199,7 +209,7 @@ class AssignDoctorView(generics.GenericAPIView):
 		serializer = self.get_serializer(data=request.data)
 		serializer.is_valid(raise_exception=True)
 		appointment = assign_doctor(
-			appointment_id, serializer.validated_data['doctor_id'], serializer.validated_data.get('starts_at'),
+			appointment_id, serializer.validated_data.get('doctor_id'), serializer.validated_data.get('starts_at'),
 		)
 		return Response(AppointmentSerializer(appointment).data)
 

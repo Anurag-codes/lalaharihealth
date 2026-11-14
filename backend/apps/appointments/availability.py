@@ -3,7 +3,7 @@ from datetime import datetime, time, timedelta
 from django.utils import timezone
 
 SLOT_MINUTES = 15
-DAY_START = time(8, 0)
+DAY_START = time(0, 0)
 LAST_SLOT_START = time(23, 45)
 BOOKING_WINDOW_DAYS = 30
 
@@ -18,7 +18,7 @@ def in_booking_window(day):
 
 
 def booking_times_for_date(day):
-    """Every future 15-minute start time from 08:00 to 23:45 India time on this date (patients pick a time, not a doctor)."""
+    """Every future 15-minute start time from 00:00 to 23:45 India time on this date (patients pick a time, not a doctor)."""
     if not in_booking_window(day):
         return []
     now = timezone.now()
@@ -34,7 +34,7 @@ def booking_time_error(starts_at):
     if local.second or local.microsecond or local.minute % SLOT_MINUTES:
         return 'Choose a 15-minute time, e.g. 10:00 or 10:15.'
     if not DAY_START <= local.time() <= LAST_SLOT_START:
-        return 'Choose a time between 08:00 AM and 11:45 PM India time.'
+        return 'Choose a time between 12:00 AM and 11:45 PM India time.'
     if starts_at <= timezone.now():
         return 'This time has passed. Please choose a future time.'
     if not in_booking_window(local.date()):

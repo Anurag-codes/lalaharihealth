@@ -7,6 +7,7 @@ from PIL import Image, UnidentifiedImageError
 from rest_framework import serializers
 
 from .models import FamilyMember, PatientProfile, years_since
+from .access import accessible_consultations
 
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
 PHOTO_SIGNATURES = {'.png': b'\x89PNG\r\n\x1a\n', '.jpg': b'\xff\xd8\xff', '.jpeg': b'\xff\xd8\xff'}
@@ -68,7 +69,7 @@ class PatientProfileSerializer(serializers.Serializer):
         return obj.user.family_members.count()
 
     def get_medical_record_count(self, obj) -> int:
-        return obj.user.consultations_as_patient.exclude(status='draft').count()
+        return accessible_consultations(obj.user).exclude(status='draft').count()
 
     @transaction.atomic
     def update(self, instance, validated_data):

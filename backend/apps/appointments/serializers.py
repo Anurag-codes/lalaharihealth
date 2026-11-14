@@ -31,7 +31,7 @@ class SlotDateSerializer(serializers.Serializer):
 
 
 class BookingTimeField(serializers.DateTimeField):
-    """A preferred appointment start time: future, 15-minute aligned, 08:00-23:45 India time, within the booking window."""
+    """A preferred appointment start time: future, 15-minute aligned, 00:00-23:45 India time, within the booking window."""
 
     def to_internal_value(self, value):
         starts_at = super().to_internal_value(value)
@@ -58,14 +58,17 @@ class AppointmentRequestSerializer(serializers.Serializer):
 
 
 class DoctorAssignmentSerializer(serializers.Serializer):
-    doctor_id = serializers.IntegerField(min_value=1)
-    starts_at = BookingTimeField(
+    doctor_id = serializers.IntegerField(min_value=1, required=False, help_text='Required for initial assignment; omit to keep the confirmed doctor.')
+    starts_at = serializers.DateTimeField(
         required=False,
-        help_text='Optional replacement appointment time. Omit to keep the patient-requested time.',
+        help_text='Optional replacement appointment time; future, 15-minute aligned and within 30 days. Omit to keep the current time.',
     )
 
 
 class AppointmentSerializer(serializers.ModelSerializer):
+    can_manage_payment = serializers.SerializerMethodField(
+        help_text='Only the original booker can create/verify a payment. False for a family-member viewer.',
+    )
     appointment_number = serializers.SerializerMethodField()
     amount = serializers.IntegerField(source='consultation.fee_charged', read_only=True, help_text='Whole currency units')
     currency = serializers.CharField(source='consultation.currency', read_only=True)
@@ -89,7 +92,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'id', 'appointment_number', 'consultation', 'slot', 'slot_time', 'schedule_date', 'schedule_time',
             'status', 'status_label', 'patient_name', 'consultation_title', 'speciality', 'chief_complaint', 'mode_label',
             'doctor', 'doctor_name', 'doctor_specialization',
-            'amount', 'currency', 'payment_status', 'created_at',
+            'amount', 'currency', 'payment_status', 'can_manage_payment', 'created_at',
         ]
         read_only_fields = fields
         extra_kwargs = {
@@ -100,6 +103,10 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
     def get_appointment_number(self, obj) -> str:
         return f'APT-{obj.pk:05d}'
+
+    def get_can_manage_payment(self, obj) -> bool:
+        request = self.context.get('request')
+        return request is not None and obj.patient_id == request.user.pk
 
     def get_payment_status(self, obj) -> str:
         payment = getattr(obj.consultation, 'payment', None)
@@ -168,11 +175,11 @@ class DoctorAvailabilitySerializer(serializers.Serializer):
     date = serializers.DateField(help_text='India date, YYYY-MM-DD; today or within the next 30 days')
     start_time = serializers.TimeField(
         format='%H:%M', input_formats=['%H:%M', '%H:%M:%S'],
-        help_text='First slot shown to patients, HH:MM in 15-minute steps, from 08:00',
+        help_text='First doctor availability slot, HH:MM in 15-minute steps, from 00:00 to 23:45',
     )
     end_time = serializers.TimeField(
         format='%H:%M', input_formats=['%H:%M', '%H:%M:%S'], required=False, allow_null=True, default=None,
-        help_text='Optional. When availability ends (last slot starts 15 minutes earlier). Default: the day ends at 23:59.',
+        help_text='Optional exclusive end time on the same date (last slot starts 15 minutes earlier). Omit to include the 23:45 slot.',
     )
 
     def validate(self, attrs):
@@ -181,7 +188,7 @@ class DoctorAvailabilitySerializer(serializers.Serializer):
         if day < today or (day - today).days > BOOKING_WINDOW_DAYS:
             raise serializers.ValidationError({'date': f'Choose today or a date within the next {BOOKING_WINDOW_DAYS} days.'})
         if start.minute % SLOT_MINUTES or start.second or start < DAY_START or start > LAST_SLOT_START:
-            raise serializers.ValidationError({'start_time': 'Use a 15-minute time between 08:00 and 23:45.'})
+            raise serializers.ValidationError({'start_time': 'Use a 15-minute time between 00:00 and 23:45.'})
         if end is not None:
             if end.minute % SLOT_MINUTES or end.second:
                 raise serializers.ValidationError({'end_time': 'Use a 15-minute time, e.g. 21:00.'})
