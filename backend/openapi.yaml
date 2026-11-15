@@ -3134,6 +3134,58 @@ paths:
                 Error:
                   value:
                     detail: Not found.
+  /api/v1/consultations/{consultation_id}/prescription-documents/{document_id}/download/:
+    get:
+      operationId: consultations_prescription_documents_download_retrieve
+      description: Streams the private file for the assigned doctor, or for the patient
+        (and family members with access) once the consultation is completed. Use `download_url`
+        from the record with the auth header.
+      summary: Download a prescription photo uploaded by the doctor
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: document_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mobile documents
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
   /api/v1/consultations/{consultation_id}/preview/:
     get:
       operationId: consultations_preview_retrieve
@@ -4843,6 +4895,11 @@ paths:
                         food_relation_label: After food
                         duration_days: 5
                         instructions: ''
+                      prescription_documents:
+                      - id: 3
+                        original_name: prescription.jpg
+                        uploaded_at: '2026-02-12T11:04:00+05:30'
+                        download_url: https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/
                       doctor_notes: Drink warm fluids and take rest.
                       follow_up_date: '2026-02-19'
                       follow_up_notes: Follow up after 1 week if symptoms persist.
@@ -4939,6 +4996,11 @@ paths:
                       food_relation_label: After food
                       duration_days: 5
                       instructions: ''
+                    prescription_documents:
+                    - id: 3
+                      original_name: prescription.jpg
+                      uploaded_at: '2026-02-12T11:04:00+05:30'
+                      download_url: https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/
                     doctor_notes: Drink warm fluids and take rest.
                     follow_up_date: '2026-02-19'
                     follow_up_notes: Follow up after 1 week if symptoms persist.
@@ -4983,8 +5045,10 @@ paths:
     put:
       operationId: doctors_me_consultations_record_update
       description: 'Replaces the whole record: the prescriptions list sent here replaces
-        all previous items. Allowed for the assigned doctor once the appointment is
-        confirmed. mark_completed=true completes the consultation and appointment
+        all previous items. Every field is optional; a doctor may instead upload handwritten
+        prescription photos with POST .../record/documents/ (those photos are not
+        changed by this call). Allowed for the assigned doctor once the appointment
+        is confirmed. mark_completed=true completes the consultation and appointment
         and publishes the record to the patient app. A completed record can still
         be corrected; it cannot be reopened.'
       summary: Write diagnosis, prescription, notes and follow-up
@@ -5053,7 +5117,6 @@ paths:
                   diagnosis: Viral fever
                   prescriptions: []
                   mark_completed: true
-        required: true
       security:
       - jwtAuth: []
       - cookieAuth: []
@@ -5108,6 +5171,11 @@ paths:
                       food_relation_label: After food
                       duration_days: 5
                       instructions: ''
+                    prescription_documents:
+                    - id: 3
+                      original_name: prescription.jpg
+                      uploaded_at: '2026-02-12T11:04:00+05:30'
+                      download_url: https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/
                     doctor_notes: Drink warm fluids and take rest.
                     follow_up_date: '2026-02-19'
                     follow_up_notes: Follow up after 1 week if symptoms persist.
@@ -5158,6 +5226,191 @@ paths:
                 Error:
                   value:
                     detail: No Consultation matches the given query.
+  /api/v1/doctors/me/consultations/{consultation_id}/record/documents/:
+    get:
+      operationId: doctors_me_consultations_record_documents_list
+      summary: List uploaded prescription photos
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Doctor consultation records
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PrescriptionDocument'
+              examples:
+                PrescriptionPhotos:
+                  value:
+                  - id: 3
+                    original_name: prescription.jpg
+                    uploaded_at: '2026-02-12T11:04:00+05:30'
+                    download_url: https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/
+                  summary: Prescription photos
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+      description: 'Doctor app: handwritten prescription photos/PDFs you uploaded
+        for this consultation, oldest first. Send `Authorization: Bearer <access>`
+        (access JWT from login).'
+    post:
+      operationId: doctors_me_consultations_record_documents_create
+      description: 'Optional alternative to typing the record. multipart/form-data:
+        repeat the field `files` for each page (JPG/PNG/PDF, up to 10 MB each, 10
+        per request, 20 per consultation). Allowed once the appointment is confirmed,
+        also after completion for corrections. The patient sees the photos in the
+        medical record after the consultation is completed. Returns all prescription
+        photos of the consultation.'
+      summary: Upload handwritten prescription photos
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Doctor consultation records
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PrescriptionUpload'
+            examples:
+              TwoPages:
+                value:
+                  files:
+                  - page-1.jpg
+                  - page-2.jpg
+                summary: Two pages
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PrescriptionDocument'
+              examples:
+                Uploaded:
+                  value:
+                  - id: 3
+                    original_name: prescription.jpg
+                    uploaded_at: '2026-02-12T11:04:00+05:30'
+                    download_url: https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/doctors/me/consultations/{consultation_id}/record/documents/{document_id}/:
+    delete:
+      operationId: doctors_me_consultations_record_documents_destroy
+      summary: Delete an uploaded prescription photo
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: document_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Doctor consultation records
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+      description: 'Doctor app: remove a wrongly uploaded prescription photo (also
+        after completion). Returns 204. Send `Authorization: Bearer <access>` (access
+        JWT from login).'
   /api/v1/doctors/me/documents/:
     get:
       operationId: doctors_me_documents_list
@@ -7384,6 +7637,11 @@ paths:
                       food_relation_label: After food
                       duration_days: 7
                       instructions: Shake well before use
+                    prescription_documents:
+                    - id: 3
+                      original_name: prescription.jpg
+                      uploaded_at: '2026-02-12T11:04:00+05:30'
+                      download_url: https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/
                     doctor_notes: Drink warm fluids and take rest.
                     follow_up:
                       date: '2026-02-19'
@@ -10290,6 +10548,7 @@ components:
       properties:
         diagnosis:
           type: string
+          default: ''
           maxLength: 5000
         prescriptions:
           type: array
@@ -10312,8 +10571,6 @@ components:
           default: false
           description: Set true to complete the consultation and publish this record
             to the patient.
-      required:
-      - diagnosis
     ConsultationStatusEnum:
       enum:
       - draft
@@ -10815,6 +11072,11 @@ components:
           items:
             $ref: '#/components/schemas/PrescriptionItem'
           readOnly: true
+        prescription_documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionDocument'
+          readOnly: true
         doctor_notes:
           type: string
           readOnly: true
@@ -10857,6 +11119,7 @@ components:
       - mode_label
       - ongoing_medication
       - patient
+      - prescription_documents
       - prescriptions
       - record_updated_at
       - scheduled_at
@@ -11832,6 +12095,12 @@ components:
           items:
             $ref: '#/components/schemas/PrescriptionItem'
           readOnly: true
+        prescription_documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrescriptionDocument'
+          readOnly: true
+          description: Prescription photos/PDFs from the doctor; empty until published
         doctor_notes:
           type: string
           readOnly: true
@@ -11866,6 +12135,7 @@ components:
       - mode_display
       - mode_label
       - patient
+      - prescription_documents
       - prescriptions
       - record_updated_at
       - scheduled_at
@@ -12918,6 +13188,27 @@ components:
       description: |-
         * `en` - English
         * `hi` - हिन्दी
+    PrescriptionDocument:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        original_name:
+          type: string
+          maxLength: 255
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+        download_url:
+          type: string
+          readOnly: true
+      required:
+      - download_url
+      - id
+      - original_name
+      - uploaded_at
     PrescriptionItem:
       type: object
       properties:
@@ -12963,6 +13254,20 @@ components:
       - medicine_name
       - timing_labels
       - timings
+    PrescriptionUpload:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: 'Repeat the multipart field `files` for each photo: JPG/PNG/PDF,
+            up to 10 MB each, 10 per request.'
+          maxItems: 10
+          minItems: 1
+      required:
+      - files
     Pricing:
       type: object
       properties:

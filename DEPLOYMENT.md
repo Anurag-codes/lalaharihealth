@@ -311,6 +311,11 @@ bookings remain free and staff must confirm the original offer doctor/time.
 `consultations.0007_consultation_review`, then restart `lalaharihealth-api`.
 Ratings are read-only in Django admin under Consultation reviews. See
 [app completion and rating flow](APP_CONSULTATION_COMPLETION_AND_RATING.md).
+
+**Handwritten prescription uploads:** run `python manage.py migrate` for
+`consultations.0008_prescription_document`, then restart `lalaharihealth-api`.
+Files are stored privately under `backend/private_documents/prescriptions/`; include
+that folder in backups.
 The website call number is fixed in the frontend; the mobile apps' support number
 comes from `SUPPORT_PHONE_NUMBER` in the backend environment.
 

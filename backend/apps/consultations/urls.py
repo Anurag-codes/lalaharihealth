@@ -16,4 +16,8 @@ urlpatterns = [
 	path('<int:consultation_id>/documents/', views.ConsultationDocumentsView.as_view()),
 	path('<int:consultation_id>/documents/<int:document_id>/', views.ConsultationDocumentDetailView.as_view()),
 	path('<int:consultation_id>/documents/<int:document_id>/download/', views.ConsultationDocumentDownloadView.as_view()),
+	path(
+		'<int:consultation_id>/prescription-documents/<int:document_id>/download/',
+		views.PrescriptionDocumentDownloadView.as_view(),
+	),
 ]

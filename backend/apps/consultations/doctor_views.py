@@ -1,17 +1,23 @@
+from pathlib import Path
+
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
-from rest_framework import generics, serializers
+from rest_framework import generics, serializers, status
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from apps.accounts.views import NoStoreResponseMixin
 from apps.appointments.models import Appointment
 from apps.doctors.models import DoctorProfile
-from .models import Consultation, PrescriptionItem
-from .serializers import ConsultationRecordWriteSerializer, DoctorConsultationSerializer
+from .models import Consultation, PrescriptionDocument, PrescriptionItem
+from .serializers import (
+    MAX_PRESCRIPTION_FILES, MAX_PRESCRIPTION_FILES_PER_REQUEST, ConsultationRecordWriteSerializer,
+    DoctorConsultationSerializer, PrescriptionDocumentSerializer, PrescriptionUploadSerializer,
+)
 
 RECORD_WRITABLE_APPOINTMENT_STATUSES = {Appointment.Status.CONFIRMED, Appointment.Status.COMPLETED}
 
@@ -32,6 +38,10 @@ RECORD_REQUEST_EXAMPLE = {
     'follow_up_notes': 'Follow up after 1 week if symptoms persist.',
     'mark_completed': True,
 }
+PRESCRIPTION_DOCUMENT_EXAMPLE = {
+    'id': 3, 'original_name': 'prescription.jpg', 'uploaded_at': '2026-02-12T11:04:00+05:30',
+    'download_url': 'https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/',
+}
 DOCTOR_CONSULTATION_EXAMPLE = {
     'id': 41, 'appointment_id': 18, 'scheduled_at': '2026-02-12T10:30:00+05:30', 'status': 'completed',
     'appointment_status': 'completed',
@@ -50,6 +60,7 @@ DOCTOR_CONSULTATION_EXAMPLE = {
         'timing_labels': ['Morning'], 'food_relation': 'after_food', 'food_relation_label': 'After food',
         'duration_days': 5, 'instructions': '',
     }],
+    'prescription_documents': [PRESCRIPTION_DOCUMENT_EXAMPLE],
     'doctor_notes': 'Drink warm fluids and take rest.', 'follow_up_date': '2026-02-19',
     'follow_up_notes': 'Follow up after 1 week if symptoms persist.',
     'record_updated_at': '2026-02-12T11:05:00+05:30', 'documents': [],
@@ -76,7 +87,7 @@ def doctor_consultations(user):
         Consultation.objects.filter(doctor=user, appointment__doctor=user)
         .exclude(status=Consultation.Status.DRAFT)
         .select_related('appointment', 'condition', 'doctor__doctor_profile')
-        .prefetch_related('prescription_items', 'documents')
+        .prefetch_related('prescription_items', 'prescription_documents', 'documents')
         .order_by('-appointment__slot_time')
     )
 
@@ -133,6 +144,8 @@ class DoctorConsultationRecordView(NoStoreResponseMixin, generics.GenericAPIView
         tags=['Doctor consultation records'], summary='Write diagnosis, prescription, notes and follow-up',
         description=(
             'Replaces the whole record: the prescriptions list sent here replaces all previous items. '
+            'Every field is optional; a doctor may instead upload handwritten prescription photos with '
+            'POST .../record/documents/ (those photos are not changed by this call). '
             'Allowed for the assigned doctor once the appointment is confirmed. '
             'mark_completed=true completes the consultation and appointment and publishes the record to the patient app. '
             'A completed record can still be corrected; it cannot be reopened.'
@@ -180,3 +193,92 @@ class DoctorConsultationRecordView(NoStoreResponseMixin, generics.GenericAPIView
         ])
         consultation = self.consultation(consultation_id)
         return Response(DoctorConsultationSerializer(consultation, context={'request': request}).data)
+
+
+def writable_record(user, consultation_id):
+    """Lock the assigned doctor's consultation and check that its record may change."""
+    consultation = get_object_or_404(
+        doctor_consultations(user).select_for_update(of=('self',)).prefetch_related(None), pk=consultation_id,
+    )
+    appointment = Appointment.objects.select_for_update().get(consultation=consultation)
+    if consultation.status == Consultation.Status.CANCELLED or appointment.status not in RECORD_WRITABLE_APPOINTMENT_STATUSES:
+        raise serializers.ValidationError({'detail': 'Records can be written only for confirmed or completed appointments.'})
+    return consultation
+
+
+def prescription_document_list(request, consultation):
+    documents = PrescriptionDocument.objects.filter(consultation=consultation)
+    return PrescriptionDocumentSerializer(documents, many=True, context={'request': request}).data
+
+
+class DoctorPrescriptionDocumentsView(NoStoreResponseMixin, generics.GenericAPIView):
+    permission_classes = [IsVerifiedDoctor]
+    serializer_class = PrescriptionUploadSerializer
+    parser_classes = [MultiPartParser]
+    pagination_class = None
+
+    @extend_schema(
+        tags=['Doctor consultation records'], summary='List uploaded prescription photos',
+        responses=PrescriptionDocumentSerializer(many=True),
+        examples=[OpenApiExample('Prescription photos', value=[PRESCRIPTION_DOCUMENT_EXAMPLE], response_only=True)],
+    )
+    def get(self, request, consultation_id):
+        consultation = get_object_or_404(doctor_consultations(request.user), pk=consultation_id)
+        return Response(prescription_document_list(request, consultation))
+
+    @extend_schema(
+        tags=['Doctor consultation records'], summary='Upload handwritten prescription photos',
+        description=(
+            'Optional alternative to typing the record. multipart/form-data: repeat the field `files` for each page '
+            f'(JPG/PNG/PDF, up to 10 MB each, {MAX_PRESCRIPTION_FILES_PER_REQUEST} per request, '
+            f'{MAX_PRESCRIPTION_FILES} per consultation). Allowed once the appointment is confirmed, also after '
+            'completion for corrections. The patient sees the photos in the medical record after the consultation is completed. '
+            'Returns all prescription photos of the consultation.'
+        ),
+        request={'multipart/form-data': PrescriptionUploadSerializer},
+        responses={201: PrescriptionDocumentSerializer(many=True)},
+        examples=[
+            OpenApiExample(
+                'Two pages', request_only=True, media_type='multipart/form-data',
+                value={'files': ['page-1.jpg', 'page-2.jpg']},
+            ),
+            OpenApiExample('Uploaded', value=[PRESCRIPTION_DOCUMENT_EXAMPLE], response_only=True, status_codes=['201']),
+        ],
+    )
+    @transaction.atomic
+    def post(self, request, consultation_id):
+        consultation = writable_record(request.user, consultation_id)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        files = serializer.validated_data['files']
+        if PrescriptionDocument.objects.filter(consultation=consultation).count() + len(files) > MAX_PRESCRIPTION_FILES:
+            raise serializers.ValidationError(
+                {'files': [f'A consultation can have at most {MAX_PRESCRIPTION_FILES} prescription files.']},
+            )
+        for uploaded in files:
+            PrescriptionDocument.objects.create(
+                consultation=consultation, uploaded_by=request.user, file=uploaded,
+                original_name=Path(uploaded.name).name[:255],
+            )
+        consultation.record_updated_at = timezone.now()
+        consultation.save(update_fields=['record_updated_at'])
+        return Response(prescription_document_list(request, consultation), status=status.HTTP_201_CREATED)
+
+
+class DoctorPrescriptionDocumentDetailView(NoStoreResponseMixin, generics.GenericAPIView):
+    permission_classes = [IsVerifiedDoctor]
+    serializer_class = PrescriptionDocumentSerializer
+
+    @extend_schema(
+        tags=['Doctor consultation records'], summary='Delete an uploaded prescription photo', responses={204: None},
+    )
+    @transaction.atomic
+    def delete(self, request, consultation_id, document_id):
+        consultation = writable_record(request.user, consultation_id)
+        document = get_object_or_404(PrescriptionDocument, consultation=consultation, pk=document_id)
+        stored_file = document.file
+        document.delete()
+        transaction.on_commit(lambda: stored_file.delete(save=False))
+        consultation.record_updated_at = timezone.now()
+        consultation.save(update_fields=['record_updated_at'])
+        return Response(status=status.HTTP_204_NO_CONTENT)

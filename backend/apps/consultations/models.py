@@ -143,6 +143,19 @@ class ConsultationDocument(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
 
+class PrescriptionDocument(models.Model):
+    """Photo/PDF of a handwritten prescription uploaded by the assigned doctor; optional alongside typed items."""
+
+    consultation = models.ForeignKey(Consultation, related_name='prescription_documents', on_delete=models.CASCADE)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='+', on_delete=models.SET_NULL, null=True)
+    file = models.FileField(storage=private_document_storage, upload_to='prescriptions/%Y/%m/')
+    original_name = models.CharField(max_length=255)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['uploaded_at', 'id']
+
+
 class PrescriptionItem(models.Model):
     class Timing(models.TextChoices):
         MORNING = 'morning', 'Morning'

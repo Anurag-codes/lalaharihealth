@@ -1,4 +1,4 @@
-from django.http import FileResponse
+from django.http import FileResponse, Http404
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiTypes, extend_schema
@@ -7,10 +7,10 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Consultation, ConsultationDocument
+from .models import Consultation, ConsultationDocument, PrescriptionDocument
 from .serializers import (
 	CasePreviewSerializer, ConsultationSerializer, DocumentSerializer, DocumentUploadSerializer,
-	HistorySerializer, PatientDetailsSerializer, relation_label, remember_self_details,
+	HistorySerializer, PatientDetailsSerializer, PrescriptionDocumentSerializer, relation_label, remember_self_details,
 )
 
 STEP1_EXAMPLES = [
@@ -203,6 +203,31 @@ class ConsultationDocumentDownloadView(generics.GenericAPIView):
 		else:
 			consultation = owned_consultation(request, consultation_id)
 		document = get_object_or_404(ConsultationDocument, consultation=consultation, pk=document_id)
+		return FileResponse(document.file.open('rb'), as_attachment=True, filename=document.original_name)
+
+
+class PrescriptionDocumentDownloadView(generics.GenericAPIView):
+	permission_classes = [IsAuthenticated]
+	serializer_class = PrescriptionDocumentSerializer
+
+	@extend_schema(
+		tags=['Mobile documents'], summary='Download a prescription photo uploaded by the doctor',
+		description=(
+			'Streams the private file for the assigned doctor, or for the patient (and family members with access) '
+			'once the consultation is completed. Use `download_url` from the record with the auth header.'
+		),
+		responses={(200, 'application/octet-stream'): OpenApiTypes.BINARY},
+	)
+	def get(self, request, consultation_id, document_id):
+		from .doctor_views import doctor_consultations, is_verified_doctor
+
+		if is_verified_doctor(request.user):
+			consultation = get_object_or_404(doctor_consultations(request.user), pk=consultation_id)
+		else:
+			consultation = owned_consultation(request, consultation_id)
+			if consultation.status != Consultation.Status.COMPLETED or consultation.record_updated_at is None:
+				raise Http404
+		document = get_object_or_404(PrescriptionDocument, consultation=consultation, pk=document_id)
 		return FileResponse(document.file.open('rb'), as_attachment=True, filename=document.original_name)
 
 

@@ -70,6 +70,12 @@ DESCRIPTIONS = {
         'Doctor app: patient intake (details, symptoms, documents) and the current diagnosis/prescription record '
         'for a consultation assigned to you. 403 for non-doctors, 404 if not assigned. ' + AUTH
     ),
+    'GET /api/v1/doctors/me/consultations/{consultation_id}/record/documents/': (
+        'Doctor app: handwritten prescription photos/PDFs you uploaded for this consultation, oldest first. ' + AUTH
+    ),
+    'DELETE /api/v1/doctors/me/consultations/{consultation_id}/record/documents/{document_id}/': (
+        'Doctor app: remove a wrongly uploaded prescription photo (also after completion). Returns 204. ' + AUTH
+    ),
     'GET /api/v1/doctors/me/slots/': 'Doctor app: your 15-minute slots for the required `?date=YYYY-MM-DD`, with booked flags. Verified doctors only (403 otherwise). ' + AUTH,
     'GET /api/v1/health/': 'Public liveness check. Returns 200 when the API is up.',
     'POST /api/v1/notifications/{notification_id}/read/': 'Mark one notification as read (on tap). Returns the updated notification. ' + AUTH,

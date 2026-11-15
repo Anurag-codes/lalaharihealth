@@ -16,7 +16,9 @@ All requests are authenticated with the app's backend access token: `Authorizati
      {"diagnosis": "Acute pharyngitis", "prescriptions": [], "doctor_notes": "", "follow_up_date": null, "follow_up_notes": "", "mark_completed": true}
      ```
      `prescriptions` replaces the whole list. Send `mark_completed: false` to save a draft.
+     Every field is optional (for example `{"mark_completed": true}` alone), but each PUT replaces the typed record, so send the full record if one was typed.
    - **Without a record:** `PATCH /api/v1/doctors/me/appointments/{appointment_id}/`, with body `{"status": "completed"}`.
+   - **Handwritten prescription (optional, any time before or after completing):** see section 3.
 4. **Result:** the response returns `status: "completed"` and `completed_at`. The patient gets a `consultation_completed` notification, and the consultation counts in earnings.
    - Allowed only for confirmed appointments assigned to this doctor, from 5 minutes before the start time.
    - Repeating the request is safe, and a completed consultation cannot be reopened.
@@ -50,3 +52,21 @@ Rating rules:
   - `403` when the account isn't a patient.
   - `404` when the consultation isn't the user's.
 - Ratings update the doctor's `average_rating`. Staff can view them in Django admin under **Consultation reviews**.
+
+## 3. Doctor app: upload a handwritten prescription (optional)
+
+The doctor can type the record (section 1), upload photos of the written prescription, or both. Nothing is mandatory.
+
+- **Upload:** `POST /api/v1/doctors/me/consultations/{consultation_id}/record/documents/`
+  - `multipart/form-data`; repeat the field `files` once per page/photo.
+  - JPG, PNG or PDF, up to 10 MB each; 1–10 files per request, 20 per consultation.
+  - Allowed once the appointment is confirmed, and also after completion (for corrections).
+  - `201` returns every prescription photo of the consultation:
+    ```json
+    [{"id": 3, "original_name": "page-1.jpg", "uploaded_at": "2026-11-15T10:44:00+05:30", "download_url": "https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/"}]
+    ```
+- **List:** `GET` the same URL. The record GET/PUT responses also include `prescription_documents`.
+- **Delete one:** `DELETE /api/v1/doctors/me/consultations/{consultation_id}/record/documents/{document_id}/`, which returns `204`.
+- **Complete:** after uploading, complete as in section 1 step 3 (photos only: use the `PATCH` with `{"status": "completed"}`, or the record `PUT` with `{"mark_completed": true}` if nothing was typed).
+- **Patient app:** `GET /api/v1/patients/medical-records/{consultation_id}/` returns `prescription_documents` once the consultation is completed (empty before). Open each `download_url` **with the Bearer header**; files are private.
+- Errors: `400` for a bad file type/size, too many files, or an appointment that is not confirmed/completed; `403` when not a verified doctor; `404` when the consultation isn't assigned to this doctor.

@@ -1458,6 +1458,7 @@
    "treatment_details": "",
    "diagnosis": "Viral fever",
    "prescriptions": [],
+   "prescription_documents": [],
    "doctor_notes": "",
    "follow_up_date": null,
    "follow_up_notes": "",
@@ -1533,6 +1534,7 @@
      "treatment_details": "",
      "diagnosis": "",
      "prescriptions": [],
+     "prescription_documents": [],
      "doctor_notes": "",
      "follow_up_date": null,
      "follow_up_notes": "",
@@ -1578,6 +1580,7 @@
    "treatment_details": "",
    "diagnosis": "",
    "prescriptions": [],
+   "prescription_documents": [],
    "doctor_notes": "",
    "follow_up_date": null,
    "follow_up_notes": "",
@@ -1640,6 +1643,7 @@
      "instructions": ""
     }
    ],
+   "prescription_documents": [],
    "doctor_notes": "Rest well.",
    "follow_up": {
     "date": "2030-01-10",

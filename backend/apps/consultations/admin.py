@@ -1,11 +1,22 @@
 from django.contrib import admin
 
-from .models import Consultation, ConsultationReview, PrescriptionItem
+from .models import Consultation, ConsultationReview, PrescriptionDocument, PrescriptionItem
 
 
 class PrescriptionItemInline(admin.TabularInline):
     model = PrescriptionItem
     extra = 0
+
+
+class PrescriptionDocumentInline(admin.TabularInline):
+    model = PrescriptionDocument
+    extra = 0
+    fields = ('original_name', 'uploaded_by', 'uploaded_at')
+    readonly_fields = fields
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Consultation)
@@ -14,7 +25,7 @@ class ConsultationAdmin(admin.ModelAdmin):
     list_filter = ('status', 'mode', 'recommended_system')
     search_fields = ('patient__username', 'doctor__username', 'patient_name')
     raw_id_fields = ('family_member',)
-    inlines = [PrescriptionItemInline]
+    inlines = [PrescriptionItemInline, PrescriptionDocumentInline]
 
 
 @admin.register(ConsultationReview)

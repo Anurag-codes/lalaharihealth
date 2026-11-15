@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from apps.patients.models import FamilyMember
 from apps.treatments.models import booking_speciality
-from .models import Consultation, ConsultationDocument, PrescriptionItem
+from .models import Consultation, ConsultationDocument, PrescriptionDocument, PrescriptionItem
 
 
 def self_booking_defaults(user):
@@ -186,6 +186,43 @@ class DocumentSerializer(serializers.ModelSerializer):
         return request.build_absolute_uri(f'/api/v1/consultations/{obj.consultation_id}/documents/{obj.pk}/download/')
 
 
+MAX_PRESCRIPTION_FILES_PER_REQUEST = 10
+MAX_PRESCRIPTION_FILES = 20
+
+
+class PrescriptionUploadSerializer(serializers.Serializer):
+    files = serializers.ListField(
+        child=serializers.FileField(), min_length=1, max_length=MAX_PRESCRIPTION_FILES_PER_REQUEST,
+        help_text='Repeat the multipart field `files` for each photo: JPG/PNG/PDF, up to 10 MB each, 10 per request.',
+    )
+
+    def validate_files(self, value):
+        checker = DocumentUploadSerializer()
+        errors = {}
+        for index, uploaded in enumerate(value):
+            try:
+                checker.validate_file(uploaded)
+            except serializers.ValidationError as error:
+                errors[index] = error.detail
+        if errors:
+            raise serializers.ValidationError(errors)
+        return value
+
+
+class PrescriptionDocumentSerializer(serializers.ModelSerializer):
+    download_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PrescriptionDocument
+        fields = ['id', 'original_name', 'uploaded_at', 'download_url']
+
+    def get_download_url(self, obj) -> str:
+        request = self.context['request']
+        return request.build_absolute_uri(
+            f'/api/v1/consultations/{obj.consultation_id}/prescription-documents/{obj.pk}/download/'
+        )
+
+
 class ConsultationSerializer(serializers.ModelSerializer):
     documents = DocumentSerializer(many=True, read_only=True)
     consultation_title = serializers.CharField(source='title', read_only=True)
@@ -343,11 +380,13 @@ class MedicalRecordDetailSerializer(MedicalRecordListSerializer):
     prescriptions = serializers.SerializerMethodField()
     doctor_notes = serializers.SerializerMethodField()
     follow_up = serializers.SerializerMethodField()
+    prescription_documents = serializers.SerializerMethodField(help_text='Prescription photos/PDFs from the doctor; empty until published')
     documents = DocumentSerializer(many=True, read_only=True)
 
     class Meta(MedicalRecordListSerializer.Meta):
         fields = MedicalRecordListSerializer.Meta.fields + [
-            'chief_complaint', 'condition_details', 'symptoms', 'diagnosis', 'prescriptions', 'doctor_notes', 'follow_up', 'record_updated_at', 'documents',
+            'chief_complaint', 'condition_details', 'symptoms', 'diagnosis', 'prescriptions', 'prescription_documents',
+            'doctor_notes', 'follow_up', 'record_updated_at', 'documents',
         ]
         read_only_fields = fields
 
@@ -363,6 +402,12 @@ class MedicalRecordDetailSerializer(MedicalRecordListSerializer):
             return []
         return PrescriptionItemSerializer(obj.prescription_items.all(), many=True).data
 
+    @extend_schema_field(PrescriptionDocumentSerializer(many=True))
+    def get_prescription_documents(self, obj):
+        if not self._published(obj):
+            return []
+        return PrescriptionDocumentSerializer(obj.prescription_documents.all(), many=True, context=self.context).data
+
     def get_doctor_notes(self, obj) -> str:
         return obj.doctor_notes if self._published(obj) else ''
 
@@ -377,18 +422,19 @@ class DoctorConsultationSerializer(MedicalRecordListSerializer):
     condition_name = serializers.CharField(source='condition.name', default='', read_only=True)
     documents = DocumentSerializer(many=True, read_only=True)
     prescriptions = PrescriptionItemSerializer(source='prescription_items', many=True, read_only=True)
+    prescription_documents = PrescriptionDocumentSerializer(many=True, read_only=True)
 
     class Meta(MedicalRecordListSerializer.Meta):
         fields = MedicalRecordListSerializer.Meta.fields + [
             'condition_name', 'chief_complaint', 'condition_details', 'symptoms', 'duration_value', 'duration_unit', 'ongoing_medication',
-            'treatment_details', 'diagnosis', 'prescriptions', 'doctor_notes', 'follow_up_date',
+            'treatment_details', 'diagnosis', 'prescriptions', 'prescription_documents', 'doctor_notes', 'follow_up_date',
             'follow_up_notes', 'record_updated_at', 'documents',
         ]
         read_only_fields = fields
 
 
 class ConsultationRecordWriteSerializer(serializers.Serializer):
-    diagnosis = serializers.CharField(max_length=5000)
+    diagnosis = serializers.CharField(max_length=5000, required=False, allow_blank=True, default='')
     prescriptions = PrescriptionItemSerializer(many=True, required=False, default=list)
     doctor_notes = serializers.CharField(max_length=10000, required=False, allow_blank=True, default='')
     follow_up_date = serializers.DateField(required=False, allow_null=True, default=None)

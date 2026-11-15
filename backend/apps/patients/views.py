@@ -59,6 +59,10 @@ RECORD_DETAIL_EXAMPLE = {
     'symptoms': 'Fever and sore throat for 3 days',
     'diagnosis': 'Acute pharyngitis',
     'prescriptions': PRESCRIPTION_EXAMPLE,
+    'prescription_documents': [{
+        'id': 3, 'original_name': 'prescription.jpg', 'uploaded_at': '2026-02-12T11:04:00+05:30',
+        'download_url': 'https://api.lalaharihealth.com/api/v1/consultations/41/prescription-documents/3/download/',
+    }],
     'doctor_notes': 'Drink warm fluids and take rest.',
     'follow_up': {'date': '2026-02-19', 'notes': 'Follow up after 1 week if symptoms persist.'},
     'record_updated_at': '2026-02-12T11:05:00+05:30',
@@ -283,7 +287,7 @@ def medical_records(user):
     return (
         accessible_consultations(user).exclude(status=Consultation.Status.DRAFT)
         .select_related('appointment', 'doctor__doctor_profile')
-        .prefetch_related('prescription_items', 'documents')
+        .prefetch_related('prescription_items', 'prescription_documents', 'documents')
         .order_by('-scheduled_at', '-created_at')
     )
 

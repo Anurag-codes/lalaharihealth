@@ -17,7 +17,7 @@ from rest_framework.test import APITestCase
 from apps.appointments.models import Appointment
 from apps.accounts.models import VerifiedIdentity
 from apps.appointments.video_calls import eligible_appointment
-from apps.consultations.models import Consultation, ConsultationDocument, PrescriptionItem
+from apps.consultations.models import Consultation, ConsultationDocument, PrescriptionDocument, PrescriptionItem
 from apps.doctors.models import DoctorProfile
 from .models import FamilyMember, PatientProfile, years_since
 
@@ -564,7 +564,7 @@ class DoctorRecordTests(ProfileApiTestBase):
         response = self.client.put(self.url, bad, format='json')
         self.assertEqual(response.status_code, 400)
         self.assertEqual(set(response.data['prescriptions'][0]), {'timings', 'food_relation', 'duration_days'})
-        self.assertEqual(self.client.put(self.url, {**self.payload, 'diagnosis': ''}, format='json').status_code, 400)
+        self.assertEqual(self.client.put(self.url, {**self.payload, 'diagnosis': ''}, format='json').status_code, 200)
 
     def test_assigned_doctor_can_download_intake_document(self):
         document = ConsultationDocument.objects.create(
@@ -589,3 +589,72 @@ class DoctorRecordTests(ProfileApiTestBase):
             self.assertIn(path, schema['paths'])
         examples = schema['paths']['/api/v1/patients/family-members/']['post']['requestBody']['content']['application/json']['examples']
         self.assertIn('AddSpouse', examples)
+
+
+class PrescriptionDocumentTests(ProfileApiTestBase):
+    def setUp(self):
+        super().setUp()
+        storage = FileSystemStorage(location=self.storage_directory.name)
+        storage_patch = patch.object(PrescriptionDocument._meta.get_field('file'), 'storage', storage)
+        storage_patch.start()
+        self.addCleanup(storage_patch.stop)
+        self.doctor = self.make_doctor()
+        self.consultation = self.booking(doctor=self.doctor)
+        self.url = f'/api/v1/doctors/me/consultations/{self.consultation.pk}/record/documents/'
+        self.client.force_authenticate(self.doctor)
+
+    def upload(self, *files):
+        return self.client.post(self.url, {'files': list(files)}, format='multipart')
+
+    def page(self, name='page.png'):
+        return SimpleUploadedFile(name, png_bytes(), content_type='image/png')
+
+    def test_upload_publish_download_and_delete(self):
+        response = self.upload(self.page('page-1.png'), SimpleUploadedFile('page-2.pdf', b'%PDF-1.4 test'))
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual([row['original_name'] for row in response.data], ['page-1.png', 'page-2.pdf'])
+        download_path = f"/api/v1/consultations/{self.consultation.pk}/prescription-documents/{response.data[0]['id']}/download/"
+        record_url = f'/api/v1/patients/medical-records/{self.consultation.pk}/'
+
+        self.client.force_authenticate(self.patient)
+        self.assertEqual(self.client.get(record_url).data['prescription_documents'], [])
+        self.assertEqual(self.client.get(download_path).status_code, 404)
+
+        # Nothing typed: the doctor completes with only the photos
+        self.client.force_authenticate(self.doctor)
+        completed = self.client.put(f'/api/v1/doctors/me/consultations/{self.consultation.pk}/record/', {'mark_completed': True}, format='json')
+        self.assertEqual(completed.status_code, 200, completed.data)
+        self.assertEqual(len(completed.data['prescription_documents']), 2)
+
+        self.client.force_authenticate(self.patient)
+        record = self.client.get(record_url).data
+        self.assertTrue(record['has_clinical_record'])
+        self.assertEqual(len(record['prescription_documents']), 2)
+        download = self.client.get(download_path)
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(b''.join(download.streaming_content), png_bytes())
+
+        self.client.force_authenticate(self.doctor)
+        document = PrescriptionDocument.objects.get(pk=response.data[0]['id'])
+        stored_name = document.file.name
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.client.delete(f'{self.url}{document.pk}/').status_code, 204)
+        self.assertFalse(document.file.storage.exists(stored_name))
+        self.assertEqual(len(self.client.get(self.url).data), 1)
+
+    def test_validation_and_permissions(self):
+        self.assertEqual(self.upload(SimpleUploadedFile('notes.txt', b'hello')).status_code, 400)
+        self.assertEqual(self.client.post(self.url, {}, format='multipart').status_code, 400)
+        for user, expected in [(self.make_doctor('other-doctor'), 404), (self.patient, 403)]:
+            self.client.force_authenticate(user)
+            self.assertEqual(self.upload(self.page()).status_code, expected)
+        self.client.force_authenticate(self.doctor)
+        Appointment.objects.filter(consultation=self.consultation).update(status='finding_doctor')
+        self.assertEqual(self.upload(self.page()).status_code, 400)
+        self.assertFalse(PrescriptionDocument.objects.exists())
+
+    def test_per_consultation_limit(self):
+        self.assertEqual(self.upload(*[self.page(f'p{index}.png') for index in range(10)]).status_code, 201)
+        self.assertEqual(self.upload(*[self.page(f'q{index}.png') for index in range(10)]).status_code, 201)
+        self.assertEqual(self.upload(self.page()).status_code, 400)
+        self.assertEqual(PrescriptionDocument.objects.count(), 20)
