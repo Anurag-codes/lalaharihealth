@@ -170,7 +170,7 @@ def deliver_push(notification_ids):
             'id', 'user_id', 'kind', 'title', 'body', 'appointment_id', 'consultation_id',
         )
         for notification in notifications.iterator():
-            tokens = list(DeviceToken.objects.filter(user_id=notification.user_id, is_active=True).values_list('token', flat=True))
+            tokens = list(DeviceToken.objects.filter(user_id=notification.user_id, user__is_active=True, is_active=True).values_list('token', flat=True))
             if not tokens:
                 continue
             data = {

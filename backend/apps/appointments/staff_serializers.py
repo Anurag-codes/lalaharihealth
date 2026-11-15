@@ -49,6 +49,8 @@ def loaded_video_room(appointment):
 def lock_reason(appointment):
     """Why staff cannot assign/reschedule now, from preloaded rows. The assignment API re-checks under row locks."""
     consultation = appointment.consultation
+    if appointment.patient.deleted_at:
+        return 'The booking account was deleted. Resolve this appointment with support; do not assign new care.'
     if appointment.status not in ASSIGNABLE:
         return 'Only paid or approved free appointments awaiting a doctor, or confirmed appointments, can be assigned.'
     payment = loaded_payment(consultation)
@@ -97,6 +99,8 @@ STATUS_HELP = 'pending, awaiting_payment, finding_doctor, confirmed, completed o
 
 
 class StaffAppointmentSerializer(serializers.Serializer):
+    booker_account_deleted = serializers.BooleanField()
+    doctor_account_deleted = serializers.BooleanField()
     coupon_code = serializers.CharField(allow_blank=True)
     free_consultation_doctor = serializers.IntegerField(allow_null=True)
     id = serializers.IntegerField()
@@ -140,6 +144,8 @@ class StaffAppointmentSerializer(serializers.Serializer):
         profile = getattr(doctor, 'doctor_profile', None) if doctor else None
         reason = lock_reason(appointment)
         return {
+            'booker_account_deleted': appointment.patient.deleted_at is not None,
+            'doctor_account_deleted': doctor is not None and doctor.deleted_at is not None,
             'id': appointment.pk, 'appointment_number': f'APT-{appointment.pk:05d}',
             'status': appointment.status, 'status_label': appointment.get_status_display(),
             'slot_time': appointment.slot_time, 'schedule_date': timezone.localtime(appointment.slot_time).date(),

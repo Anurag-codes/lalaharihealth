@@ -17,6 +17,7 @@ class User(AbstractUser):
     is_email_verified = models.BooleanField(default=False)
     city = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    deleted_at = models.DateTimeField(null=True, blank=True, editable=False, help_text='User-requested account closure; retained for clinical and financial records.')
 
     def __str__(self):
         return self.username
@@ -35,15 +36,16 @@ class VerifiedIdentity(models.Model):
     value = models.CharField(max_length=254)
     firebase_uid = models.CharField(max_length=128, null=True, blank=True)
     verified_at = models.DateTimeField(auto_now_add=True)
+    retired_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['role', 'kind', 'value'], name='unique_verified_contact_per_role'),
+            models.UniqueConstraint(fields=['role', 'kind', 'value'], condition=models.Q(retired_at__isnull=True), name='unique_verified_contact_per_role'),
             models.UniqueConstraint(
-                fields=['role', 'firebase_uid'], condition=models.Q(firebase_uid__isnull=False),
+                fields=['role', 'firebase_uid'], condition=models.Q(firebase_uid__isnull=False, retired_at__isnull=True),
                 name='unique_firebase_uid_per_role',
             ),
-            models.UniqueConstraint(fields=['user', 'kind'], name='one_contact_kind_per_user'),
+            models.UniqueConstraint(fields=['user', 'kind'], condition=models.Q(retired_at__isnull=True), name='one_contact_kind_per_user'),
         ]
 
 

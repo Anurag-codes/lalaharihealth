@@ -53,12 +53,21 @@ class DoctorAvailabilityInline(admin.TabularInline):
 
 @admin.register(DoctorProfile)
 class DoctorProfileAdmin(admin.ModelAdmin):
+    readonly_fields = ('account_deleted_at',)
     list_display = ('user', 'phone', 'speciality', 'specialization', 'city', 'verification_status', 'consultation_fee', 'is_active')
     list_filter = ('verification_status', 'speciality', 'is_active', 'city')
     search_fields = ('user__username', 'user__first_name', 'user__last_name', 'user__phone_number', 'registration_number')
     list_select_related = ('user', 'speciality')
     raw_id_fields = ('application',)
     inlines = [DoctorDocumentInline, DoctorAvailabilityInline]
+
+    def has_change_permission(self, request, obj=None):
+        if obj is not None and obj.account_deleted_at:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     @admin.display(description='Phone', ordering='user__phone_number')
     def phone(self, obj):

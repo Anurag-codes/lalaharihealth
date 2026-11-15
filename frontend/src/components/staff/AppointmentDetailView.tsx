@@ -141,6 +141,16 @@ export function AppointmentDetailView({ id }: { id: string }) {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="min-w-0 space-y-6 lg:col-span-2">
+          {(a.booker_account_deleted || a.doctor_account_deleted) && (
+            <Card title="Account deleted - staff action required">
+              <p className="text-sm text-amber-800">
+                {a.booker_account_deleted ? "The booking account has been deleted. " : ""}
+                {a.doctor_account_deleted ? "The assigned doctor has deleted their account. " : ""}
+                Records and payment remain unchanged. Contact support to resolve outstanding care,
+                reassignment or refunds; do not transfer records to a new account automatically.
+              </p>
+            </Card>
+          )}
           {a.needs_completion_confirmation && (
             <Card title="Completion needs confirmation" description="The doctor marked this consultation as completed.">
               <button

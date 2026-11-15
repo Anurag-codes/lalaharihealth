@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .doctor_views import DoctorFirebasePhoneView, DoctorLogoutView, DoctorRefreshView
 from .staff_views import StaffLoginView, StaffLogoutView
+from .deletion import DoctorAccountDeletionView, PatientAccountDeletionView
 from .views import (
     EmailOtpRequestView, EmailOtpVerifyView, FirebasePhoneView,
     LinkEmailRequestView, LinkEmailVerifyView, LinkPhoneView,
@@ -11,6 +12,8 @@ from .views import (
 app_name = 'accounts'
 
 urlpatterns = [
+    path('patient/account/', PatientAccountDeletionView.as_view(), name='patient-delete-account'),
+    path('doctor/account/', DoctorAccountDeletionView.as_view(), name='doctor-delete-account'),
     path('token/', TokenObtainPairView.as_view(), name='token-obtain'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('patient/email/request-otp/', EmailOtpRequestView.as_view(), name='patient-email-request'),

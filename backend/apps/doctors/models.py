@@ -72,7 +72,7 @@ class DoctorProfile(models.Model):
     )
     qualification = models.CharField(max_length=255, blank=True)
     registration_number = models.CharField(
-        max_length=100, unique=True, null=True, blank=True, help_text='Medical Council registration number',
+        max_length=100, null=True, blank=True, help_text='Medical Council registration number',
     )
     experience_years = models.PositiveSmallIntegerField(default=0)
     bio = models.TextField(blank=True)
@@ -86,10 +86,17 @@ class DoctorProfile(models.Model):
     )
     average_rating = models.DecimalField(max_digits=3, decimal_places=2, default=0)
     is_active = models.BooleanField(default=True)
+    account_deleted_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['registration_number'], condition=models.Q(account_deleted_at__isnull=True),
+                name='unique_unarchived_doctor_registration',
+            ),
+        ]
 
     def __str__(self):
         return f'Dr. {self.user.get_full_name() or self.user.username}'

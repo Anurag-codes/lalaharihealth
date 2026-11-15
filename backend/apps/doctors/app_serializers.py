@@ -139,7 +139,7 @@ class DoctorMeUpdateSerializer(serializers.Serializer):
 
     def validate_registration_number(self, value):
         value = value.strip()
-        if value and DoctorProfile.objects.filter(registration_number__iexact=value).exclude(pk=self.instance.pk).exists():
+        if value and DoctorProfile.objects.filter(registration_number__iexact=value, account_deleted_at__isnull=True).exclude(pk=self.instance.pk).exists():
             raise serializers.ValidationError('This registration number is already registered with another doctor.')
         return value
 

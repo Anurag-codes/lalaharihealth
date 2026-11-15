@@ -12,6 +12,7 @@ def beneficiary_filter(user):
     if user.is_active and user.role == User.Role.PATIENT and not user.is_staff and not user.is_superuser:
         for phone in VerifiedIdentity.objects.filter(
             user=user, role=User.Role.PATIENT, kind=VerifiedIdentity.Kind.PHONE,
+            retired_at__isnull=True,
         ).values_list('value', flat=True):
             phones.add(phone)
             if phone.startswith('+'):

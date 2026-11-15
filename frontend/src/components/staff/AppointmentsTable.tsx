@@ -89,6 +89,9 @@ export function AppointmentsTable({
               </td>
               <td className="px-3 py-3">
                 <StatusBadge status={item.status} label={item.status_label} />
+                {(item.booker_account_deleted || item.doctor_account_deleted) && (
+                  <p className="mt-1 text-xs font-semibold text-amber-800">Account deleted - review needed</p>
+                )}
               </td>
               <td className="px-3 py-3">
                 <PaymentBadge status={item.payment_status} />

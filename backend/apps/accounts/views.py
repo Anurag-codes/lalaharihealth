@@ -100,11 +100,13 @@ class EmailOtpVerifyView(PublicAuthView):
         rate_limit('email-verify-ip', request_ip(request), settings.PATIENT_AUTH_VERIFY_HOURLY_LIMIT)
         serializer = EmailOtpVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = consume_email_otp(
+        email, challenge_created_at = consume_email_otp(
             challenge_id=serializer.validated_data['request_id'], code=serializer.validated_data['otp'],
             link_user=request.user if self.link else None,
         )
-        user, created = email_identity(email, link_user=request.user if self.link else None)
+        user, created = email_identity(
+            email, link_user=request.user if self.link else None, authenticated_at=challenge_created_at.timestamp(),
+        )
         return auth_response(user, created)
 
 

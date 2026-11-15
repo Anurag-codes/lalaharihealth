@@ -166,6 +166,27 @@ integration. Session creation/joining stays in the app's SDK integration; call
 completion remains separate from consultation completion. See the README's
 Zoho Meeting SDK call outcomes section for requests and retry behavior.
 
+### Account-deletion APIs
+
+Run `python manage.py migrate` for `accounts.0004_account_deletion` and
+`doctors.0012_account_deletion`, rebuild the frontend and restart backend/frontend services.
+Apply both together before serving the new code. No env changes or migration-time record deletion.
+
+The apps call `DELETE /api/v1/auth/patient/account/` or `/api/v1/auth/doctor/account/`
+with the corresponding access JWT and `{"confirm": true}`. This closes access immediately,
+retires login identities, revokes backend refresh tokens and preserves historical clinical/payment
+records. Fresh OTP signup creates a different account; doctor signup needs fresh verification.
+Do not hard-delete archived users, restore their verification or merge old records into new users.
+Doctor registration uniqueness now excludes archived profiles, not ordinary inactive profiles.
+
+Staff must monitor Django admin Users filtered by `deleted_at` and the account-deleted warnings
+on staff appointment list/detail. Unfinished care/payments are not automatically cancelled/refunded.
+The API intentionally reports `account_closed`, not completed data erasure.
+See README's **Patient and doctor account deletion** section for the app contract, external
+Firebase/100ms limitations and required legal/CA retention review, non-required-data deletion,
+privacy disclosures and Google Play public web request resource before claiming compliance.
+No automatic purge/retention period is configured.
+
 ### 100ms appointment video setup
 
 For 100ms SDK video consultations, configure `HMS_ACCESS_KEY`, `HMS_APP_SECRET`

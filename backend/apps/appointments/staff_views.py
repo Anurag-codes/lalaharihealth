@@ -37,6 +37,7 @@ UNPAID_STATUSES = (Appointment.Status.PENDING, Appointment.Status.AWAITING_PAYME
 TIME_ORDERED_QUEUES = ('needs_doctor', 'overdue', 'today', 'upcoming')
 
 ITEM_EXAMPLE = {
+    'booker_account_deleted': False, 'doctor_account_deleted': False,
     'coupon_code': '', 'free_consultation_doctor': None,
     'id': 18, 'appointment_number': 'APT-00018', 'status': 'finding_doctor', 'status_label': 'Finding doctor',
     'slot_time': '2026-11-16T10:00:00+05:30', 'schedule_date': '2026-11-16', 'schedule_time': '10:00 AM',

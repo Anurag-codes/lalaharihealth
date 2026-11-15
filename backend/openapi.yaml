@@ -803,6 +803,42 @@ paths:
                 Error:
                   value:
                     detail: Authentication credentials were not provided.
+  /api/v1/auth/doctor/account/:
+    delete:
+      operationId: auth_doctor_account_destroy
+      description: 'Authenticated, explicit account closure. Send {"confirm": true}.
+        Disables only your own account, revokes all backend refresh tokens, blocks
+        old access JWTs and removes push-device registrations. Clinical, appointment,
+        payment, invoice/settlement and attribution records remain under the old account
+        for restricted retention/review; this is not full data erasure. Unfinished
+        appointments stay unchanged for staff resolution; no automatic cancellation
+        or refund. The same contact can register a separate account only after a fresh
+        OTP authenticated after closure. Old account records/verification are not
+        transferred. Patient and doctor accounts on the same phone are separate. After
+        success clear local data/tokens and sign out of Firebase. Repeating with an
+        old JWT returns 401 because access was revoked; do not automatically sign
+        in or create a new account to retry deletion. Disables doctor availability.
+        New signup requires onboarding and fresh staff verification.'
+      summary: Delete the signed-in doctor account (retain clinical/financial records)
+      tags:
+      - 'Doctor app: authentication'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
   /api/v1/auth/doctor/logout/:
     post:
       operationId: auth_doctor_logout_create
@@ -1026,6 +1062,41 @@ paths:
                   value:
                     field_name:
                     - This field is required.
+  /api/v1/auth/patient/account/:
+    delete:
+      operationId: auth_patient_account_destroy
+      description: 'Authenticated, explicit account closure. Send {"confirm": true}.
+        Disables only your own account, revokes all backend refresh tokens, blocks
+        old access JWTs and removes push-device registrations. Clinical, appointment,
+        payment, invoice/settlement and attribution records remain under the old account
+        for restricted retention/review; this is not full data erasure. Unfinished
+        appointments stay unchanged for staff resolution; no automatic cancellation
+        or refund. The same contact can register a separate account only after a fresh
+        OTP authenticated after closure. Old account records/verification are not
+        transferred. Patient and doctor accounts on the same phone are separate. After
+        success clear local data/tokens and sign out of Firebase. Repeating with an
+        old JWT returns 401 because access was revoked; do not automatically sign
+        in or create a new account to retry deletion.'
+      summary: Delete the signed-in patient account (retain clinical/financial records)
+      tags:
+      - Patient authentication
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
   /api/v1/auth/patient/email/request-otp/:
     post:
       operationId: auth_patient_email_request_otp_create
@@ -8143,7 +8214,9 @@ paths:
                     next: null
                     previous: null
                     results:
-                    - coupon_code: ''
+                    - booker_account_deleted: false
+                      doctor_account_deleted: false
+                      coupon_code: ''
                       free_consultation_doctor: null
                       id: 18
                       appointment_number: APT-00018
@@ -8229,6 +8302,8 @@ paths:
               examples:
                 Appointment:
                   value:
+                    booker_account_deleted: false
+                    doctor_account_deleted: false
                     coupon_code: ''
                     free_consultation_doctor: null
                     id: 18
@@ -8512,6 +8587,8 @@ paths:
               examples:
                 Updated:
                   value:
+                    booker_account_deleted: false
+                    doctor_account_deleted: false
                     coupon_code: ''
                     free_consultation_doctor: null
                     id: 18
@@ -12960,6 +13037,10 @@ components:
     StaffAppointment:
       type: object
       properties:
+        booker_account_deleted:
+          type: boolean
+        doctor_account_deleted:
+          type: boolean
         coupon_code:
           type: string
         free_consultation_doctor:
@@ -13043,6 +13124,7 @@ components:
       - amount_display
       - appointment_number
       - booker
+      - booker_account_deleted
       - can_assign
       - can_edit_patient
       - category
@@ -13051,6 +13133,7 @@ components:
       - currency
       - date_display
       - doctor
+      - doctor_account_deleted
       - free_consultation_doctor
       - id
       - is_overdue
@@ -13071,6 +13154,10 @@ components:
     StaffAppointmentDetail:
       type: object
       properties:
+        booker_account_deleted:
+          type: boolean
+        doctor_account_deleted:
+          type: boolean
         coupon_code:
           type: string
         free_consultation_doctor:
@@ -13200,6 +13287,7 @@ components:
       - amount_display
       - appointment_number
       - booker
+      - booker_account_deleted
       - calls
       - can_assign
       - can_edit_patient
@@ -13213,6 +13301,7 @@ components:
       - currency
       - date_display
       - doctor
+      - doctor_account_deleted
       - documents
       - duration_display
       - family_member_id

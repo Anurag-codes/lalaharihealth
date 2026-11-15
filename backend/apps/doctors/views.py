@@ -82,6 +82,7 @@ class FeaturedDoctorListView(generics.ListAPIView):
 
     def get_queryset(self):
         approved = DoctorApplication.objects.filter(status=DoctorApplication.Status.APPROVED)
+        approved = approved.exclude(doctor_profiles__user__deleted_at__isnull=False)
         return approved.order_by('-created_at', '-id')[:MAX_FEATURED_DOCTORS]
 
 

@@ -7,6 +7,7 @@ from smtplib import SMTPException
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, Throttled, ValidationError
@@ -20,12 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 def require_patient(user):
-    if not user.is_active or user.role != User.Role.PATIENT or user.is_staff or user.is_superuser:
+    if not user.is_active or user.deleted_at or user.role != User.Role.PATIENT or user.is_staff or user.is_superuser:
         raise PermissionDenied('An active patient account is required.')
 
 
 def require_doctor(user):
-    if not user.is_active or user.role != User.Role.DOCTOR or user.is_staff or user.is_superuser:
+    if not user.is_active or user.deleted_at or user.role != User.Role.DOCTOR or user.is_staff or user.is_superuser:
         raise PermissionDenied('An active doctor account is required.')
 
 
@@ -121,22 +122,41 @@ def consume_email_otp(challenge_id, code, link_user=None):
             email = challenge.email
     if not valid:
         raise ValidationError({'otp': 'Invalid or expired code. Request a new code if needed.'})
-    return email
+    return email, challenge.created_at
 
 
-def resolve_identity(kind, value, link_user=None, firebase_uid=None, role=User.Role.PATIENT):
+def lock_contact(role, kind, value):
+    """Serialize identity creation/retirement even when no active identity row exists."""
+    key = salted_hmac('account-contact-lock', f'{role}:{kind}:{value}', algorithm='sha256').hexdigest()
+    AuthRateLimit.objects.get_or_create(key=key, defaults={'window_start': timezone.now()})
+    AuthRateLimit.objects.select_for_update().get(pk=key)
+
+
+def latest_account_deletion(role, kind, value, firebase_uid=None):
+    contact = Q(verified_identities__role=role, verified_identities__kind=kind, verified_identities__value=value)
+    contact |= Q(email__iexact=value) if kind == VerifiedIdentity.Kind.EMAIL else Q(phone_number=value)
+    if firebase_uid:
+        contact |= Q(verified_identities__role=role, verified_identities__firebase_uid=firebase_uid)
+    return User.objects.filter(role=role, deleted_at__isnull=False).filter(contact).order_by('-deleted_at').values_list('deleted_at', flat=True).first()
+
+
+def resolve_identity(kind, value, link_user=None, firebase_uid=None, role=User.Role.PATIENT, authenticated_at=None):
     """Call inside an atomic block; database uniqueness arbitrates concurrent sign-ins.
 
     Identities are scoped by role: the same phone can sign in to one patient and one separate doctor account.
     """
+    lock_contact(role, kind, value)
+    deleted_at = latest_account_deletion(role, kind, value, firebase_uid)
+    if deleted_at and (authenticated_at is None or authenticated_at <= deleted_at.timestamp()):
+        raise AuthenticationFailed('This contact belonged to a deleted account. Verify a new OTP before registering again.')
     if link_user:
         user = User.objects.select_for_update().get(pk=link_user.pk)
         require_role(user, role)
     else:
         user = None
-    identity = VerifiedIdentity.objects.select_for_update().filter(role=role, kind=kind, value=value).first()
+    identity = VerifiedIdentity.objects.filter(role=role, kind=kind, value=value, retired_at__isnull=True).first()
     if firebase_uid:
-        uid_identity = VerifiedIdentity.objects.filter(role=role, firebase_uid=firebase_uid).first()
+        uid_identity = VerifiedIdentity.objects.filter(role=role, firebase_uid=firebase_uid, retired_at__isnull=True).first()
         if uid_identity and (identity is None or uid_identity.pk != identity.pk):
             raise ValidationError('This Firebase account is already associated with another phone number. Contact support.')
     created = False
@@ -148,9 +168,9 @@ def resolve_identity(kind, value, link_user=None, firebase_uid=None, role=User.R
         if firebase_uid and identity.firebase_uid != firebase_uid:
             raise ValidationError('This phone number has a different Firebase identity. Contact support to recover the account.')
     else:
-        if user and VerifiedIdentity.objects.filter(user=user, kind=kind).exists():
+        if user and VerifiedIdentity.objects.filter(user=user, kind=kind, retired_at__isnull=True).exists():
             raise ValidationError('This account already has a verified contact of this type. Contact support to change it.')
-        legacy = User.objects.filter(role=role)
+        legacy = User.objects.filter(role=role, deleted_at__isnull=True)
         legacy = legacy.filter(email__iexact=value) if kind == 'email' else legacy.filter(phone_number=value)
         legacy = legacy.exclude(pk=user.pk if user else None)
         staff_doctor = staff_created_doctor(legacy, kind) if role == User.Role.DOCTOR and user is None else None
@@ -187,15 +207,15 @@ def staff_created_doctor(candidates, kind):
     if kind != VerifiedIdentity.Kind.PHONE:
         return None
     matches = list(candidates.filter(is_active=True, is_staff=False, is_superuser=False)[:2])
-    if len(matches) != 1 or VerifiedIdentity.objects.filter(user=matches[0], kind=kind).exists():
+    if len(matches) != 1 or VerifiedIdentity.objects.filter(user=matches[0], kind=kind, retired_at__isnull=True).exists():
         return None
     return matches[0]
 
 
-def email_identity(email, link_user=None):
+def email_identity(email, link_user=None, authenticated_at=None):
     try:
         with transaction.atomic():
-            return resolve_identity(VerifiedIdentity.Kind.EMAIL, email, link_user=link_user)
+            return resolve_identity(VerifiedIdentity.Kind.EMAIL, email, link_user=link_user, authenticated_at=authenticated_at)
     except IntegrityError:
         raise ValidationError('A simultaneous account update occurred. Please sign in again or contact support.') from None
 
@@ -213,6 +233,7 @@ def phone_identity(id_token, claims, link_user=None, role=User.Role.PATIENT):
             return resolve_identity(
                 VerifiedIdentity.Kind.PHONE, claims['phone_number'],
                 link_user=link_user, firebase_uid=claims['uid'], role=role,
+                authenticated_at=claims['auth_time'],
             )
     except IntegrityError:
         raise ValidationError('This token or contact was already used in another request. Please sign in again.') from None

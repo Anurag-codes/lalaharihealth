@@ -75,6 +75,8 @@ def prepare_assignment(appointment_id, doctor_id=None, starts_at=None):
     )
     if appointment.status not in (Appointment.Status.FINDING_DOCTOR, Appointment.Status.CONFIRMED):
         raise ValidationError('Only paid or approved free appointments awaiting matching, or confirmed appointments, can be assigned.')
+    if appointment.patient.deleted_at:
+        raise ValidationError('The booking account was deleted. Resolve this appointment with support; do not assign new care.')
     target_time = starts_at if starts_at is not None else appointment.slot_time
     if doctor_id is None:
         if appointment.status == Appointment.Status.FINDING_DOCTOR or appointment.doctor_id is None:

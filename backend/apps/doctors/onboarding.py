@@ -119,7 +119,11 @@ def ensure_doctor_profile(user):
         user=user, defaults={'specialization': GENERAL_PHYSICIAN},
     )
     if created:
-        application = matching_application(user.phone_number)
+        from apps.accounts.models import User
+
+        # A fresh signup must not import the closed account's application or private documents.
+        previously_deleted = User.objects.filter(role='doctor', phone_number=user.phone_number, deleted_at__isnull=False).exists()
+        application = None if previously_deleted else matching_application(user.phone_number)
         if application is not None:
             import_application(profile, application)
     return profile

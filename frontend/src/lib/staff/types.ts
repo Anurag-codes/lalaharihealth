@@ -36,6 +36,8 @@ export type StaffSummary = {
 export type DoctorRef = { id: number; name: string; specialization: string };
 
 export type AppointmentItem = {
+  booker_account_deleted: boolean;
+  doctor_account_deleted: boolean;
   coupon_code: string;
   free_consultation_doctor: number | null;
   id: number;

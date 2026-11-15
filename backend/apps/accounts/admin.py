@@ -6,11 +6,11 @@ from .models import User, VerifiedIdentity
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('username', 'email', 'role', 'phone_number', 'city', 'is_active')
-    list_filter = ('role', 'is_active', 'is_phone_verified', 'is_email_verified')
-    readonly_fields = ('is_email_verified', 'is_phone_verified')
+    list_display = ('username', 'email', 'role', 'phone_number', 'city', 'is_active', 'deleted_at')
+    list_filter = ('role', 'is_active', 'is_phone_verified', 'is_email_verified', 'deleted_at')
+    readonly_fields = ('is_email_verified', 'is_phone_verified', 'deleted_at')
     fieldsets = UserAdmin.fieldsets + (
-        ('LalahariHealth Profile', {'fields': ('role', 'phone_number', 'is_phone_verified', 'is_email_verified', 'city')}),
+        ('LalahariHealth Profile', {'fields': ('role', 'phone_number', 'is_phone_verified', 'is_email_verified', 'city', 'deleted_at')}),
     )
 
     def get_readonly_fields(self, request, obj=None):
@@ -23,12 +23,20 @@ class CustomUserAdmin(UserAdmin):
                 fields.append('phone_number')
         return fields
 
+    def has_change_permission(self, request, obj=None):
+        if obj is not None and obj.deleted_at:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(VerifiedIdentity)
 class VerifiedIdentityAdmin(admin.ModelAdmin):
-    list_display = ('user', 'kind', 'value', 'verified_at')
+    list_display = ('user', 'kind', 'value', 'verified_at', 'retired_at')
     search_fields = ('value', 'user__username')
-    readonly_fields = ('user', 'kind', 'value', 'firebase_uid', 'verified_at')
+    readonly_fields = ('user', 'kind', 'value', 'firebase_uid', 'verified_at', 'retired_at')
 
     def has_add_permission(self, request):
         return False

@@ -260,6 +260,88 @@ responses. Examples that views do not declare themselves come from
 postprocessing hook. `python manage.py test apps.core.tests_openapi` fails if an
 endpoint is missing docs or an example does not match its schema.
 
+### Patient and doctor account deletion
+
+| API | Auth |
+| --- | --- |
+| `DELETE /api/v1/auth/patient/account/` | Patient backend access JWT |
+| `DELETE /api/v1/auth/doctor/account/` | Doctor backend access JWT, including pending-verification doctors |
+
+Both accept JSON `{"confirm": true}` with `Authorization: Bearer <backend-access-token>`.
+No user ID, phone number, Firebase token or refresh token is accepted as a deletion target.
+Wrong role/staff = 403; missing/expired token = 401; missing/false confirmation or extra fields = 400.
+Example 200 response (`Cache-Control: no-store`):
+
+```json
+{
+  "detail": "Account access closed. Your data-deletion request is recorded; retained data and unfinished appointments require staff review.",
+  "status": "account_closed",
+  "deleted_at": "2026-11-15T06:45:00+05:30",
+  "records_retained": true,
+  "unfinished_appointments": 1
+}
+```
+
+**App flow:** Settings -> Delete account -> confirmation explaining retained records and outstanding care ->
+call the role-specific API. On 200, clear local JWTs, cached medical/account data and app session; sign out
+of Firebase. Show "Account access closed; retained data is subject to deletion/retention review", not "All data erased".
+The mobile source is outside this repository. An old access JWT stops working and all outstanding backend
+refresh tokens are blacklisted. Old password/session authentication is invalidated. A repeat with the old JWT
+returns 401, not a second success; after a lost response, treat access as revoked and do not auto-register to retry.
+Firebase sign-out is client-side; this API does not globally delete/revoke the shared Firebase identity, which may
+also serve the other app. Previously issued 100ms credentials/live calls are external and not immediately revoked
+by this operation (join credentials expire after 300 seconds); new backend join requests are denied.
+
+**Retained records:** No user row is hard-deleted and no consultation, appointment, payment, prescription,
+call or document is cascaded away. Historical names/contact fields, profiles, identity audit rows and doctor
+registration details are retained for staff clinical/financial/retention review; this is not anonymisation.
+The old user is inactive with `deleted_at`, verification flags cleared and an unusable password.
+Verified contacts are retired (`retired_at`) rather than removed, releasing their active login uniqueness;
+push-device tokens are removed. Deleted users/profiles are read-only in Django admin, and hard user/profile
+deletion is disabled there to prevent accidental historical cascades.
+
+**Fresh signup:** The same phone/email can create a **new user ID** through the existing OTP login APIs.
+A refreshed Firebase token from the old session is insufficient: its `auth_time` must be after closure
+(Firebase timestamps are whole seconds; an immediate same-second attempt may need another OTP).
+Old email challenges, including linking challenges, cannot be reused; request a new challenge after closure.
+Ordinary admin-disabled accounts are NOT released by this flow and cannot bypass deactivation by signing up again.
+Patient/doctor identities on the same phone remain separate; deleting one does not disable the other.
+The new account does not inherit old bookings, payments, profile or verification. Existing independently verified
+family-beneficiary access rules still apply to family bookings; fresh signup is not an automatic medical-record
+transfer or identity merge.
+
+Doctors register again as Pending Review, must complete onboarding/upload documents and receive fresh staff
+verification; their historical application/documents are not auto-imported. Their original registration number
+is retained on the archived profile and may be submitted by a new profile for verification. Registration uniqueness
+still applies between non-archived profiles. Old doctor availability slots are disabled and linked historical
+applications are removed from the public featured-doctor listing.
+
+**Unfinished appointments:** Per the product decision, disable immediately without cancelling, changing
+payment status or issuing refunds. The response counts unfinished appointments. Staff list/detail includes
+`booker_account_deleted` and `doctor_account_deleted` and shows a review warning. No new doctor assignment is
+allowed on a deleted booker's appointment. A deleted doctor's bookings remain assigned to their historical user
+until staff resolve/reassign them using existing safe assignment rules; started calls/issued join credentials
+still enforce existing locks. Free-offer doctor restrictions remain intact. Staff must resolve care,
+refunds and disputes manually; late signed payment captures can still be recorded against the old booking.
+Do not transfer records/payment ownership to a new account merely because its phone matches.
+
+**Compliance prerequisite (not implemented by simply disabling access):**
+[Apple's account-deletion guidance](https://developer.apple.com/help/app-review/guideline-reference/5-1-1-account-deletion)
+explicitly says disabling alone is insufficient; data not legally required must be deleted, with retained-data
+disclosure. [Google Play requires](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en)
+an in-app deletion path and a public web resource for requesting account/data deletion.
+This API records closure and leaves a restricted retained-data review queue (`Users` filtered by `deleted_at`);
+it is **not a claim of completed personal-data erasure or store/legal compliance**.
+Before publishing, obtain legal/CA-approved retention categories, lawful basis and deadlines, disclose them in
+the app/privacy policy, implement/operate the non-required-data deletion review (including photos, applications,
+Firebase/provider data and backups), and publish the required web request resource. There is no automatic
+purge schedule in this change; do not treat indefinite retention of every profile field as legally justified.
+The code does not decide Indian tax, medical-record or dispute retention periods.
+
+Deploy migrations `accounts.0004_account_deletion` and `doctors.0012_account_deletion`, rebuild the staff
+frontend, and restart both services. No new environment variables. Apply both migrations together before
+serving this code; no existing data is removed by migration.
+
 ### Patient profile section APIs
 
 All patient endpoints need the patient access JWT. Request/response examples for
