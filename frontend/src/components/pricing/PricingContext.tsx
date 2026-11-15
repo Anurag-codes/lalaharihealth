@@ -11,6 +11,8 @@ export type Pricing = {
   currency_symbol: string;
   general_fee: number;
   general_fee_display: string;
+  subscription_fee: number | null;
+  subscription_fee_display: string | null;
   general_doctor_payout_display: string;
   doctor_share_percent: number;
   specialist_fee_min: number;
@@ -27,6 +29,8 @@ export const INDIA_PRICING: Pricing = {
   currency_symbol: "₹",
   general_fee: 200,
   general_fee_display: "₹200",
+  subscription_fee: null,
+  subscription_fee_display: null,
   general_doctor_payout_display: "₹150",
   doctor_share_percent: 75,
   specialist_fee_min: 200,
@@ -152,4 +156,26 @@ export function SpecialistFeeMax() {
 
 export function SpecialistFeeRange() {
   return <>{usePricing().specialist_fee_range_display}</>;
+}
+
+export type SubscriptionPlan = {
+  price: string;
+  perMonth: string;
+  perVisit: string;
+  visitsToBreakEven: number;
+  yearOfMonthlyVisits: string;
+};
+
+/** Yearly plan numbers from the admin-set price, or null when no price is set for this country. */
+export function useSubscriptionPlan(): SubscriptionPlan | null {
+  const { subscription_fee: fee, general_fee: visit, currency_symbol: symbol } = usePricing();
+  // Cached pricing saved before this field existed has no subscription_fee.
+  if (typeof fee !== "number" || fee <= 0 || !(visit > 0)) return null;
+  return {
+    price: formatAmount(fee, symbol),
+    perMonth: formatAmount(Math.ceil(fee / 12), symbol),
+    perVisit: formatAmount(visit, symbol),
+    visitsToBreakEven: Math.ceil(fee / visit),
+    yearOfMonthlyVisits: formatAmount(visit * 12, symbol),
+  };
 }

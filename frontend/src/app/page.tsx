@@ -13,6 +13,7 @@ import { BookConsultation } from "@/components/sections/BookConsultation";
 import { FAQ } from "@/components/sections/FAQ";
 import { FinalCta } from "@/components/sections/FinalCta";
 import { FreeConsultationOffer } from "@/components/sections/FreeConsultationOffer";
+import { SubscriptionTeaser } from "@/components/sections/SubscriptionTeaser";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -32,6 +33,7 @@ export default function Home() {
       </section>
       <FreeConsultationOffer />
       <TrustStats />
+      <SubscriptionTeaser />
       <Hero media={<HealthcareStoryVideos />} howItWorksHref="/get-started#how-it-works" />
       <MedicalCostAwareness />
       <SexualHealth />

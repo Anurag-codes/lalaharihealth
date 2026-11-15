@@ -16,6 +16,7 @@ GENERAL_FEE_EXAMPLE = {
 INDIA_EXAMPLE = {
     'country_code': 'IN', 'country_name': 'India', 'detected_country_code': 'IN', 'source': 'location', 'is_fallback': False,
     'currency': 'INR', 'currency_symbol': '\u20b9', 'general_fee': 200, 'general_fee_display': '\u20b9200',
+    'subscription_fee': 1999, 'subscription_fee_display': '\u20b91,999',
     'doctor_share_percent': 75, 'platform_fee_percent': 25,
     'general_doctor_payout': '150.00', 'general_doctor_payout_display': '\u20b9150',
     'specialist_fee_min': 200, 'specialist_fee_max': 2000, 'specialist_fee_step': 100,
@@ -24,6 +25,7 @@ INDIA_EXAMPLE = {
 US_EXAMPLE = {
     'country_code': 'US', 'country_name': 'United States', 'detected_country_code': 'US', 'source': 'location',
     'is_fallback': False, 'currency': 'USD', 'currency_symbol': '$', 'general_fee': 10, 'general_fee_display': '$10',
+    'subscription_fee': None, 'subscription_fee_display': None,
     'doctor_share_percent': 75, 'platform_fee_percent': 25,
     'general_doctor_payout': '7.50', 'general_doctor_payout_display': '$7.50',
     'specialist_fee_min': 10, 'specialist_fee_max': 100, 'specialist_fee_step': 5,
@@ -42,6 +44,8 @@ class PricingView(generics.GenericAPIView):
             'Public, no login. Send the device/browser location as `lat` and `lng` (the country is found offline on our '
             'server; coordinates are not stored), or an ISO `country` code. With neither, or when that country has no '
             'pricing yet, India prices are returned (`source: "default"`, \u20b9200).\n\n'
+            '`subscription_fee` / `subscription_fee_display` is the yearly unlimited-consultation plan price set by staff; '
+            'null means the plan is not offered in that country (hide it).\n\n'
             'App: call on the home screen and before booking, show `general_fee_display`, and send `country_code` '
             'in `POST /api/v1/consultations/` so checkout charges this amount in this currency. '
             'Specialist bookings (speciality set automatically from the chosen disease) are always charged in INR at the '

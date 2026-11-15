@@ -242,6 +242,7 @@ class CasePreviewView(generics.GenericAPIView):
 			'the "+" of the offset). Nothing is reserved yet. `fee` is the fixed category fee that Submit Case will lock. '
 			'`ready_to_submit` is false with `missing_steps` (patient_details, history, schedule) when something is incomplete '
 			'or the time is no longer selectable (passed, not on a 15-minute step, outside 12:00 AM-11:45 PM or beyond 30 days). '
+			'`fee` is 0 when a free coupon applies or the patient\'s yearly plan covers this general consultation for themself. '
 			'Submit with `POST /api/v1/appointments/`, the same `starts_at` and `information_confirmed: true`.'
 		),
 		parameters=[OpenApiParameter(
@@ -277,6 +278,11 @@ class CasePreviewView(generics.GenericAPIView):
 			schedule['date_display'] = display_date(schedule['starts_at'])
 			schedule['time_display'] = display_time(schedule['starts_at'])
 		missing = []
+		plan = None
+		if appointment is None and offer is None and schedule:
+			from apps.payments.subscriptions import subscription_for_booking
+
+			plan = subscription_for_booking(consultation, schedule['starts_at'])
 		if not all([consultation.patient_name, consultation.patient_age is not None, consultation.patient_gender, consultation.patient_phone]):
 			missing.append('patient_details')
 		if not consultation.history_completed:
@@ -303,7 +309,7 @@ class CasePreviewView(generics.GenericAPIView):
 			'schedule': schedule,
 			'documents': DocumentSerializer(documents, many=True, context={'request': request}).data,
 			'document_count': len(documents),
-			'fee': consultation.fee_charged if appointment is not None else (0 if offer else consultation.expected_fee),
+			'fee': consultation.fee_charged if appointment is not None else (0 if offer or plan else consultation.expected_fee),
 			'currency': consultation.currency if appointment is not None else ('INR' if offer else consultation.expected_currency),
 			'coupon_code': appointment.coupon_code if appointment is not None else (offer.coupon_code if offer else ''),
 			'free_consultation_doctor': appointment.free_consultation_doctor_id if appointment is not None else (offer.doctor_id if offer else None),

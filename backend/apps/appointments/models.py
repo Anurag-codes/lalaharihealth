@@ -97,6 +97,10 @@ class Appointment(models.Model):
         settings.AUTH_USER_MODEL, related_name='+', on_delete=models.PROTECT, null=True, blank=True, editable=False,
         help_text='Doctor selected when a free coupon was redeemed. Staff cannot assign another doctor.',
     )
+    subscription = models.ForeignKey(
+        'payments.Subscription', related_name='appointments', on_delete=models.PROTECT, null=True, blank=True,
+        editable=False, help_text='Yearly plan that covered this booking (no payment taken).',
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     paid_at = models.DateTimeField(null=True, blank=True)
     doctor_assigned_at = models.DateTimeField(null=True, blank=True)
@@ -130,10 +134,10 @@ class Appointment(models.Model):
 
     @property
     def is_free_consultation(self):
-        return bool(
-            self.coupon_code and self.free_consultation_doctor_id
-            and self.consultation.fee_charged == 0 and self.consultation.speciality_id is None
-        )
+        """No payment due: a redeemed free-offer coupon or the patient's yearly subscription."""
+        if self.consultation.fee_charged != 0 or self.consultation.speciality_id is not None:
+            return False
+        return bool((self.coupon_code and self.free_consultation_doctor_id) or self.subscription_id)
 
     def set_status(self, status):
         """Change status, stamp when it happened and return the fields to save."""

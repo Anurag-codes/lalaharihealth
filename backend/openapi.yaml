@@ -105,6 +105,8 @@ paths:
         Next: create a payment order for the returned appointment (Checkout). After payment the status is `finding_doctor` until staff assign a doctor (`confirmed`).
 
         Free general offer: send coupon_code and doctor_id from GET /api/v1/appointments/free-consultation-offer/. The server validates the active offer and sets amount=0, payment_required=false, payment_status=not_required, status=finding_doctor. Skip Razorpay. Staff must assign the coupon doctor; expiry does not revoke submitted bookings.
+
+        Yearly plan: when the patient has an active subscription (`GET /api/v1/payments/subscription/`) covering `starts_at`, a general physician booking for themself (not a family member, not a speciality) is created the same way with amount=0, payment_required=false and status=finding_doctor. No coupon is needed. Skip Razorpay.
       summary: 'Submit Case: create the appointment at the chosen time'
       tags:
       - Mobile scheduling
@@ -3195,8 +3197,9 @@ paths:
         `ready_to_submit` is false with `missing_steps` (patient_details, history,
         schedule) when something is incomplete or the time is no longer selectable
         (passed, not on a 15-minute step, outside 12:00 AM-11:45 PM or beyond 30 days).
-        Submit with `POST /api/v1/appointments/`, the same `starts_at` and `information_confirmed:
-        true`.'
+        `fee` is 0 when a free coupon applies or the patient''s yearly plan covers
+        this general consultation for themself. Submit with `POST /api/v1/appointments/`,
+        the same `starts_at` and `information_confirmed: true`.'
       summary: 'Case Preview: everything entered, before "Submit Case"'
       parameters:
       - in: path
@@ -8135,6 +8138,268 @@ paths:
                 Error:
                   value:
                     detail: Razorpay is not configured on the server.
+  /api/v1/payments/subscription/:
+    get:
+      operationId: payments_subscription_retrieve
+      description: 'Price is the staff-set subscription fee for the country (same
+        as `subscription_fee` in `GET /api/v1/pricing/`). available=false: hide the
+        plan. Show Buy/Renew only when can_purchase=true. The yearly plan covers unlimited
+        general physician consultations for the buyer themself only (patient_relation
+        self, no family_member). Specialist and family bookings are still paid.'
+      summary: 'Yearly plan: price and my status'
+      parameters:
+      - in: query
+        name: country_code
+        schema:
+          type: string
+          pattern: ^[A-Za-z]{2}$
+          minLength: 1
+        description: ISO country code from pricing (step 1). Missing or not configured
+          = default country (India).
+      tags:
+      - Mobile subscription
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+              examples:
+                Example:
+                  value:
+                    available: true
+                    country_code: IN
+                    amount: 999
+                    currency: INR
+                    amount_display: ₹999
+                    valid_days: 365
+                    is_active: true
+                    active_until: '2027-10-18T18:37:19+05:30'
+                    can_purchase: false
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '403':
+          description: Signed in, but not allowed (wrong role or account).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: An active patient account is required.
+  /api/v1/payments/subscription/orders/:
+    post:
+      operationId: payments_subscription_orders_create
+      description: Send country_code (optional) and card/upi. The server sets the
+        amount from the subscription fee. Open the Razorpay SDK with key_id, gateway_order_id,
+        amount (paise) and currency, then call subscription/verify/. 400 when the
+        plan is not offered or the current plan has more than 30 days left. 503 when
+        Razorpay is not configured.
+      summary: 'Buy yearly plan: create/reuse Razorpay order'
+      tags:
+      - Mobile subscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionOrderRequest'
+            examples:
+              Example:
+                value:
+                  country_code: IN
+                  method: upi
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubscriptionOrderRequest'
+            examples:
+              Example:
+                value:
+                  country_code: IN
+                  method: upi
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubscriptionOrderRequest'
+            examples:
+              Example:
+                value:
+                  country_code: IN
+                  method: upi
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionCheckoutOrder'
+              examples:
+                Example:
+                  value:
+                    subscription_id: 1
+                    gateway_order_id: order_PJ9sB2yZaR3cD4
+                    key_id: rzp_live_AbCdEf123456
+                    amount: 99900
+                    currency: INR
+                    status: pending
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                  - Your plan is active until 18 Oct 2027. You can renew in its last
+                    30 days.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '403':
+          description: Signed in, but not allowed (wrong role or account).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: An active patient account is required.
+        '503':
+          description: Service is not configured or temporarily unavailable on the
+            server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Razorpay is not configured on the server.
+  /api/v1/payments/subscription/verify/:
+    post:
+      operationId: payments_subscription_verify_create
+      description: Call after Razorpay SDK success. The server checks the signature
+        and that Razorpay captured the exact amount, then activates the plan for 365
+        days (a renewal starts when the current plan ends). Safe to repeat.
+      summary: 'Buy yearly plan: verify Razorpay result and activate'
+      tags:
+      - Mobile subscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionVerification'
+            examples:
+              Example:
+                value:
+                  subscription_id: 1
+                  razorpay_payment_id: pay_PJ9tC3zAbS4dE5
+                  razorpay_signature: ba839dcbf2a9028a379f8aae8de92443af7330d0d2e77bb30bd6be301a080544
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubscriptionVerification'
+            examples:
+              Example:
+                value:
+                  subscription_id: 1
+                  razorpay_payment_id: pay_PJ9tC3zAbS4dE5
+                  razorpay_signature: ba839dcbf2a9028a379f8aae8de92443af7330d0d2e77bb30bd6be301a080544
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubscriptionVerification'
+            examples:
+              Example:
+                value:
+                  subscription_id: 1
+                  razorpay_payment_id: pay_PJ9tC3zAbS4dE5
+                  razorpay_signature: ba839dcbf2a9028a379f8aae8de92443af7330d0d2e77bb30bd6be301a080544
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+              examples:
+                Example:
+                  value:
+                    id: 1
+                    country_code: IN
+                    amount: 999
+                    currency: INR
+                    method: upi
+                    status: active
+                    starts_at: '2026-10-18T18:37:19+05:30'
+                    ends_at: '2027-10-18T18:37:19+05:30'
+                    paid_at: '2026-10-18T18:37:19+05:30'
+                    gateway_order_id: order_PJ9sB2yZaR3cD4
+                    transaction_id: pay_PJ9tC3zAbS4dE5
+                    created_at: '2026-10-18T18:35:02+05:30'
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                  - Gateway payment is not a captured payment for this order and amount.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
   /api/v1/payments/verify/:
     post:
       operationId: payments_verify_create
@@ -8328,6 +8593,8 @@ paths:
       description: |-
         Public, no login. Send the device/browser location as `lat` and `lng` (the country is found offline on our server; coordinates are not stored), or an ISO `country` code. With neither, or when that country has no pricing yet, India prices are returned (`source: "default"`, ₹200).
 
+        `subscription_fee` / `subscription_fee_display` is the yearly unlimited-consultation plan price set by staff; null means the plan is not offered in that country (hide it).
+
         App: call on the home screen and before booking, show `general_fee_display`, and send `country_code` in `POST /api/v1/consultations/` so checkout charges this amount in this currency. Specialist bookings (speciality set automatically from the chosen disease) are always charged in INR at the speciality's fixed fee; get the exact fee of any category from `GET /api/v1/pricing/consultation-fee/?category=`.
 
         For-doctors page: `specialist_fee_min/max/step` is the fee range a specialist may choose, and `general_doctor_payout_display` is what a general doctor receives after the platform fee.
@@ -8378,6 +8645,8 @@ paths:
                     currency_symbol: ₹
                     general_fee: 200
                     general_fee_display: ₹200
+                    subscription_fee: 1999
+                    subscription_fee_display: ₹1,999
                     doctor_share_percent: 75
                     platform_fee_percent: 25
                     general_doctor_payout: '150.00'
@@ -8398,6 +8667,8 @@ paths:
                     currency_symbol: $
                     general_fee: 10
                     general_fee_display: $10
+                    subscription_fee: null
+                    subscription_fee_display: null
                     doctor_share_percent: 75
                     platform_fee_percent: 25
                     general_doctor_payout: '7.50'
@@ -8418,6 +8689,8 @@ paths:
                     currency_symbol: ₹
                     general_fee: 200
                     general_fee_display: ₹200
+                    subscription_fee: 1999
+                    subscription_fee_display: ₹1,999
                     doctor_share_percent: 75
                     platform_fee_percent: 25
                     general_doctor_payout: '150.00'
@@ -13303,6 +13576,15 @@ components:
         general_fee_display:
           type: string
           description: e.g. "₹200", "$10", "AED 40"
+        subscription_fee:
+          type: integer
+          nullable: true
+          description: Yearly unlimited-consultation subscription price, whole currency
+            units; null = not offered in this country
+        subscription_fee_display:
+          type: string
+          nullable: true
+          description: e.g. "₹1,999"; null when not offered
         doctor_share_percent:
           type: integer
         platform_fee_percent:
@@ -13339,6 +13621,8 @@ components:
       - specialist_fee_min
       - specialist_fee_range_display
       - specialist_fee_step
+      - subscription_fee
+      - subscription_fee_display
     PricingSourceEnum:
       enum:
       - location
@@ -14313,6 +14597,176 @@ components:
       - id
       - is_superuser
       - username
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        country_code:
+          type: string
+          readOnly: true
+        amount:
+          type: integer
+          readOnly: true
+          description: Price paid, whole units of currency (staff-set subscription
+            fee)
+        currency:
+          type: string
+          readOnly: true
+        method:
+          allOf:
+          - $ref: '#/components/schemas/PaymentMethodEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/SubscriptionStatusEnum'
+          readOnly: true
+        starts_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Set on payment; a renewal starts when the current plan ends
+        ends_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        gateway_order_id:
+          type: string
+          readOnly: true
+          nullable: true
+        transaction_id:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - amount
+      - country_code
+      - created_at
+      - currency
+      - ends_at
+      - gateway_order_id
+      - id
+      - method
+      - paid_at
+      - starts_at
+      - status
+      - transaction_id
+    SubscriptionCheckoutOrder:
+      type: object
+      properties:
+        subscription_id:
+          type: integer
+        gateway_order_id:
+          type: string
+        key_id:
+          type: string
+        amount:
+          type: integer
+          description: 'Smallest currency unit for Razorpay: 99900 = INR 999 (paise)'
+        currency:
+          type: string
+        status:
+          type: string
+      required:
+      - amount
+      - currency
+      - gateway_order_id
+      - key_id
+      - status
+      - subscription_id
+    SubscriptionOrderRequest:
+      type: object
+      properties:
+        country_code:
+          type: string
+          description: ISO country code from pricing (step 1). Missing or not configured
+            = default country (India).
+          pattern: ^[A-Za-z]{2}$
+        method:
+          $ref: '#/components/schemas/PaymentOrderRequestMethodEnum'
+      required:
+      - method
+    SubscriptionPlan:
+      type: object
+      properties:
+        available:
+          type: boolean
+          description: 'False when staff have not set a subscription fee: hide the
+            plan.'
+        country_code:
+          type: string
+        amount:
+          type: integer
+          nullable: true
+          description: Whole units, e.g. 999 = INR 999
+        currency:
+          type: string
+          nullable: true
+        amount_display:
+          type: string
+          nullable: true
+        valid_days:
+          type: integer
+        is_active:
+          type: boolean
+          description: Covered right now
+        active_until:
+          type: string
+          format: date-time
+          nullable: true
+          description: End of paid cover, including a bought renewal
+        can_purchase:
+          type: boolean
+          description: Show Buy/Renew. Renewal opens in the last 30 days of cover.
+      required:
+      - active_until
+      - amount
+      - amount_display
+      - available
+      - can_purchase
+      - country_code
+      - currency
+      - is_active
+      - valid_days
+    SubscriptionStatusEnum:
+      enum:
+      - pending
+      - active
+      - failed
+      type: string
+      description: |-
+        * `pending` - Pending payment
+        * `active` - Paid
+        * `failed` - Failed
+    SubscriptionVerification:
+      type: object
+      properties:
+        subscription_id:
+          type: integer
+          minimum: 1
+          description: Local subscription id from the order API
+        razorpay_payment_id:
+          type: string
+          maxLength: 100
+        razorpay_signature:
+          type: string
+          pattern: ^[a-fA-F0-9]{64}$
+      required:
+      - razorpay_payment_id
+      - razorpay_signature
+      - subscription_id
     SupportContacts:
       type: object
       properties:

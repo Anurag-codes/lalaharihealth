@@ -10,6 +10,7 @@ from rest_framework.response import Response
 
 from apps.consultations.models import Consultation
 from apps.patients.access import accessible_appointments
+from apps.payments.subscriptions import subscription_for_booking
 from .availability import booking_times_for_date
 from .assignment import assign_doctor
 from .models import Appointment
@@ -108,6 +109,9 @@ class AppointmentListCreateView(generics.GenericAPIView):
 			'\n\nFree general offer: send coupon_code and doctor_id from GET /api/v1/appointments/free-consultation-offer/. '
 			'The server validates the active offer and sets amount=0, payment_required=false, payment_status=not_required, '
 			'status=finding_doctor. Skip Razorpay. Staff must assign the coupon doctor; expiry does not revoke submitted bookings.'
+			'\n\nYearly plan: when the patient has an active subscription (`GET /api/v1/payments/subscription/`) covering '
+			'`starts_at`, a general physician booking for themself (not a family member, not a speciality) is created the same '
+			'way with amount=0, payment_required=false and status=finding_doctor. No coupon is needed. Skip Razorpay.'
 		),
 		request=AppointmentRequestSerializer, responses={201: AppointmentSerializer, 200: AppointmentSerializer},
 		examples=[
@@ -150,18 +154,21 @@ class AppointmentListCreateView(generics.GenericAPIView):
 			if consultation.speciality_id and not consultation.speciality.is_active:
 				raise serializers.ValidationError('This speciality is not available right now. Please choose another.')
 			offer = selected_offer(consultation, data, lock=True)
+			plan = None if offer else subscription_for_booking(consultation, starts_at)
+			free = bool(offer or plan)
 			now = timezone.now()
 			consultation.status = Consultation.Status.REQUESTED
-			consultation.fee_charged = 0 if offer else consultation.expected_fee
+			consultation.fee_charged = 0 if free else consultation.expected_fee
 			consultation.currency = 'INR' if offer else consultation.expected_currency
 			consultation.scheduled_at = starts_at
 			consultation.information_confirmed_at = now
 			consultation.save(update_fields=['status', 'fee_charged', 'currency', 'scheduled_at', 'information_confirmed_at'])
 			appointment = Appointment.objects.create(
 				consultation=consultation, patient=request.user, slot=None, slot_time=starts_at,
-				status=Appointment.Status.FINDING_DOCTOR if offer else Appointment.Status.AWAITING_PAYMENT,
+				status=Appointment.Status.FINDING_DOCTOR if free else Appointment.Status.AWAITING_PAYMENT,
 				coupon_code=offer.coupon_code if offer else '',
 				free_consultation_doctor_id=offer.doctor_id if offer else None,
+				subscription=plan,
 			)
 		return Response(AppointmentSerializer(appointment, context={'request': request}).data, status=201)
 

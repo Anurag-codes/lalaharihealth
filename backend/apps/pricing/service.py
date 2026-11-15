@@ -150,6 +150,10 @@ def pricing_payload(result):
         'currency_symbol': symbol,
         'general_fee': pricing.general_fee,
         'general_fee_display': format_amount(pricing.general_fee, symbol),
+        'subscription_fee': pricing.subscription_fee,
+        'subscription_fee_display': (
+            format_amount(pricing.subscription_fee, symbol) if pricing.subscription_fee else None
+        ),
         'doctor_share_percent': DOCTOR_SHARE_PERCENT,
         'platform_fee_percent': PLATFORM_FEE_PERCENT,
         'general_doctor_payout': str(payout),

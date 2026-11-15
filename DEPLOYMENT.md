@@ -316,6 +316,13 @@ Ratings are read-only in Django admin under Consultation reviews. See
 `consultations.0008_prescription_document`, then restart `lalaharihealth-api`.
 Files are stored privately under `backend/private_documents/prescriptions/`; include
 that folder in backups.
+
+**Yearly subscription plan:** run `python manage.py migrate` for `pricing.0003_subscription_fee`,
+`payments.0004_subscription` and `appointments.0009_appointment_subscription`, then restart
+`lalaharihealth-api` and rebuild/restart `lalaharihealth-web` (new `/subscription` page).
+Set **Subscription fee** in Django admin → Country pricing; leave it empty to hide the plan.
+The existing Razorpay `payment.captured` webhook also activates plans. Purchases are read-only under
+Subscriptions. See [app subscription flow](APP_SUBSCRIPTION_FLOW.md).
 The website call number is fixed in the frontend; the mobile apps' support number
 comes from `SUPPORT_PHONE_NUMBER` in the backend environment.
 

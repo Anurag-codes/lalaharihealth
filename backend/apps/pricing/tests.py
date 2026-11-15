@@ -38,6 +38,12 @@ class PricingApiTests(APITestCase):
         self.assertEqual(data['general_fee_display'], '\u20b9200')
         self.assertEqual(data['general_doctor_payout_display'], '\u20b9150')
         self.assertEqual(data['specialist_fee_range_display'], '\u20b9200\u2013\u20b92,000')
+        self.assertEqual((data['subscription_fee'], data['subscription_fee_display']), (None, None))
+
+    def test_subscription_fee_set_by_staff(self):
+        CountryPricing.objects.filter(country_code='IN').update(subscription_fee=1999)
+        data = self.client.get(self.url).data
+        self.assertEqual((data['subscription_fee'], data['subscription_fee_display']), (1999, '\u20b91,999'))
 
     def test_location_resolves_country_pricing(self):
         add_us()

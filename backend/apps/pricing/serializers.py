@@ -27,6 +27,11 @@ class PricingSerializer(serializers.Serializer):
     currency_symbol = serializers.CharField()
     general_fee = serializers.IntegerField(help_text='General physician consultation fee, whole currency units')
     general_fee_display = serializers.CharField(help_text='e.g. "\u20b9200", "$10", "AED 40"')
+    subscription_fee = serializers.IntegerField(
+        allow_null=True,
+        help_text='Yearly unlimited-consultation subscription price, whole currency units; null = not offered in this country',
+    )
+    subscription_fee_display = serializers.CharField(allow_null=True, help_text='e.g. "\u20b91,999"; null when not offered')
     doctor_share_percent = serializers.IntegerField()
     platform_fee_percent = serializers.IntegerField()
     general_doctor_payout = serializers.DecimalField(max_digits=12, decimal_places=2, coerce_to_string=True)

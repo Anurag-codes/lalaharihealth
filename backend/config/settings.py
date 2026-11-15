@@ -257,6 +257,8 @@ SPECTACULAR_SETTINGS = {
         'ConsultationStatusEnum': ['draft', 'requested', 'ongoing', 'completed', 'cancelled'],
         'AppointmentStatusEnum': ['pending', 'awaiting_payment', 'finding_doctor', 'confirmed', 'completed', 'cancelled'],
         'PaymentStatusEnum': ['pending', 'success', 'failed', 'refunded'],
+        'PaymentMethodEnum': [('upi', 'UPI'), ('card', 'Card'), ('netbanking', 'Netbanking'), ('wallet', 'Wallet')],
+        'PaymentOrderRequestMethodEnum': [('card', 'Card'), ('upi', 'UPI')],
         'DoctorAppointmentStatusEnum': [('confirmed', 'Confirmed'), ('completed', 'Completed')],
         'ApplicationStatusEnum': [
             ('pending', 'Pending Review'), ('contacted', 'Contacted'),

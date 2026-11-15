@@ -20,6 +20,10 @@ class CountryPricing(models.Model):
     general_fee = models.PositiveIntegerField(
         validators=[MinValueValidator(1)], help_text='General physician consultation fee charged to patients',
     )
+    subscription_fee = models.PositiveIntegerField(
+        null=True, blank=True, validators=[MinValueValidator(1)],
+        help_text='Yearly unlimited-consultation subscription price. Leave empty if the plan is not offered in this country.',
+    )
     specialist_fee_min = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     specialist_fee_max = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     specialist_fee_step = models.PositiveIntegerField(

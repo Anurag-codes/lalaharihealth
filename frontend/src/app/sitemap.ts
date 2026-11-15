@@ -5,6 +5,7 @@ import { SITE_URL } from "@/lib/site";
 const STATIC_PATHS = [
   "/",
   "/get-started",
+  "/subscription",
   "/for-doctors",
   "/blogs",
   "/privacy",
