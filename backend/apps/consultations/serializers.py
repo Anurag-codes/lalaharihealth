@@ -189,8 +189,8 @@ class DocumentSerializer(serializers.ModelSerializer):
 class ConsultationSerializer(serializers.ModelSerializer):
     documents = DocumentSerializer(many=True, read_only=True)
     consultation_title = serializers.CharField(source='title', read_only=True)
-    fee = serializers.IntegerField(source='expected_fee', read_only=True, help_text='Amount payable for this booking, whole currency units')
-    fee_currency = serializers.CharField(source='expected_currency', read_only=True, help_text='Currency of fee, e.g. INR or USD')
+    fee = serializers.SerializerMethodField(help_text='Amount payable for this booking, whole currency units')
+    fee_currency = serializers.SerializerMethodField(help_text='Currency of fee, e.g. INR or USD')
     # Drafts return '' until filled in; declare blank so the schema allows it.
     patient_gender = serializers.ChoiceField(choices=Consultation._meta.get_field('patient_gender').choices, allow_blank=True, read_only=True)
     duration_unit = serializers.ChoiceField(choices=Consultation._meta.get_field('duration_unit').choices, allow_blank=True, read_only=True)
@@ -205,6 +205,14 @@ class ConsultationSerializer(serializers.ModelSerializer):
             'information_confirmed_at', 'documents', 'created_at',
         ]
         read_only_fields = fields
+
+    def get_fee(self, obj) -> int:
+        appointment = getattr(obj, 'appointment', None)
+        return 0 if appointment is not None and appointment.is_free_consultation else obj.expected_fee
+
+    def get_fee_currency(self, obj) -> str:
+        appointment = getattr(obj, 'appointment', None)
+        return obj.currency if appointment is not None and appointment.is_free_consultation else obj.expected_currency
 
 
 ONLINE_MODES = {Consultation.Mode.CHAT, Consultation.Mode.AUDIO, Consultation.Mode.VIDEO}
@@ -414,6 +422,8 @@ class CasePreviewScheduleSerializer(serializers.Serializer):
 
 
 class CasePreviewSerializer(serializers.Serializer):
+    coupon_code = serializers.CharField(allow_blank=True)
+    free_consultation_doctor = serializers.IntegerField(allow_null=True)
     consultation_id = serializers.IntegerField()
     consultation_title = serializers.CharField(help_text='"General Consultation" or e.g. "Skin Consultation"')
     speciality = serializers.CharField(allow_null=True)

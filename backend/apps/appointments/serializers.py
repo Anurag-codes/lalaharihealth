@@ -5,6 +5,7 @@ from .availability import (
     BOOKING_WINDOW_DAYS, DAY_START, LAST_SLOT_START, SLOT_MINUTES, booking_time_error, display_date, display_time,
 )
 from .models import Appointment, AppointmentSlot
+from .offers import FreeConsultationSelectionSerializer
 
 
 class SlotQuerySerializer(serializers.Serializer):
@@ -41,7 +42,7 @@ class BookingTimeField(serializers.DateTimeField):
         return starts_at
 
 
-class AppointmentRequestSerializer(serializers.Serializer):
+class AppointmentRequestSerializer(FreeConsultationSelectionSerializer):
     consultation_id = serializers.IntegerField(min_value=1)
     starts_at = BookingTimeField(
         help_text='Preferred time chosen on Schedule Appointment (a starts_at from GET /api/v1/appointments/slots/), '
@@ -66,6 +67,7 @@ class DoctorAssignmentSerializer(serializers.Serializer):
 
 
 class AppointmentSerializer(serializers.ModelSerializer):
+    payment_required = serializers.SerializerMethodField(help_text='False for a server-approved free coupon booking.')
     can_manage_payment = serializers.SerializerMethodField(
         help_text='Only the original booker can create/verify a payment. False for a family-member viewer.',
     )
@@ -93,6 +95,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'status', 'status_label', 'patient_name', 'consultation_title', 'speciality', 'chief_complaint', 'mode_label',
             'doctor', 'doctor_name', 'doctor_specialization',
             'amount', 'currency', 'payment_status', 'can_manage_payment', 'created_at',
+            'coupon_code', 'free_consultation_doctor', 'payment_required',
         ]
         read_only_fields = fields
         extra_kwargs = {
@@ -106,9 +109,14 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
     def get_can_manage_payment(self, obj) -> bool:
         request = self.context.get('request')
-        return request is not None and obj.patient_id == request.user.pk
+        return not obj.is_free_consultation and request is not None and obj.patient_id == request.user.pk
+
+    def get_payment_required(self, obj) -> bool:
+        return not obj.is_free_consultation
 
     def get_payment_status(self, obj) -> str:
+        if obj.is_free_consultation:
+            return 'not_required'
         payment = getattr(obj.consultation, 'payment', None)
         return payment.status if payment else 'not_started'
 

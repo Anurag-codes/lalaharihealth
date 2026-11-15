@@ -1,10 +1,46 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
 from apps.consultations.models import Consultation
+
+
+class FreeConsultationOffer(models.Model):
+    coupon_code = models.CharField(
+        max_length=40, unique=True, validators=[RegexValidator(r'^[A-Z0-9_-]+$', 'Use uppercase letters, numbers, hyphens or underscores.')],
+    )
+    doctor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    is_active = models.BooleanField(default=False)
+    valid_from = models.DateTimeField(null=True, blank=True)
+    valid_until = models.DateTimeField(null=True, blank=True, help_text='Exclusive expiry. Empty means no automatic expiry.')
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['is_active'], condition=models.Q(is_active=True), name='one_active_free_consultation_offer'),
+            models.CheckConstraint(
+                condition=models.Q(valid_from__isnull=True) | models.Q(valid_until__isnull=True) | models.Q(valid_until__gt=models.F('valid_from')),
+                name='free_offer_valid_period',
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        from apps.doctors.models import DoctorProfile
+
+        if self.doctor_id and not DoctorProfile.objects.filter(
+            user_id=self.doctor_id, user__role='doctor', user__is_active=True, is_active=True,
+            verification_status='verified', speciality__isnull=True,
+        ).exists():
+            raise ValidationError({'doctor': 'Choose an active, verified general physician.'})
+        if self.valid_from and self.valid_until and self.valid_until <= self.valid_from:
+            raise ValidationError({'valid_until': 'Expiry must be after the start.'})
+
+    def __str__(self):
+        return self.coupon_code
 
 
 class AppointmentSlot(models.Model):
@@ -56,6 +92,11 @@ class Appointment(models.Model):
     )
     slot = models.ForeignKey(AppointmentSlot, related_name='appointments', on_delete=models.PROTECT, null=True, blank=True)
     slot_time = models.DateTimeField()
+    coupon_code = models.CharField(max_length=40, blank=True, editable=False)
+    free_consultation_doctor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, related_name='+', on_delete=models.PROTECT, null=True, blank=True, editable=False,
+        help_text='Doctor selected when a free coupon was redeemed. Staff cannot assign another doctor.',
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     paid_at = models.DateTimeField(null=True, blank=True)
     doctor_assigned_at = models.DateTimeField(null=True, blank=True)
@@ -77,6 +118,22 @@ class Appointment(models.Model):
 
     class Meta:
         ordering = ['slot_time']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(coupon_code='', free_consultation_doctor__isnull=True)
+                    | (~models.Q(coupon_code='') & models.Q(free_consultation_doctor__isnull=False))
+                ),
+                name='appointment_free_coupon_paired',
+            ),
+        ]
+
+    @property
+    def is_free_consultation(self):
+        return bool(
+            self.coupon_code and self.free_consultation_doctor_id
+            and self.consultation.fee_charged == 0 and self.consultation.speciality_id is None
+        )
 
     def set_status(self, status):
         """Change status, stamp when it happened and return the fields to save."""

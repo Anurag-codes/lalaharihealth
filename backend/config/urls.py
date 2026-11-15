@@ -28,6 +28,7 @@ urlpatterns = [
     path('api/v1/hospitals/', include('apps.hospitals.urls')),
     path('api/v1/consultations/', include('apps.consultations.urls')),
     path('api/v1/appointments/', include('apps.appointments.urls')),
+    path('api/v1/staff/', include('apps.appointments.staff_urls')),
     path('api/v1/payments/', include('apps.payments.urls')),
     path('api/v1/notifications/', include('apps.notifications.urls')),
     path('api/v1/pricing/', include('apps.pricing.urls')),

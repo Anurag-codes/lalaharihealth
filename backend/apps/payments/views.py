@@ -32,11 +32,13 @@ class PaymentOrderView(generics.GenericAPIView):
 		serializer = self.get_serializer(data=request.data)
 		serializer.is_valid(raise_exception=True)
 		data = serializer.validated_data
-		client = gateway_client()
 		with transaction.atomic():
 			appointment = get_object_or_404(Appointment.objects.select_for_update(), pk=data['appointment_id'], patient=request.user)
+			if appointment.is_free_consultation:
+				raise serializers.ValidationError('Payment is not required for this free consultation.')
 			if appointment.status != Appointment.Status.AWAITING_PAYMENT:
 				raise serializers.ValidationError('This appointment is not awaiting payment.')
+			client = gateway_client()
 			payment, _ = Payment.objects.get_or_create(
 				consultation=appointment.consultation,
 				defaults={

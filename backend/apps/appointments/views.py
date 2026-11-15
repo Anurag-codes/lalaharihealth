@@ -13,12 +13,14 @@ from apps.patients.access import accessible_appointments
 from .availability import booking_times_for_date
 from .assignment import assign_doctor
 from .models import Appointment
+from .offers import selected_offer
 from .serializers import (
 	AppointmentRequestSerializer, AppointmentSerializer, AppointmentSlotSerializer,
 	DoctorAssignmentSerializer, SlotDateSerializer, SlotDatesQuerySerializer, SlotQuerySerializer,
 )
 
 APPOINTMENT_EXAMPLE = {
+	'coupon_code': '', 'free_consultation_doctor': None, 'payment_required': True,
 	'id': 12345, 'appointment_number': 'APT-12345', 'consultation': 42, 'slot': None,
 	'slot_time': '2026-10-18T10:00:00+05:30', 'schedule_date': '2026-10-18', 'schedule_time': '10:00 AM',
 	'status': 'awaiting_payment', 'status_label': 'Awaiting payment', 'patient_name': 'Rahul Sharma',
@@ -97,12 +99,15 @@ class AppointmentListCreateView(generics.GenericAPIView):
 		description=(
 			'Call from Case Preview after the patient ticks "I confirm the information provided above is correct." '
 			'`information_confirmed` must be true. `starts_at` is the time picked on Schedule Appointment: a future 15-minute '
-			'time from 12:00 AM to 11:45 PM India time within 30 days. No doctor is chosen here.\n\n'
+			'time from 12:00 AM to 11:45 PM India time within 30 days. Staff choose the doctor for normal bookings.\n\n'
 			'The fee is fixed and server-set (same as `GET /api/v1/pricing/consultation-fee/`): the general physician fee of the '
 			'step 1 country_code (default INR 200), or for a speciality the INR mode of its verified doctors\' fees. It is locked '
 			'now and does not change later. Repeating the same request returns the existing appointment.\n\n'
 			'Next: create a payment order for the returned appointment (Checkout). After payment the status is `finding_doctor` '
 			'until staff assign a doctor (`confirmed`).'
+			'\n\nFree general offer: send coupon_code and doctor_id from GET /api/v1/appointments/free-consultation-offer/. '
+			'The server validates the active offer and sets amount=0, payment_required=false, payment_status=not_required, '
+			'status=finding_doctor. Skip Razorpay. Staff must assign the coupon doctor; expiry does not revoke submitted bookings.'
 		),
 		request=AppointmentRequestSerializer, responses={201: AppointmentSerializer, 200: AppointmentSerializer},
 		examples=[
@@ -111,6 +116,15 @@ class AppointmentListCreateView(generics.GenericAPIView):
 				value={'consultation_id': 42, 'starts_at': '2026-10-18T10:00:00+05:30', 'information_confirmed': True},
 			),
 			OpenApiExample('Appointment created', response_only=True, status_codes=['201'], value=APPOINTMENT_EXAMPLE),
+			OpenApiExample('Free general consultation', request_only=True, value={
+				'consultation_id': 42, 'starts_at': '2026-11-20T10:00:00+05:30', 'information_confirmed': True,
+				'coupon_code': 'BANARSI_FREE', 'doctor_id': 7,
+			}),
+			OpenApiExample('Free booking awaiting staff', response_only=True, status_codes=['201'], value={
+				**APPOINTMENT_EXAMPLE, 'amount': 0, 'status': 'finding_doctor', 'status_label': 'Finding doctor',
+				'coupon_code': 'BANARSI_FREE', 'free_consultation_doctor': 7, 'payment_required': False,
+				'payment_status': 'not_required', 'can_manage_payment': False,
+			}),
 			OpenApiExample('Same request repeated: existing appointment', response_only=True, status_codes=['200'], value=APPOINTMENT_EXAMPLE),
 		],
 	)
@@ -123,7 +137,10 @@ class AppointmentListCreateView(generics.GenericAPIView):
 			consultation = get_object_or_404(Consultation.objects.select_for_update(), pk=data['consultation_id'], patient=request.user)
 			existing = Appointment.objects.filter(consultation=consultation).first()
 			if existing:
-				if existing.slot_time != starts_at:
+				if (
+					existing.slot_time != starts_at or existing.coupon_code != data.get('coupon_code', '')
+					or existing.free_consultation_doctor_id != data.get('doctor_id')
+				):
 					raise serializers.ValidationError('This consultation already has an appointment.')
 				return Response(AppointmentSerializer(existing, context={'request': request}).data)
 			if consultation.status != Consultation.Status.DRAFT or not consultation.history_completed:
@@ -132,16 +149,19 @@ class AppointmentListCreateView(generics.GenericAPIView):
 				raise serializers.ValidationError('Complete patient details before scheduling.')
 			if consultation.speciality_id and not consultation.speciality.is_active:
 				raise serializers.ValidationError('This speciality is not available right now. Please choose another.')
+			offer = selected_offer(consultation, data, lock=True)
 			now = timezone.now()
 			consultation.status = Consultation.Status.REQUESTED
-			consultation.fee_charged = consultation.expected_fee
-			consultation.currency = consultation.expected_currency
+			consultation.fee_charged = 0 if offer else consultation.expected_fee
+			consultation.currency = 'INR' if offer else consultation.expected_currency
 			consultation.scheduled_at = starts_at
 			consultation.information_confirmed_at = now
 			consultation.save(update_fields=['status', 'fee_charged', 'currency', 'scheduled_at', 'information_confirmed_at'])
 			appointment = Appointment.objects.create(
 				consultation=consultation, patient=request.user, slot=None, slot_time=starts_at,
-				status=Appointment.Status.AWAITING_PAYMENT,
+				status=Appointment.Status.FINDING_DOCTOR if offer else Appointment.Status.AWAITING_PAYMENT,
+				coupon_code=offer.coupon_code if offer else '',
+				free_consultation_doctor_id=offer.doctor_id if offer else None,
 			)
 		return Response(AppointmentSerializer(appointment, context={'request': request}).data, status=201)
 
@@ -188,6 +208,7 @@ class AssignDoctorView(generics.GenericAPIView):
 		description=(
 			"The doctor must be active and verified, and a general physician for general bookings or of the booking's "
 			"speciality. The doctor's own consultation_fee does not matter: the patient paid the fixed category fee. "
+			"Approved free coupon bookings require no payment and can only be assigned to free_consultation_doctor. "
 			'Optionally send starts_at to assign at another available time; omit it to keep the requested time. '
 			'A replacement must be future, 15-minute aligned, between 00:00 and 23:45 India time, within 30 days. '
 			'400 if the doctor already has another unfinished appointment at the same time; once that consultation is completed the '

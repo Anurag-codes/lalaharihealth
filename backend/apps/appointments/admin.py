@@ -12,13 +12,32 @@ from apps.notifications.models import Notification
 from apps.notifications.service import notify_appointment
 from apps.payments.models import Payment
 
-from .models import Appointment, AppointmentCall, AppointmentSlot
-from .assignment import apply_assignment, assignment_doctors, assignment_lock_reason, prepare_assignment
+from .models import Appointment, AppointmentCall, AppointmentSlot, FreeConsultationOffer
+from .assignment import apply_assignment, appointment_assignment_doctors, assignment_lock_reason, prepare_assignment
 
 
 class DoctorChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, user):
         return f'Dr. {user.get_full_name() or user.username} (User ID: {user.pk})'
+
+
+class FreeConsultationOfferForm(forms.ModelForm):
+    doctor = DoctorChoiceField(queryset=User.objects.filter(
+        role='doctor', is_active=True, doctor_profile__is_active=True,
+        doctor_profile__verification_status='verified', doctor_profile__speciality__isnull=True,
+    ))
+
+    class Meta:
+        model = FreeConsultationOffer
+        fields = '__all__'
+
+
+@admin.register(FreeConsultationOffer)
+class FreeConsultationOfferAdmin(admin.ModelAdmin):
+    form = FreeConsultationOfferForm
+    list_display = ('coupon_code', 'doctor', 'is_active', 'valid_from', 'valid_until')
+    list_filter = ('is_active',)
+    list_select_related = ('doctor',)
 
 
 class AppointmentAssignmentForm(forms.ModelForm):
@@ -37,7 +56,7 @@ class AppointmentAssignmentForm(forms.ModelForm):
         self.assignment_plan = None
         if self.instance.pk and 'doctor' in self.fields:
             self.fields['doctor'].queryset = User.objects.filter(
-                Q(doctor_profile__in=assignment_doctors(self.instance.consultation)) | Q(pk=self.instance.doctor_id),
+                Q(doctor_profile__in=appointment_assignment_doctors(self.instance)) | Q(pk=self.instance.doctor_id),
             )
             if self.instance.status == Appointment.Status.CONFIRMED:
                 self.fields['doctor'].required = True
@@ -112,6 +131,7 @@ class AppointmentAdmin(admin.ModelAdmin):
     readonly_fields = (
         'status', 'doctor', 'patient', 'consultation', 'slot', 'slot_time', 'completed_at',
         'completion_confirmed_at', 'completion_confirmed_by', 'assignment_edit_notice',
+        'coupon_code', 'free_consultation_doctor',
     )
     inlines = [AppointmentCallInline]
     actions = ['release_unstarted_reservations', 'confirm_completion']

@@ -7,13 +7,13 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.consultations.models import Consultation
-from apps.doctors.models import DoctorProfile
+from apps.doctors.models import DoctorProfile, Speciality
 from apps.payments.models import Payment
 from apps.notifications.models import Notification
 from apps.notifications.tests import HomeTestBase
 from apps.treatments.models import Condition
 from .availability import local_datetime
-from .models import Appointment, AppointmentCall, AppointmentSlot, AppointmentVideoRoom
+from .models import Appointment, AppointmentCall, AppointmentSlot, AppointmentVideoRoom, FreeConsultationOffer
 
 User = get_user_model()
 
@@ -70,6 +70,144 @@ class BookingFlowTests(APITestCase):
     def assign(self, appointment_id, doctor):
         self.client.force_authenticate(User.objects.get_or_create(username='staff', defaults={'is_staff': True})[0])
         return self.client.post(f'/api/v1/appointments/{appointment_id}/assign-doctor/', {'doctor_id': doctor.pk}, format='json')
+
+    def free_offer(self, **kwargs):
+        return FreeConsultationOffer.objects.create(coupon_code='BANARSI_FREE', doctor=self.doctor, is_active=True, **kwargs)
+
+    def submit_free(self, consultation_id, **kwargs):
+        payload = {
+            'consultation_id': consultation_id, 'starts_at': self.at(10).isoformat(), 'information_confirmed': True,
+            'coupon_code': 'BANARSI_FREE', 'doctor_id': self.doctor.pk,
+        }
+        payload.update(kwargs)
+        return self.client.post('/api/v1/appointments/', payload, format='json')
+
+    def test_free_offer_preview_booking_staff_confirmation_and_payment_rejection(self):
+        self.free_offer()
+        consultation_id = self.draft()
+        preview = self.client.get(f'/api/v1/consultations/{consultation_id}/preview/', {
+            'starts_at': self.at(10).isoformat(), 'coupon_code': 'BANARSI_FREE', 'doctor_id': self.doctor.pk,
+        })
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertEqual((preview.data['fee'], preview.data['currency'], preview.data['free_consultation_doctor']), (0, 'INR', self.doctor.pk))
+        response = self.submit_free(consultation_id)
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual((response.data['amount'], response.data['payment_status'], response.data['status']), (0, 'not_required', 'finding_doctor'))
+        self.assertFalse(response.data['payment_required'])
+        self.assertFalse(response.data['can_manage_payment'])
+        self.assertIsNone(response.data['doctor'])
+        consultation_response = self.client.get(f'/api/v1/consultations/{consultation_id}/')
+        self.assertEqual((consultation_response.data['fee'], consultation_response.data['fee_currency']), (0, 'INR'))
+        appointment = Appointment.objects.get(pk=response.data['id'])
+        self.assertIsNone(appointment.paid_at)
+        with patch('apps.payments.views.gateway_client') as gateway:
+            payment = self.client.post('/api/v1/payments/orders/', {'appointment_id': appointment.pk, 'method': 'upi'}, format='json')
+            self.assertEqual(payment.status_code, 400, payment.data)
+            gateway.assert_not_called()
+        self.assertFalse(Payment.objects.filter(consultation_id=consultation_id).exists())
+        self.assertEqual(self.assign(appointment.pk, self.doctor2).status_code, 400)
+        detail = self.client.get(f'/api/v1/staff/appointments/{appointment.pk}/')
+        self.assertEqual(detail.status_code, 200, detail.data)
+        self.assertTrue(detail.data['can_assign'])
+        self.assertEqual(detail.data['payment_status'], 'not_required')
+        doctors = self.client.get(f'/api/v1/staff/appointments/{appointment.pk}/doctors/')
+        self.assertEqual([item['id'] for item in doctors.data['results']], [self.doctor.pk])
+        # Disabling an offer prevents new redemptions, not fulfilment of submitted bookings.
+        FreeConsultationOffer.objects.update(is_active=False)
+        assigned = self.assign(appointment.pk, self.doctor)
+        self.assertEqual(assigned.status_code, 200, assigned.data)
+        self.client.force_authenticate(User.objects.get(username='staff'))
+        moved = self.client.post(f'/api/v1/appointments/{appointment.pk}/assign-doctor/', {
+            'starts_at': self.at(12).isoformat(),
+        }, format='json')
+        self.assertEqual(moved.status_code, 200, moved.data)
+        appointment.refresh_from_db()
+        self.assertEqual((appointment.status, appointment.doctor_id, appointment.slot_time), ('confirmed', self.doctor.pk, self.at(12)))
+        self.assertEqual(appointment.consultation.fee_charged, 0)
+        self.assertEqual(appointment.consultation.doctor_id, self.doctor.pk)
+
+    def test_free_offer_retries_unlimited_bookings_and_changed_selection(self):
+        offer = self.free_offer()
+        consultation_id = self.draft()
+        response = self.submit_free(consultation_id)
+        self.assertEqual(response.status_code, 201)
+        other = self.submit_free(self.draft())
+        self.assertEqual(other.status_code, 201, other.data)
+        self.assertNotEqual(response.data['id'], other.data['id'])
+        offer.is_active = False
+        offer.save(update_fields=['is_active'])
+        replay = self.submit_free(consultation_id)
+        self.assertEqual((replay.status_code, replay.data['id']), (200, response.data['id']))
+        self.assertEqual(self.submit(consultation_id, self.at(10)).status_code, 400)
+        self.assertEqual(self.submit_free(consultation_id, doctor_id=self.doctor2.pk).status_code, 400)
+        self.assertEqual(Appointment.objects.filter(consultation_id=consultation_id).count(), 1)
+
+    def test_free_offer_discovery_lifecycle_and_doctor_eligibility(self):
+        self.client.force_authenticate(None)
+        url = '/api/v1/appointments/free-consultation-offer/'
+        self.assertEqual(self.client.get(url).data, {'available': False, 'offer': None})
+        offer = self.free_offer()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('no-store', response['Cache-Control'])
+        self.assertEqual(response.data['offer']['doctor_id'], self.doctor.pk)
+        self.assertEqual(response.data['offer']['fee'], 0)
+        now = timezone.now()
+        for changes in (
+            {'is_active': False}, {'is_active': True, 'valid_from': now + timedelta(days=1)},
+            {'valid_from': None, 'valid_until': now},
+        ):
+            FreeConsultationOffer.objects.filter(pk=offer.pk).update(**changes)
+            self.assertEqual(self.client.get(url).data, {'available': False, 'offer': None}, changes)
+        FreeConsultationOffer.objects.filter(pk=offer.pk).update(valid_until=None)
+        for changes in ({'verification_status': 'pending'}, {'verification_status': 'verified', 'is_active': False}):
+            DoctorProfile.objects.filter(user=self.doctor).update(**changes)
+            self.assertFalse(self.client.get(url).data['available'])
+
+    def test_invalid_free_selection_never_creates_or_mutates_a_booking(self):
+        offer = self.free_offer()
+        consultation_id = self.draft()
+        for changes in (
+            {'coupon_code': 'WRONG'}, {'doctor_id': self.doctor2.pk}, {'coupon_code': ''},
+            {'coupon_code': None}, {'doctor_id': None}, {'information_confirmed': False},
+        ):
+            response = self.submit_free(consultation_id, **changes)
+            self.assertEqual(response.status_code, 400, response.data)
+        for selection in ({'coupon_code': 'BANARSI_FREE'}, {'doctor_id': self.doctor.pk}):
+            response = self.client.post('/api/v1/appointments/', {
+                'consultation_id': consultation_id, 'starts_at': self.at(10).isoformat(),
+                'information_confirmed': True, **selection,
+            }, format='json')
+            self.assertEqual(response.status_code, 400, response.data)
+        for changes in ({'is_active': False}, {'is_active': True, 'valid_until': timezone.now() - timedelta(seconds=1)}):
+            FreeConsultationOffer.objects.filter(pk=offer.pk).update(**changes)
+            self.assertEqual(self.submit_free(consultation_id).status_code, 400)
+        consultation = Consultation.objects.get(pk=consultation_id)
+        self.assertEqual(consultation.status, 'draft')
+        self.assertIsNone(consultation.information_confirmed_at)
+        self.assertFalse(Appointment.objects.filter(consultation=consultation).exists())
+
+    def test_free_offer_preserves_specialist_and_intake_authorization_rules(self):
+        self.free_offer()
+        consultation_id = self.draft()
+        speciality = Speciality.objects.create(name='Offer test speciality', slug='offer-test', fee=500)
+        Consultation.objects.filter(pk=consultation_id).update(speciality=speciality)
+        self.assertEqual(self.submit_free(consultation_id).status_code, 400)
+        Consultation.objects.filter(pk=consultation_id).update(speciality=None, history_completed=False)
+        self.assertEqual(self.submit_free(consultation_id).status_code, 400)
+        Consultation.objects.filter(pk=consultation_id).update(history_completed=True)
+        self.client.force_authenticate(self.doctor2)
+        self.assertEqual(self.submit_free(consultation_id).status_code, 404)
+        self.client.force_authenticate(None)
+        self.assertEqual(self.submit_free(consultation_id).status_code, 401)
+        self.client.force_authenticate(self.patient)
+        normal = self.client.post('/api/v1/appointments/', {
+            'consultation_id': consultation_id, 'starts_at': self.at(10).isoformat(), 'information_confirmed': True,
+            'amount': 0, 'fee': 0,
+        }, format='json')
+        self.assertEqual(normal.status_code, 201, normal.data)
+        self.assertEqual((normal.data['amount'], normal.data['status']), (200, 'awaiting_payment'))
+        self.assertTrue(normal.data['payment_required'])
 
     def test_assignment_can_move_to_free_time_when_requested_time_is_busy(self):
         busy = self.pay(self.submit(self.draft(), self.at(10)).data['id'])

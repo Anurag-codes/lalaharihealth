@@ -276,6 +276,36 @@ omitting `end_time`. A supplied end is exclusive and on the same date; `24:00` a
 windows are not accepted. The mobile source is outside this repository; see README's full-day
 app contract. Existing AM/PM display labels and offset-aware appointment timestamps are unchanged.
 
+### Staff web console
+
+**Free general consultation promotion:** run `python manage.py migrate` for
+`appointments.0008_free_consultation_offer`, then rebuild/restart both services.
+No promotion is seeded. Configure the verified general physician and active coupon
+at `/admin/appointments/freeconsultationoffer/`. See
+[app fee-flow and setup instructions](APP_CONSULTATION_FEE_FLOW.md).
+Disabling/expiring the offer hides new promotion availability; submitted free
+bookings remain free and staff must confirm the original offer doctor/time.
+
+For the staff-console-only addition no migration is needed; for the free offer apply the migration above.
+Rebuild/restart the frontend and backend:
+`sudo systemctl restart lalaharihealth-api lalaharihealth-web` after `npm ci && npm run build`.
+Open `https://lalaharihealth.com/staff` and sign in with a Django user that has
+**Staff status** (Django admin → Users, or `python manage.py createsuperuser`).
+Give staff their own accounts and strong passwords; do not share the superuser.
+
+- Optional backend `.env`: `STAFF_LOGIN_USER_HOURLY_LIMIT` (default 10) and
+  `STAFF_LOGIN_IP_HOURLY_LIMIT` (default 100). The console's server calls the API
+  from this server, so the per-IP backend limit effectively applies to all console
+  sign-ins together; the console also limits each visitor IP (20 per 15 minutes,
+  using Nginx's `X-Real-IP`).
+- Optional frontend `.env.production`: `API_INTERNAL_BASE_URL` (server-only) if
+  the Next.js server should reach the API at a different address. By default it
+  uses `NEXT_PUBLIC_API_BASE_URL`.
+- Serve the site over HTTPS only: staff session cookies are `Secure` in
+  production and are never readable by browser JavaScript.
+
+See the README's **Staff web console** section for pages, API contracts and rules.
+
 When deploying the Swagger addition to an already-running server, install the updated backend requirements, collect its self-hosted Swagger assets, and restart the API service:
 
 ```bash

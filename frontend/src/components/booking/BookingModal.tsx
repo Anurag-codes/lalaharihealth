@@ -6,7 +6,11 @@ import { CallbackForm } from "@/components/booking/CallbackForm";
 import { useCloseAfterBottomScroll } from "@/hooks/useCloseAfterBottomScroll";
 import { GeneralFee } from "@/components/pricing/PricingContext";
 
-export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function BookingModal({ isOpen, onClose, freeConsultationCoupon }: {
+  isOpen: boolean;
+  onClose: () => void;
+  freeConsultationCoupon?: string;
+}) {
   const [audioAutoplayBlocked, setAudioAutoplayBlocked] = useState(false);
   const appVideoRef = useRef<HTMLVideoElement>(null);
   const scrollDismissHandlers = useCloseAfterBottomScroll(onClose);
@@ -50,8 +54,15 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             >
               Choose how you&apos;d like to get help
             </h2>
+            {freeConsultationCoupon && (
+              <p className="mt-3 rounded-xl bg-primary-light p-3 text-base font-bold text-primary-darker">
+                Free consultation by Dr. Banarsi Das. Select his general consultation in the app and
+                use code {freeConsultationCoupon}, or ask our executive for this offer.
+                Unlimited bookings while the offer is active; staff confirm the doctor and time.
+              </p>
+            )}
             <p className="mt-2 text-sm text-ink/70 sm:text-base">
-              Registration is free. Consultations are paid; human-assisted consultation is <GeneralFee />.
+              Registration is free. {freeConsultationCoupon ? "Other consultations are paid; standard human-assisted consultation is " : "Consultations are paid; human-assisted consultation is "}<GeneralFee />.
               Other consultation fees are confirmed before booking.
               Get specialist consultations from home and save time, money, visits to doctors. Our aim is to help you understand the
               care you may need—not push unnecessary tests or treatment for profit.
@@ -114,7 +125,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   Register for free on the app
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/70">
-                  Registration is free, not the consultation. Consultation fees are confirmed
+                  {freeConsultationCoupon ? "The selected offer consultation is free while the coupon is active. Other consultation fees are confirmed" : "Registration is free, not the consultation. Consultation fees are confirmed"}
                   before booking. The app is launching soon.
                 </p>
               </div>
@@ -158,8 +169,13 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   Talk to our executive and get your appointment fixed
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink/70">
-                  Human-assisted consultation costs <strong className="text-ink"><GeneralFee /></strong>.
-                  Our executive will explain the next steps and confirm the appointment and payment.
+                  {freeConsultationCoupon ? (
+                    <>Ask for the free general consultation with Dr. Banarsi Das using code <strong>{freeConsultationCoupon}</strong>.
+                      Our executive will confirm offer availability and the appointment time.</>
+                  ) : (
+                    <>Human-assisted consultation costs <strong className="text-ink"><GeneralFee /></strong>.
+                      Our executive will explain the next steps and confirm the appointment and payment.</>
+                  )}
                 </p>
               </div>
             </div>
@@ -169,7 +185,7 @@ export function BookingModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
               className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-4 text-base font-bold text-white shadow-lg shadow-primary/25 hover:bg-primary-dark"
             >
               <Phone className="h-5 w-5" />
-              Call our executive — <GeneralFee /> consultation
+              {freeConsultationCoupon ? "Call us directly - claim the free consultation" : <>Call our executive — <GeneralFee /> consultation</>}
             </a>
 
             <div className="my-4 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-ink/40">

@@ -413,6 +413,51 @@ replacement assignment. Display labels remain AM/PM for compatibility. Refresh s
 passes and use the backend's confirmed schedule for call joining. Past-time, booking-window, payment,
 doctor verification and conflict checks are unchanged. No migration or new configuration is needed.
 
+### Staff web console
+
+**Free consultation offer:** admin-controlled general consultations with Dr. Banarsi Das can skip payment and
+wait for staff assignment to that doctor. See [the app fee-flow note](APP_CONSULTATION_FEE_FLOW.md) for exact
+specialist pricing contracts (unchanged), coupon preview/submission, offer lifecycle and admin setup.
+This addition requires `appointments.0008_free_consultation_offer`; the staff-console-only changes below do not.
+
+Staff manage appointments at **`https://lalaharihealth.com/staff`** (Next.js frontend, not Django admin).
+Sign in with a Django user that has **Staff status** (create one in Django admin → Users, or
+`python manage.py createsuperuser`). Doctors and patients cannot sign in here.
+
+| Page | What staff can do |
+| --- | --- |
+| `/staff` Dashboard | Counts and shortcuts: needs a doctor, overdue (time passed while still unassigned), today, awaiting payment, completion pending, upcoming confirmed; "Needs a doctor" and "Today" lists. |
+| `/staff/appointments` | Search (APT number, patient, phone, booker or doctor name) and filter by queue, status, India date range, doctor and speciality; paginated table. |
+| `/staff/appointments/{id}` | Full case (patient, booker, symptoms, documents download, payment, timeline, calls). **Assign / reassign / reschedule**: pick a date and any 15-minute time 00:00-23:45 IST, then a doctor by name from eligible doctors with availability at that time (busy doctors show the clashing appointment; open doctor-app slots are marked) and an optional day-schedule view. A confirmation dialog shows the change. Also edit patient name/age/gender and confirm completion. |
+| `/staff/doctors`, `/staff/doctors/{id}?date=` | Verified doctors by name with speciality, phone and upcoming count; each doctor's 96-slot day with open slots and appointments. |
+
+The console uses the existing staff actions `POST /api/v1/appointments/{id}/assign-doctor/` and
+`/confirm-completion/`, so the same payment, category, conflict, 15-minute/30-day and lock rules apply (locked
+appointments show the reason instead of the assign panel). A past appointment time must be replaced with a future
+time before assigning. The patient phone is not editable because it decides which family member can see the booking.
+
+Staff APIs (Swagger tag **Staff console**; all need an active staff JWT, otherwise 401/403):
+
+- `POST /api/v1/auth/staff/login/` `{"username", "password"}` → `{access, refresh, user}`; 401 for wrong
+  password or any non-staff account; 429 after 10 attempts per username or 100 per IP per hour
+  (`STAFF_LOGIN_USER_HOURLY_LIMIT`, `STAFF_LOGIN_IP_HOURLY_LIMIT`). Refresh at `POST /api/v1/auth/token/refresh/`;
+  revoke with `POST /api/v1/auth/staff/logout/` `{"refresh"}`.
+- `GET /api/v1/staff/me/`, `GET /api/v1/staff/summary/`.
+- `GET /api/v1/staff/appointments/?q=&queue=&status=&date_from=&date_to=&doctor_id=&speciality=&ordering=&page=`
+  and `GET /api/v1/staff/appointments/{id}/` (includes `can_assign`/`lock_reason`, an advisory flag; the assign API
+  re-checks under locks).
+- `PATCH /api/v1/staff/appointments/{id}/patient/` with `patient_name`, `patient_age` and/or `patient_gender`
+  (booking snapshot only; not after completion/cancellation; `patient_phone` is rejected).
+- `GET /api/v1/staff/appointments/{id}/doctors/?starts_at=` eligible doctors with `is_available`, `conflict`,
+  `has_open_slot`, `is_current` and `appointments_that_day`.
+- `GET /api/v1/staff/appointments/{id}/documents/{document_id}/download/` private document download.
+- `GET /api/v1/staff/doctors/?q=&speciality=` and `GET /api/v1/staff/doctors/{doctor_id}/schedule/?date=`.
+
+**Security.** The browser never sees JWTs: the Next.js server signs in through `/api/staff/login`, keeps the tokens
+in httpOnly, SameSite=Strict cookies (Secure in production), rotates them on expiry and forwards only an allowlist of
+staff API calls through `/api/staff/proxy/...`. State-changing requests must come from the same origin, and `/staff`
+pages are `noindex`. The staff console alone needs no migration; the free offer addition above does.
+
 ### Home screen APIs
 
 Examples are in Swagger under **Home**, **My Cases**, **Notifications** and **Appointment booking**.

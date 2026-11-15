@@ -47,6 +47,7 @@ HISTORY_EXAMPLES = [
 	),
 ]
 CASE_PREVIEW_EXAMPLE = {
+	'coupon_code': '', 'free_consultation_doctor': None,
 	'consultation_id': 42, 'consultation_title': 'General Consultation', 'speciality': None,
 	'patient': {
 		'name': 'Rahul Sharma', 'age': 25, 'gender': 'male', 'gender_label': 'Male', 'phone': '+919876543210',
@@ -220,16 +221,21 @@ class CasePreviewView(generics.GenericAPIView):
 		),
 		parameters=[OpenApiParameter(
 			'starts_at', OpenApiTypes.DATETIME, description='Time chosen on Schedule Appointment, e.g. 2026-10-18T19:00:00+05:30',
-		)],
+		), OpenApiParameter('coupon_code', OpenApiTypes.STR, description='Optional active free general-consultation coupon; send doctor_id too.'),
+			OpenApiParameter('doctor_id', OpenApiTypes.INT, description='Doctor user ID from the free offer.')],
 		examples=[OpenApiExample('Case preview', response_only=True, value=CASE_PREVIEW_EXAMPLE)],
 	)
 	def get(self, request, consultation_id):
 		import re
 
 		from apps.appointments.availability import booking_time_error, display_date, display_time
+		from apps.appointments.offers import FreeConsultationSelectionSerializer, selected_offer
 
 		consultation = owned_consultation(request, consultation_id)
 		appointment = getattr(consultation, 'appointment', None)
+		selection = FreeConsultationSelectionSerializer(data=request.query_params)
+		selection.is_valid(raise_exception=True)
+		offer = selected_offer(consultation, selection.validated_data) if appointment is None else None
 		schedule = None
 		raw_starts_at = request.query_params.get('starts_at')
 		if appointment is not None:
@@ -272,8 +278,10 @@ class CasePreviewView(generics.GenericAPIView):
 			'schedule': schedule,
 			'documents': DocumentSerializer(documents, many=True, context={'request': request}).data,
 			'document_count': len(documents),
-			'fee': consultation.fee_charged if appointment is not None else consultation.expected_fee,
-			'currency': consultation.currency if appointment is not None else consultation.expected_currency,
+			'fee': consultation.fee_charged if appointment is not None else (0 if offer else consultation.expected_fee),
+			'currency': consultation.currency if appointment is not None else ('INR' if offer else consultation.expected_currency),
+			'coupon_code': appointment.coupon_code if appointment is not None else (offer.coupon_code if offer else ''),
+			'free_consultation_doctor': appointment.free_consultation_doctor_id if appointment is not None else (offer.doctor_id if offer else None),
 			'ready_to_submit': appointment is None and consultation.status == Consultation.Status.DRAFT and not missing,
 			'missing_steps': missing,
 		}

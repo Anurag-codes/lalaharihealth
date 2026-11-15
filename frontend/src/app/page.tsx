@@ -12,6 +12,7 @@ import { DoctorsShowcase } from "@/components/sections/DoctorsShowcase";
 import { BookConsultation } from "@/components/sections/BookConsultation";
 import { FAQ } from "@/components/sections/FAQ";
 import { FinalCta } from "@/components/sections/FinalCta";
+import { FreeConsultationOffer } from "@/components/sections/FreeConsultationOffer";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -29,6 +30,7 @@ export default function Home() {
           <SaleVideo />
         </Container>
       </section>
+      <FreeConsultationOffer />
       <TrustStats />
       <Hero media={<HealthcareStoryVideos />} howItWorksHref="/get-started#how-it-works" />
       <MedicalCostAwareness />

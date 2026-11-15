@@ -6,8 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { MobileStickyCta } from "@/components/layout/MobileStickyCta";
 import { FloatingCallButton } from "@/components/layout/FloatingCallButton";
-import { BookingModalProvider } from "@/components/booking/BookingModalContext";
-import { PricingProvider } from "@/components/pricing/PricingContext";
+import { SiteChrome } from "@/components/layout/SiteChrome";
 import { SITE_URL } from "@/lib/site";
 
 const inter = Inter({
@@ -44,16 +43,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${poppins.variable} ${notoDevanagari.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-background text-ink">
-        <PricingProvider>
-        <BookingModalProvider>
-          <AnnouncementBar />
-          <Navbar />
-          <main className="flex-1 pb-20 lg:pb-0">{children}</main>
-          <Footer />
-          <MobileStickyCta />
-          <FloatingCallButton />
-        </BookingModalProvider>
-        </PricingProvider>
+        <SiteChrome
+          announcementBar={<AnnouncementBar />}
+          navbar={<Navbar />}
+          footer={<Footer />}
+          mobileStickyCta={<MobileStickyCta />}
+          floatingCallButton={<FloatingCallButton />}
+        >
+          {children}
+        </SiteChrome>
       </body>
     </html>
   );

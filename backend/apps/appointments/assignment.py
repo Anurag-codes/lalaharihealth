@@ -15,6 +15,17 @@ from .availability import booking_time_error
 from .models import Appointment, AppointmentCall, AppointmentSlot, AppointmentVideoRoom
 
 FREED_STATUSES = (Appointment.Status.CANCELLED, Appointment.Status.COMPLETED)
+CONSULTATION_LOCKED = 'The consultation has started or is completed or cancelled; its assignment cannot be changed.'
+CALL_LOCKED = 'A call has started or completed; its appointment assignment cannot be changed.'
+VIDEO_LOCKED = 'Issued video join credentials forbid rescheduling or changing the doctor; contact support.'
+LOCKED_CONSULTATION_STATUSES = (Consultation.Status.ONGOING, Consultation.Status.COMPLETED, Consultation.Status.CANCELLED)
+
+
+def call_started(call):
+    return bool(
+        call.started_at or (call.duration_seconds or 0) > 0
+        or call.status in (AppointmentCall.Status.IN_PROGRESS, AppointmentCall.Status.COMPLETED)
+    )
 
 
 def assignment_doctors(consultation):
@@ -22,6 +33,13 @@ def assignment_doctors(consultation):
         is_active=True, user__is_active=True, user__role='doctor', verification_status='verified',
         speciality_id=consultation.speciality_id,
     )
+
+
+def appointment_assignment_doctors(appointment):
+    profiles = assignment_doctors(appointment.consultation)
+    if appointment.free_consultation_doctor_id:
+        profiles = profiles.filter(user_id=appointment.free_consultation_doctor_id)
+    return profiles
 
 
 @dataclass
@@ -35,15 +53,15 @@ class AssignmentPlan:
 
 def assignment_lock_reason(appointment, consultation=None):
     consultation = consultation or appointment.consultation
-    if consultation.status in (Consultation.Status.ONGOING, Consultation.Status.COMPLETED, Consultation.Status.CANCELLED):
-        return 'The consultation has started or is completed or cancelled; its assignment cannot be changed.'
+    if consultation.status in LOCKED_CONSULTATION_STATUSES:
+        return CONSULTATION_LOCKED
     if appointment.calls.filter(
         Q(started_at__isnull=False) | Q(status__in=(AppointmentCall.Status.IN_PROGRESS, AppointmentCall.Status.COMPLETED))
         | Q(duration_seconds__gt=0),
     ).exists():
-        return 'A call has started or completed; its appointment assignment cannot be changed.'
+        return CALL_LOCKED
     if AppointmentVideoRoom.objects.filter(appointment=appointment, room_id__isnull=False).exclude(room_id='').exists():
-        return 'Issued video join credentials forbid rescheduling or changing the doctor; contact support.'
+        return VIDEO_LOCKED
     return None
 
 
@@ -56,12 +74,14 @@ def prepare_assignment(appointment_id, doctor_id=None, starts_at=None):
         Appointment.objects.select_for_update(of=('self',)).select_related('patient'), pk=appointment_id,
     )
     if appointment.status not in (Appointment.Status.FINDING_DOCTOR, Appointment.Status.CONFIRMED):
-        raise ValidationError('Only paid appointments awaiting matching or confirmed appointments can be assigned.')
+        raise ValidationError('Only paid or approved free appointments awaiting matching, or confirmed appointments, can be assigned.')
     target_time = starts_at if starts_at is not None else appointment.slot_time
     if doctor_id is None:
         if appointment.status == Appointment.Status.FINDING_DOCTOR or appointment.doctor_id is None:
             raise ValidationError({'doctor_id': 'Choose a doctor for this appointment.'})
         doctor_id = appointment.doctor_id
+    if appointment.free_consultation_doctor_id and doctor_id != appointment.free_consultation_doctor_id:
+        raise ValidationError({'doctor_id': 'A free coupon booking must be assigned to its selected offer doctor.'})
     appointment.consultation = consultation
     if (appointment.status == Appointment.Status.CONFIRMED and doctor_id == appointment.doctor_id
             and target_time == appointment.slot_time):
@@ -70,7 +90,7 @@ def prepare_assignment(appointment_id, doctor_id=None, starts_at=None):
         reason = assignment_lock_reason(appointment, consultation)
         if reason:
             raise ValidationError(reason)
-    if not Payment.objects.filter(consultation=consultation, status=Payment.Status.SUCCESS).exists():
+    if not appointment.is_free_consultation and not Payment.objects.filter(consultation=consultation, status=Payment.Status.SUCCESS).exists():
         raise ValidationError('Confirmed payment is required.')
     if starts_at is not None or appointment.status == Appointment.Status.CONFIRMED:
         error = booking_time_error(target_time)
@@ -81,7 +101,7 @@ def prepare_assignment(appointment_id, doctor_id=None, starts_at=None):
         user_id__in={doctor_id, appointment.doctor_id} - {None},
     ).order_by('user_id'))
     profile = get_object_or_404(
-        assignment_doctors(consultation).select_related('user'), user_id=doctor_id,
+        appointment_assignment_doctors(appointment).select_related('user'), user_id=doctor_id,
     )
     if Appointment.objects.filter(
         doctor=profile.user, slot_time=target_time,

@@ -4,14 +4,16 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { BookingModal } from "./BookingModal";
 
 type BookingModalContextValue = {
-  open: () => void;
+  open: (freeConsultationCoupon?: string) => void;
   close: () => void;
+  closeFreeOffer: () => void;
 };
 
 const BookingModalContext = createContext<BookingModalContextValue | null>(null);
 
 export function BookingModalProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [freeConsultationCoupon, setFreeConsultationCoupon] = useState<string>();
   // Bump on every open so BookingModal remounts fresh (resetting its form state) instead of
   // needing an effect to reset state when reopened.
   const [openKey, setOpenKey] = useState(0);
@@ -19,15 +21,22 @@ export function BookingModalProvider({ children }: { children: ReactNode }) {
   return (
     <BookingModalContext.Provider
       value={{
-        open: () => {
+        open: (coupon) => {
+          setFreeConsultationCoupon(coupon);
           setOpenKey((key) => key + 1);
           setIsOpen(true);
         },
         close: () => setIsOpen(false),
+        closeFreeOffer: () => {
+          if (freeConsultationCoupon) {
+            setIsOpen(false);
+            setFreeConsultationCoupon(undefined);
+          }
+        },
       }}
     >
       {children}
-      <BookingModal key={openKey} isOpen={isOpen} onClose={() => setIsOpen(false)} />
+      <BookingModal key={openKey} isOpen={isOpen} onClose={() => setIsOpen(false)} freeConsultationCoupon={freeConsultationCoupon} />
     </BookingModalContext.Provider>
   );
 }

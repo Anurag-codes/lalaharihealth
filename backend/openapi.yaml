@@ -79,6 +79,9 @@ paths:
                       currency: INR
                       payment_status: success
                       can_manage_payment: true
+                      payment_required: true
+                      coupon_code: ''
+                      free_consultation_doctor: null
                       created_at: '2026-10-18T18:37:16+05:30'
           description: ''
         '401':
@@ -95,11 +98,13 @@ paths:
     post:
       operationId: appointments_create
       description: |-
-        Call from Case Preview after the patient ticks "I confirm the information provided above is correct." `information_confirmed` must be true. `starts_at` is the time picked on Schedule Appointment: a future 15-minute time from 12:00 AM to 11:45 PM India time within 30 days. No doctor is chosen here.
+        Call from Case Preview after the patient ticks "I confirm the information provided above is correct." `information_confirmed` must be true. `starts_at` is the time picked on Schedule Appointment: a future 15-minute time from 12:00 AM to 11:45 PM India time within 30 days. Staff choose the doctor for normal bookings.
 
         The fee is fixed and server-set (same as `GET /api/v1/pricing/consultation-fee/`): the general physician fee of the step 1 country_code (default INR 200), or for a speciality the INR mode of its verified doctors' fees. It is locked now and does not change later. Repeating the same request returns the existing appointment.
 
         Next: create a payment order for the returned appointment (Checkout). After payment the status is `finding_doctor` until staff assign a doctor (`confirmed`).
+
+        Free general offer: send coupon_code and doctor_id from GET /api/v1/appointments/free-consultation-offer/. The server validates the active offer and sets amount=0, payment_required=false, payment_status=not_required, status=finding_doctor. Skip Razorpay. Staff must assign the coupon doctor; expiry does not revoke submitted bookings.
       summary: 'Submit Case: create the appointment at the chosen time'
       tags:
       - Mobile scheduling
@@ -115,6 +120,14 @@ paths:
                   starts_at: '2026-10-18T10:00:00+05:30'
                   information_confirmed: true
                 summary: Submit case
+              FreeGeneralConsultation:
+                value:
+                  consultation_id: 42
+                  starts_at: '2026-11-20T10:00:00+05:30'
+                  information_confirmed: true
+                  coupon_code: BANARSI_FREE
+                  doctor_id: 7
+                summary: Free general consultation
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/AppointmentRequest'
@@ -146,6 +159,9 @@ paths:
               examples:
                 SameRequestRepeated:ExistingAppointment:
                   value:
+                    coupon_code: ''
+                    free_consultation_doctor: null
+                    payment_required: true
                     id: 12345
                     appointment_number: APT-12345
                     consultation: 42
@@ -178,6 +194,9 @@ paths:
               examples:
                 AppointmentCreated:
                   value:
+                    coupon_code: ''
+                    free_consultation_doctor: null
+                    payment_required: true
                     id: 12345
                     appointment_number: APT-12345
                     consultation: 42
@@ -201,6 +220,34 @@ paths:
                     can_manage_payment: true
                     created_at: '2026-10-16T18:20:00+05:30'
                   summary: Appointment created
+                FreeBookingAwaitingStaff:
+                  value:
+                    coupon_code: BANARSI_FREE
+                    free_consultation_doctor: 7
+                    payment_required: false
+                    id: 12345
+                    appointment_number: APT-12345
+                    consultation: 42
+                    slot: null
+                    slot_time: '2026-10-18T10:00:00+05:30'
+                    schedule_date: '2026-10-18'
+                    schedule_time: 10:00 AM
+                    status: finding_doctor
+                    status_label: Finding doctor
+                    patient_name: Rahul Sharma
+                    consultation_title: General Consultation
+                    speciality: null
+                    chief_complaint: Headache - Cluster Headache - Chronic
+                    mode_label: Online
+                    doctor: null
+                    doctor_name: null
+                    doctor_specialization: null
+                    amount: 0
+                    currency: INR
+                    payment_status: not_required
+                    can_manage_payment: false
+                    created_at: '2026-10-16T18:20:00+05:30'
+                  summary: Free booking awaiting staff
           description: ''
         '400':
           description: Validation error. Body maps each invalid field to a list of
@@ -254,6 +301,9 @@ paths:
               examples:
                 FindingDoctor:
                   value:
+                    coupon_code: ''
+                    free_consultation_doctor: null
+                    payment_required: true
                     id: 12345
                     appointment_number: APT-12345
                     consultation: 42
@@ -304,19 +354,20 @@ paths:
       operationId: appointments_assign_doctor_create
       description: 'The doctor must be active and verified, and a general physician
         for general bookings or of the booking''s speciality. The doctor''s own consultation_fee
-        does not matter: the patient paid the fixed category fee. Optionally send
-        starts_at to assign at another available time; omit it to keep the requested
-        time. A replacement must be future, 15-minute aligned, between 00:00 and 23:45
-        India time, within 30 days. 400 if the doctor already has another unfinished
-        appointment at the same time; once that consultation is completed the doctor
-        can be assigned another patient at that time. The doctor gets a "New appointment"
-        notification. If the doctor opened an availability slot at that time in the
-        doctor app, it is linked (shown as booked there). Appointment and consultation
-        times are updated together, without changing the fee. Both participants are
-        notified of the confirmed time. Confirmed appointments may be changed before
-        the consultation or a call starts; omit doctor_id to keep the assigned doctor.
-        Issued video join credentials prevent changes for safety. Identical confirmed
-        submissions are harmless.'
+        does not matter: the patient paid the fixed category fee. Approved free coupon
+        bookings require no payment and can only be assigned to free_consultation_doctor.
+        Optionally send starts_at to assign at another available time; omit it to
+        keep the requested time. A replacement must be future, 15-minute aligned,
+        between 00:00 and 23:45 India time, within 30 days. 400 if the doctor already
+        has another unfinished appointment at the same time; once that consultation
+        is completed the doctor can be assigned another patient at that time. The
+        doctor gets a "New appointment" notification. If the doctor opened an availability
+        slot at that time in the doctor app, it is linked (shown as booked there).
+        Appointment and consultation times are updated together, without changing
+        the fee. Both participants are notified of the confirmed time. Confirmed appointments
+        may be changed before the consultation or a call starts; omit doctor_id to
+        keep the assigned doctor. Issued video join credentials prevent changes for
+        safety. Identical confirmed submissions are harmless.'
       summary: 'Staff only: assign a verified doctor to a paid appointment'
       parameters:
       - in: path
@@ -388,6 +439,9 @@ paths:
                     currency: INR
                     payment_status: success
                     can_manage_payment: false
+                    payment_required: true
+                    coupon_code: ''
+                    free_consultation_doctor: null
                     created_at: '2026-10-18T18:37:16+05:30'
           description: ''
         '400':
@@ -459,6 +513,9 @@ paths:
               examples:
                 Confirmed:
                   value:
+                    coupon_code: ''
+                    free_consultation_doctor: null
+                    payment_required: true
                     id: 12345
                     appointment_number: APT-12345
                     consultation: 42
@@ -577,6 +634,43 @@ paths:
                 Error:
                   value:
                     detail: Not found.
+  /api/v1/appointments/free-consultation-offer/:
+    get:
+      operationId: appointments_free_consultation_offer_retrieve
+      description: Public, no login. No per-patient limit while active. Hide the promotion
+        when available=false. Use the returned coupon_code and doctor_id in Case Preview
+        and Submit Case. Booking revalidates eligibility; staff confirm this doctor
+        and the final time. No payment or automatic doctor confirmation.
+      summary: Current free general-consultation offer
+      tags:
+      - Mobile scheduling
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FreeConsultationOfferResponse'
+              examples:
+                ActiveOffer:
+                  value:
+                    available: true
+                    offer:
+                      coupon_code: BANARSI_FREE
+                      doctor_id: 7
+                      doctor_name: Dr. Banarsi Das
+                      category: general
+                      fee: 0
+                      currency: INR
+                      valid_until: null
+                  summary: Active offer
+                NoAvailableOffer:
+                  value:
+                    available: false
+                    offer: null
+                  summary: No available offer
+          description: ''
   /api/v1/appointments/slot-dates/:
     get:
       operationId: appointments_slot_dates_list
@@ -1750,6 +1844,165 @@ paths:
                 Error:
                   value:
                     detail: An active patient account is required.
+  /api/v1/auth/staff/login/:
+    post:
+      operationId: auth_staff_login_create
+      description: Only active staff accounts (Django admin users with "Staff status")
+        receive tokens; every other account gets the same 401 as a wrong password.
+        Attempts are rate limited per username and per client IP (429). The web console
+        keeps these tokens server-side in httpOnly cookies; never store them in browser
+        JavaScript.
+      summary: 'Staff console: sign in with username and password'
+      tags:
+      - Staff console
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffLogin'
+            examples:
+              SignIn:
+                value:
+                  username: ops.priya
+                  password: <password>
+                summary: Sign in
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StaffLogin'
+            examples:
+              SignIn:
+                value:
+                  username: ops.priya
+                  password: <password>
+                summary: Sign in
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StaffLogin'
+            examples:
+              SignIn:
+                value:
+                  username: ops.priya
+                  password: <password>
+                summary: Sign in
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffLoginResponse'
+              examples:
+                SignedIn:
+                  value:
+                    access: <access-jwt>
+                    refresh: <refresh-jwt>
+                    user:
+                      id: 3
+                      username: ops.priya
+                      full_name: Priya Verma
+                      email: ops@example.com
+                      is_superuser: false
+                  summary: Signed in
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Invalid username or password.
+        '429':
+          description: Too many requests. Wait and retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Request was throttled. Expected available in 3540 seconds.
+  /api/v1/auth/staff/logout/:
+    post:
+      operationId: auth_staff_logout_create
+      description: Blacklists the given refresh token of the signed-in staff member.
+        Returns 204.
+      summary: 'Staff console: revoke the refresh token'
+      tags:
+      - Staff console
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffLogout'
+            examples:
+              SignOut:
+                value:
+                  refresh: <refresh-jwt>
+                summary: Sign out
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StaffLogout'
+            examples:
+              SignOut:
+                value:
+                  refresh: <refresh-jwt>
+                summary: Sign out
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StaffLogout'
+            examples:
+              SignOut:
+                value:
+                  refresh: <refresh-jwt>
+                summary: Sign out
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
   /api/v1/auth/token/:
     post:
       operationId: auth_token_create
@@ -2829,6 +3082,17 @@ paths:
           type: integer
         required: true
       - in: query
+        name: coupon_code
+        schema:
+          type: string
+        description: Optional active free general-consultation coupon; send doctor_id
+          too.
+      - in: query
+        name: doctor_id
+        schema:
+          type: integer
+        description: Doctor user ID from the free offer.
+      - in: query
         name: starts_at
         schema:
           type: string
@@ -2848,6 +3112,8 @@ paths:
               examples:
                 CasePreview:
                   value:
+                    coupon_code: ''
+                    free_consultation_doctor: null
                     consultation_id: 42
                     consultation_title: General Consultation
                     speciality: null
@@ -7757,6 +8023,835 @@ paths:
                     category:
                     - Unknown category. Use "general" or an active speciality id or
                       slug.
+  /api/v1/staff/appointments/:
+    get:
+      operationId: staff_appointments_list
+      description: Paginated (20 per page, ?page=). Combine queue, status, India date
+        range, doctor, speciality and search. `can_assign`/`lock_reason` tell whether
+        doctor/time can still be changed through POST /api/v1/appointments/{id}/assign-doctor/
+        (which re-checks under database locks).
+      summary: 'Staff console: appointments with queues, filters and search'
+      parameters:
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: India date, inclusive
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: India date, inclusive
+      - in: query
+        name: doctor_id
+        schema:
+          type: integer
+          minimum: 1
+      - in: query
+        name: ordering
+        schema:
+          enum:
+          - slot_time
+          - -slot_time
+          - created_at
+          - -created_at
+          type: string
+          minLength: 1
+        description: |-
+          Default: slot_time for needs_doctor, overdue, today and upcoming queues; -slot_time otherwise
+
+          * `slot_time` - slot_time
+          * `-slot_time` - -slot_time
+          * `created_at` - created_at
+          * `-created_at` - -created_at
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 100
+        description: APT number, patient, phone, booker or doctor name
+      - in: query
+        name: queue
+        schema:
+          enum:
+          - needs_doctor
+          - overdue
+          - today
+          - awaiting_payment
+          - completion_pending
+          - upcoming
+          type: string
+          minLength: 1
+        description: |-
+          needs_doctor = paid, waiting for a doctor; overdue = waiting after its time passed; today = today's paid appointments; awaiting_payment; completion_pending = doctor marked completed, staff not yet confirmed; upcoming = confirmed and not yet over
+
+          * `needs_doctor` - needs_doctor
+          * `overdue` - overdue
+          * `today` - today
+          * `awaiting_payment` - awaiting_payment
+          * `completion_pending` - completion_pending
+          * `upcoming` - upcoming
+      - in: query
+        name: speciality
+        schema:
+          type: string
+          pattern: ^(general|\d+)$
+          minLength: 1
+        description: Speciality id, or "general"
+      - in: query
+        name: status
+        schema:
+          enum:
+          - pending
+          - awaiting_payment
+          - finding_doctor
+          - confirmed
+          - completed
+          - cancelled
+          type: string
+          minLength: 1
+        description: |-
+          * `pending` - Pending
+          * `awaiting_payment` - Awaiting payment
+          * `finding_doctor` - Finding doctor
+          * `confirmed` - Confirmed
+          * `completed` - Completed
+          * `cancelled` - Cancelled
+      tags:
+      - Staff console
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedStaffAppointmentList'
+              examples:
+                NeedsADoctor:
+                  value:
+                    count: 1
+                    next: null
+                    previous: null
+                    results:
+                    - coupon_code: ''
+                      free_consultation_doctor: null
+                      id: 18
+                      appointment_number: APT-00018
+                      status: finding_doctor
+                      status_label: Finding doctor
+                      slot_time: '2026-11-16T10:00:00+05:30'
+                      schedule_date: '2026-11-16'
+                      schedule_time: 10:00 AM
+                      date_display: 16 Nov 2026
+                      patient_name: Priya Sharma
+                      patient_phone: '+919876543211'
+                      patient_relation: spouse
+                      patient_relation_label: Spouse
+                      booker:
+                        id: 12
+                        name: Rahul Sharma
+                        phone: '+919876543210'
+                      category:
+                        speciality_id: null
+                        name: General Physician
+                        title: General Consultation
+                      mode: video
+                      mode_label: Video Call
+                      doctor: null
+                      payment_status: success
+                      amount: 200
+                      currency: INR
+                      amount_display: ₹200
+                      created_at: '2026-11-15T09:12:00+05:30'
+                      is_overdue: false
+                      can_assign: true
+                      lock_reason: null
+                      can_edit_patient: true
+                      needs_completion_confirmation: false
+                  summary: Needs a doctor
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+  /api/v1/staff/appointments/{appointment_id}/:
+    get:
+      operationId: staff_appointments_retrieve
+      description: Everything staff need before assigning a doctor. Documents download
+        through download_path with staff authentication.
+      summary: 'Staff console: full appointment, case, payment, documents and calls'
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Staff console
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffAppointmentDetail'
+              examples:
+                Appointment:
+                  value:
+                    coupon_code: ''
+                    free_consultation_doctor: null
+                    id: 18
+                    appointment_number: APT-00018
+                    status: finding_doctor
+                    status_label: Finding doctor
+                    slot_time: '2026-11-16T10:00:00+05:30'
+                    schedule_date: '2026-11-16'
+                    schedule_time: 10:00 AM
+                    date_display: 16 Nov 2026
+                    patient_name: Priya Sharma
+                    patient_phone: '+919876543211'
+                    patient_relation: spouse
+                    patient_relation_label: Spouse
+                    booker:
+                      id: 12
+                      name: Rahul Sharma
+                      phone: '+919876543210'
+                      email: rahul@example.com
+                    category:
+                      speciality_id: null
+                      name: General Physician
+                      title: General Consultation
+                    mode: video
+                    mode_label: Video Call
+                    doctor: null
+                    payment_status: success
+                    amount: 200
+                    currency: INR
+                    amount_display: ₹200
+                    created_at: '2026-11-15T09:12:00+05:30'
+                    is_overdue: false
+                    can_assign: true
+                    lock_reason: null
+                    can_edit_patient: true
+                    needs_completion_confirmation: false
+                    consultation_id: 42
+                    consultation_status: requested
+                    chief_complaint: Fever - Viral Fever
+                    condition_details: High fever since Friday
+                    symptoms: Fever, body ache
+                    duration_display: 3 Days
+                    ongoing_medication: false
+                    treatment_details: ''
+                    patient_age: 33
+                    patient_gender: female
+                    patient_gender_label: Female
+                    family_member_id: 4
+                    payment:
+                      id: 9
+                      status: success
+                      method: upi
+                      amount: 200
+                      currency: INR
+                      gateway_order_id: order_example
+                      transaction_id: pay_example
+                      created_at: '2026-11-15T09:13:00+05:30'
+                    timeline:
+                      created_at: '2026-11-15T09:12:00+05:30'
+                      information_confirmed_at: '2026-11-15T09:12:00+05:30'
+                      paid_at: '2026-11-15T09:14:00+05:30'
+                      doctor_assigned_at: null
+                      completed_at: null
+                      completion_confirmed_at: null
+                      completion_confirmed_by: null
+                      cancelled_at: null
+                    documents:
+                    - id: 3
+                      original_name: blood_report.pdf
+                      uploaded_at: '2026-11-15T09:10:00+05:30'
+                      download_path: /api/v1/staff/appointments/18/documents/3/download/
+                    calls: []
+                    video_room_provisioned: false
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/staff/appointments/{appointment_id}/doctors/:
+    get:
+      operationId: staff_appointments_doctors_retrieve
+      description: Active, verified doctors of the booking category (general physicians
+        for general bookings), current doctor first, then free doctors. `is_available`
+        is false when the doctor has another unfinished appointment at starts_at (shown
+        in `conflict`). A starts_at must be a future 15-minute time within 30 days.
+      summary: 'Staff console: doctors who can take this appointment, with availability'
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      - in: query
+        name: starts_at
+        schema:
+          type: string
+          format: date-time
+        description: Time to check availability at; default the appointment time
+      tags:
+      - Staff console
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffDoctorChoices'
+              examples:
+                Doctors:
+                  value:
+                    starts_at: '2026-11-16T10:00:00+05:30'
+                    results:
+                    - id: 7
+                      name: Dr. Ananya Sharma
+                      specialization: General Physician
+                      speciality_name: null
+                      experience_years: 8
+                      phone: '+919800000007'
+                      is_current: false
+                      is_available: true
+                      has_open_slot: true
+                      conflict: null
+                      appointments_that_day: 2
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/staff/appointments/{appointment_id}/documents/{document_id}/download/:
+    get:
+      operationId: staff_appointments_documents_download_retrieve
+      description: Streams the private file as an attachment. Files are never public.
+      summary: 'Staff console: download a patient document of an appointment'
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: document_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Staff console
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/staff/appointments/{appointment_id}/patient/:
+    patch:
+      operationId: staff_appointments_patient_partial_update
+      description: Changes only this booking's patient snapshot, not the account or
+        family profile. The phone cannot be changed here because it decides which
+        family member can see the booking in their own app. 400 once the appointment
+        or consultation is completed or cancelled. Returns the updated appointment.
+      summary: 'Staff console: correct the patient name, age or gender of a booking'
+      parameters:
+      - in: path
+        name: appointment_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Staff console
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStaffPatientUpdate'
+            examples:
+              FixNameAndAge:
+                value:
+                  patient_name: Priya Sharma
+                  patient_age: 34
+                summary: Fix name and age
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStaffPatientUpdate'
+            examples:
+              FixNameAndAge:
+                value:
+                  patient_name: Priya Sharma
+                  patient_age: 34
+                summary: Fix name and age
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStaffPatientUpdate'
+            examples:
+              FixNameAndAge:
+                value:
+                  patient_name: Priya Sharma
+                  patient_age: 34
+                summary: Fix name and age
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffAppointmentDetail'
+              examples:
+                Updated:
+                  value:
+                    coupon_code: ''
+                    free_consultation_doctor: null
+                    id: 18
+                    appointment_number: APT-00018
+                    status: finding_doctor
+                    status_label: Finding doctor
+                    slot_time: '2026-11-16T10:00:00+05:30'
+                    schedule_date: '2026-11-16'
+                    schedule_time: 10:00 AM
+                    date_display: 16 Nov 2026
+                    patient_name: Priya Sharma
+                    patient_phone: '+919876543211'
+                    patient_relation: spouse
+                    patient_relation_label: Spouse
+                    booker:
+                      id: 12
+                      name: Rahul Sharma
+                      phone: '+919876543210'
+                      email: rahul@example.com
+                    category:
+                      speciality_id: null
+                      name: General Physician
+                      title: General Consultation
+                    mode: video
+                    mode_label: Video Call
+                    doctor: null
+                    payment_status: success
+                    amount: 200
+                    currency: INR
+                    amount_display: ₹200
+                    created_at: '2026-11-15T09:12:00+05:30'
+                    is_overdue: false
+                    can_assign: true
+                    lock_reason: null
+                    can_edit_patient: true
+                    needs_completion_confirmation: false
+                    consultation_id: 42
+                    consultation_status: requested
+                    chief_complaint: Fever - Viral Fever
+                    condition_details: High fever since Friday
+                    symptoms: Fever, body ache
+                    duration_display: 3 Days
+                    ongoing_medication: false
+                    treatment_details: ''
+                    patient_age: 34
+                    patient_gender: female
+                    patient_gender_label: Female
+                    family_member_id: 4
+                    payment:
+                      id: 9
+                      status: success
+                      method: upi
+                      amount: 200
+                      currency: INR
+                      gateway_order_id: order_example
+                      transaction_id: pay_example
+                      created_at: '2026-11-15T09:13:00+05:30'
+                    timeline:
+                      created_at: '2026-11-15T09:12:00+05:30'
+                      information_confirmed_at: '2026-11-15T09:12:00+05:30'
+                      paid_at: '2026-11-15T09:14:00+05:30'
+                      doctor_assigned_at: null
+                      completed_at: null
+                      completion_confirmed_at: null
+                      completion_confirmed_by: null
+                      cancelled_at: null
+                    documents:
+                    - id: 3
+                      original_name: blood_report.pdf
+                      uploaded_at: '2026-11-15T09:10:00+05:30'
+                      download_path: /api/v1/staff/appointments/18/documents/3/download/
+                    calls: []
+                    video_room_provisioned: false
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/staff/doctors/:
+    get:
+      operationId: staff_doctors_list
+      description: Active, verified doctors sorted by name. Not paginated. Filter
+        by name/phone/specialization and speciality.
+      summary: 'Staff console: verified doctors by name'
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 100
+      - in: query
+        name: speciality
+        schema:
+          type: string
+          pattern: ^(general|\d+)$
+          minLength: 1
+        description: Speciality id, or "general"
+      tags:
+      - Staff console
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StaffDoctor'
+              examples:
+                Doctors:
+                  value:
+                  - id: 7
+                    name: Dr. Ananya Sharma
+                    specialization: General Physician
+                    speciality: null
+                    phone: '+919800000007'
+                    experience_years: 8
+                    city: Delhi
+                    upcoming_appointments: 3
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+  /api/v1/staff/doctors/{doctor_id}/schedule/:
+    get:
+      operationId: staff_doctors_schedule_retrieve
+      description: 96 times from 00:00 to 23:45 India time, each with the slot the
+        doctor opened in the doctor app (if any) and the non-cancelled appointment
+        at that time. Use it to pick a free time before assigning.
+      summary: 'Staff console: one doctor''s day, every 15 minutes'
+      parameters:
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: India date, YYYY-MM-DD
+        required: true
+      - in: path
+        name: doctor_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Staff console
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffDoctorSchedule'
+              examples:
+                Day:
+                  value:
+                    doctor:
+                      id: 7
+                      name: Dr. Ananya Sharma
+                      specialization: General Physician
+                    date: '2026-11-16'
+                    times:
+                    - starts_at: '2026-11-16T00:00:00+05:30'
+                      time_display: 12:00 AM
+                      is_past: false
+                      slot_open: false
+                      slot_id: null
+                      appointment: null
+                    - starts_at: '2026-11-16T10:00:00+05:30'
+                      time_display: 10:00 AM
+                      is_past: false
+                      slot_open: true
+                      slot_id: 318
+                      appointment:
+                        id: 18
+                        appointment_number: APT-00018
+                        status: confirmed
+                        patient_name: Priya Sharma
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+  /api/v1/staff/me/:
+    get:
+      operationId: staff_me_retrieve
+      description: 403 when the account is not active staff.
+      summary: 'Staff console: the signed-in staff member'
+      tags:
+      - Staff console
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffUser'
+              examples:
+                StaffMember:
+                  value:
+                    id: 3
+                    username: ops.priya
+                    full_name: Priya Verma
+                    email: ops@example.com
+                    is_superuser: false
+                  summary: Staff member
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+  /api/v1/staff/summary/:
+    get:
+      operationId: staff_summary_retrieve
+      description: Counts behind each queue of GET /api/v1/staff/appointments/?queue=.
+        India dates.
+      summary: 'Staff console: dashboard counts'
+      tags:
+      - Staff console
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffSummary'
+              examples:
+                Counts:
+                  value:
+                    today_date: '2026-11-15'
+                    needs_doctor: 4
+                    overdue: 1
+                    today_count: 9
+                    awaiting_payment: 2
+                    completion_pending: 3
+                    upcoming_confirmed: 12
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
 components:
   schemas:
     ApplicationStatusEnum:
@@ -7861,6 +8956,19 @@ components:
           type: string
           format: date-time
           readOnly: true
+        coupon_code:
+          type: string
+          readOnly: true
+        free_consultation_doctor:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Doctor selected when a free coupon was redeemed. Staff cannot
+            assign another doctor.
+        payment_required:
+          type: boolean
+          readOnly: true
+          description: False for a server-approved free coupon booking.
       required:
       - amount
       - appointment_number
@@ -7868,14 +8976,17 @@ components:
       - chief_complaint
       - consultation
       - consultation_title
+      - coupon_code
       - created_at
       - currency
       - doctor
       - doctor_name
       - doctor_specialization
+      - free_consultation_doctor
       - id
       - mode_label
       - patient_name
+      - payment_required
       - payment_status
       - schedule_date
       - schedule_time
@@ -7992,6 +9103,14 @@ components:
     AppointmentRequest:
       type: object
       properties:
+        coupon_code:
+          type: string
+          maxLength: 40
+          pattern: ^[A-Z0-9_-]+$
+        doctor_id:
+          type: integer
+          minimum: 1
+          description: Only for the free offer; not normal doctor selection.
         consultation_id:
           type: integer
           minimum: 1
@@ -8434,6 +9553,11 @@ components:
     CasePreview:
       type: object
       properties:
+        coupon_code:
+          type: string
+        free_consultation_doctor:
+          type: integer
+          nullable: true
         consultation_id:
           type: integer
         consultation_title:
@@ -8487,11 +9611,13 @@ components:
       - condition_details
       - consultation_id
       - consultation_title
+      - coupon_code
       - currency
       - document_count
       - documents
       - duration_display
       - fee
+      - free_consultation_doctor
       - missing_steps
       - mode
       - ongoing_medication
@@ -10034,6 +11160,45 @@ components:
         * `after_food` - After food
         * `with_food` - With food
         * `any_time` - Any time
+    FreeConsultationOffer:
+      type: object
+      properties:
+        coupon_code:
+          type: string
+        doctor_id:
+          type: integer
+        doctor_name:
+          type: string
+        category:
+          type: string
+        fee:
+          type: integer
+        currency:
+          type: string
+        valid_until:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - category
+      - coupon_code
+      - currency
+      - doctor_id
+      - doctor_name
+      - fee
+      - valid_until
+    FreeConsultationOfferResponse:
+      type: object
+      properties:
+        available:
+          type: boolean
+        offer:
+          allOf:
+          - $ref: '#/components/schemas/FreeConsultationOffer'
+          nullable: true
+      required:
+      - available
+      - offer
     GenderEnum:
       enum:
       - male
@@ -10844,6 +12009,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Notification'
+    PaginatedStaffAppointmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffAppointment'
     PatchedAppointmentCall:
       type: object
       properties:
@@ -11108,6 +12296,18 @@ components:
         city:
           type: string
           maxLength: 100
+    PatchedStaffPatientUpdate:
+      type: object
+      properties:
+        patient_name:
+          type: string
+          maxLength: 150
+        patient_age:
+          type: integer
+          maximum: 120
+          minimum: 0
+        patient_gender:
+          $ref: '#/components/schemas/PatientGenderEnum'
     Patient:
       type: object
       properties:
@@ -11757,6 +12957,732 @@ components:
       required:
       - id
       - name
+    StaffAppointment:
+      type: object
+      properties:
+        coupon_code:
+          type: string
+        free_consultation_doctor:
+          type: integer
+          nullable: true
+        id:
+          type: integer
+        appointment_number:
+          type: string
+        status:
+          type: string
+          description: pending, awaiting_payment, finding_doctor, confirmed, completed
+            or cancelled
+        status_label:
+          type: string
+        slot_time:
+          type: string
+          format: date-time
+        schedule_date:
+          type: string
+          format: date
+          description: India date
+        schedule_time:
+          type: string
+          description: e.g. 10:00 AM
+        date_display:
+          type: string
+          description: e.g. 16 Nov 2026
+        patient_name:
+          type: string
+        patient_phone:
+          type: string
+        patient_relation:
+          type: string
+          description: self, spouse, son ... relative to the booker
+        patient_relation_label:
+          type: string
+        booker:
+          allOf:
+          - $ref: '#/components/schemas/StaffPerson'
+          description: Account that booked and paid
+        category:
+          $ref: '#/components/schemas/StaffCategory'
+        mode:
+          type: string
+        mode_label:
+          type: string
+        doctor:
+          allOf:
+          - $ref: '#/components/schemas/StaffDoctorRef'
+          nullable: true
+        payment_status:
+          type: string
+          description: not_required (free coupon), not_started, pending, success,
+            failed or refunded
+        amount:
+          type: integer
+          description: Whole currency units
+        currency:
+          type: string
+        amount_display:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        is_overdue:
+          type: boolean
+          description: Still waiting for a doctor after its time has passed
+        can_assign:
+          type: boolean
+          description: 'Advisory: the assign API re-checks everything'
+        lock_reason:
+          type: string
+          nullable: true
+        can_edit_patient:
+          type: boolean
+        needs_completion_confirmation:
+          type: boolean
+      required:
+      - amount
+      - amount_display
+      - appointment_number
+      - booker
+      - can_assign
+      - can_edit_patient
+      - category
+      - coupon_code
+      - created_at
+      - currency
+      - date_display
+      - doctor
+      - free_consultation_doctor
+      - id
+      - is_overdue
+      - lock_reason
+      - mode
+      - mode_label
+      - needs_completion_confirmation
+      - patient_name
+      - patient_phone
+      - patient_relation
+      - patient_relation_label
+      - payment_status
+      - schedule_date
+      - schedule_time
+      - slot_time
+      - status
+      - status_label
+    StaffAppointmentDetail:
+      type: object
+      properties:
+        coupon_code:
+          type: string
+        free_consultation_doctor:
+          type: integer
+          nullable: true
+        id:
+          type: integer
+        appointment_number:
+          type: string
+        status:
+          type: string
+          description: pending, awaiting_payment, finding_doctor, confirmed, completed
+            or cancelled
+        status_label:
+          type: string
+        slot_time:
+          type: string
+          format: date-time
+        schedule_date:
+          type: string
+          format: date
+          description: India date
+        schedule_time:
+          type: string
+          description: e.g. 10:00 AM
+        date_display:
+          type: string
+          description: e.g. 16 Nov 2026
+        patient_name:
+          type: string
+        patient_phone:
+          type: string
+        patient_relation:
+          type: string
+          description: self, spouse, son ... relative to the booker
+        patient_relation_label:
+          type: string
+        booker:
+          allOf:
+          - $ref: '#/components/schemas/StaffBooker'
+          description: Account that booked and paid
+        category:
+          $ref: '#/components/schemas/StaffCategory'
+        mode:
+          type: string
+        mode_label:
+          type: string
+        doctor:
+          allOf:
+          - $ref: '#/components/schemas/StaffDoctorRef'
+          nullable: true
+        payment_status:
+          type: string
+          description: not_required (free coupon), not_started, pending, success,
+            failed or refunded
+        amount:
+          type: integer
+          description: Whole currency units
+        currency:
+          type: string
+        amount_display:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        is_overdue:
+          type: boolean
+          description: Still waiting for a doctor after its time has passed
+        can_assign:
+          type: boolean
+          description: 'Advisory: the assign API re-checks everything'
+        lock_reason:
+          type: string
+          nullable: true
+        can_edit_patient:
+          type: boolean
+        needs_completion_confirmation:
+          type: boolean
+        consultation_id:
+          type: integer
+        consultation_status:
+          type: string
+        chief_complaint:
+          type: string
+        condition_details:
+          type: string
+        symptoms:
+          type: string
+        duration_display:
+          type: string
+          description: e.g. 5 Days
+        ongoing_medication:
+          type: boolean
+          nullable: true
+        treatment_details:
+          type: string
+        patient_age:
+          type: integer
+          nullable: true
+        patient_gender:
+          type: string
+        patient_gender_label:
+          type: string
+        family_member_id:
+          type: integer
+          nullable: true
+        payment:
+          allOf:
+          - $ref: '#/components/schemas/StaffPayment'
+          nullable: true
+        timeline:
+          $ref: '#/components/schemas/StaffTimeline'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffDocument'
+        calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffCall'
+        video_room_provisioned:
+          type: boolean
+          description: true once 100ms join credentials were issued; doctor/time are
+            then locked
+      required:
+      - amount
+      - amount_display
+      - appointment_number
+      - booker
+      - calls
+      - can_assign
+      - can_edit_patient
+      - category
+      - chief_complaint
+      - condition_details
+      - consultation_id
+      - consultation_status
+      - coupon_code
+      - created_at
+      - currency
+      - date_display
+      - doctor
+      - documents
+      - duration_display
+      - family_member_id
+      - free_consultation_doctor
+      - id
+      - is_overdue
+      - lock_reason
+      - mode
+      - mode_label
+      - needs_completion_confirmation
+      - ongoing_medication
+      - patient_age
+      - patient_gender
+      - patient_gender_label
+      - patient_name
+      - patient_phone
+      - patient_relation
+      - patient_relation_label
+      - payment
+      - payment_status
+      - schedule_date
+      - schedule_time
+      - slot_time
+      - status
+      - status_label
+      - symptoms
+      - timeline
+      - treatment_details
+      - video_room_provisioned
+    StaffBooker:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+      required:
+      - email
+      - id
+      - name
+      - phone
+    StaffCall:
+      type: object
+      properties:
+        id:
+          type: integer
+        mode:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+        status_label:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        duration_seconds:
+          type: integer
+          nullable: true
+        end_reason:
+          type: string
+      required:
+      - duration_seconds
+      - end_reason
+      - ended_at
+      - id
+      - mode
+      - provider
+      - started_at
+      - status
+      - status_label
+    StaffCategory:
+      type: object
+      properties:
+        speciality_id:
+          type: integer
+          nullable: true
+          description: null = General Physician
+        name:
+          type: string
+        title:
+          type: string
+      required:
+      - name
+      - speciality_id
+      - title
+    StaffConflict:
+      type: object
+      properties:
+        appointment_id:
+          type: integer
+        appointment_number:
+          type: string
+      required:
+      - appointment_id
+      - appointment_number
+    StaffDoctor:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Doctor user ID
+        name:
+          type: string
+        specialization:
+          type: string
+        speciality:
+          allOf:
+          - $ref: '#/components/schemas/StaffSpecialityRef'
+          nullable: true
+          description: null = General Physician
+        phone:
+          type: string
+        experience_years:
+          type: integer
+        city:
+          type: string
+        upcoming_appointments:
+          type: integer
+          description: Confirmed appointments that have not started yet
+      required:
+      - city
+      - experience_years
+      - id
+      - name
+      - phone
+      - speciality
+      - specialization
+      - upcoming_appointments
+    StaffDoctorChoice:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Doctor user ID; send as doctor_id
+        name:
+          type: string
+        specialization:
+          type: string
+        speciality_name:
+          type: string
+          nullable: true
+        experience_years:
+          type: integer
+        phone:
+          type: string
+        is_current:
+          type: boolean
+          description: Already assigned to this appointment
+        is_available:
+          type: boolean
+          description: No other unfinished appointment at starts_at
+        has_open_slot:
+          type: boolean
+          description: Doctor opened an availability slot at starts_at in the doctor
+            app
+        conflict:
+          allOf:
+          - $ref: '#/components/schemas/StaffConflict'
+          nullable: true
+        appointments_that_day:
+          type: integer
+          description: Non-cancelled appointments on that India date
+      required:
+      - appointments_that_day
+      - conflict
+      - experience_years
+      - has_open_slot
+      - id
+      - is_available
+      - is_current
+      - name
+      - phone
+      - speciality_name
+      - specialization
+    StaffDoctorChoices:
+      type: object
+      properties:
+        starts_at:
+          type: string
+          format: date-time
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffDoctorChoice'
+      required:
+      - results
+      - starts_at
+    StaffDoctorRef:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Doctor user ID; send as doctor_id when assigning
+        name:
+          type: string
+        specialization:
+          type: string
+      required:
+      - id
+      - name
+      - specialization
+    StaffDoctorSchedule:
+      type: object
+      properties:
+        doctor:
+          $ref: '#/components/schemas/StaffDoctorRef'
+        date:
+          type: string
+          format: date
+        times:
+          type: array
+          items:
+            $ref: '#/components/schemas/StaffScheduleTime'
+          description: 96 entries, 00:00 to 23:45 India time
+      required:
+      - date
+      - doctor
+      - times
+    StaffDocument:
+      type: object
+      properties:
+        id:
+          type: integer
+        original_name:
+          type: string
+        uploaded_at:
+          type: string
+          format: date-time
+        download_path:
+          type: string
+          description: Staff-authenticated download path
+      required:
+      - download_path
+      - id
+      - original_name
+      - uploaded_at
+    StaffLogin:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 150
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 128
+      required:
+      - password
+      - username
+    StaffLoginResponse:
+      type: object
+      properties:
+        access:
+          type: string
+          description: Access JWT (60 minutes). Keep it server-side, e.g. in an httpOnly
+            cookie.
+        refresh:
+          type: string
+          description: Refresh JWT (7 days, rotated by POST /api/v1/auth/token/refresh/).
+        user:
+          $ref: '#/components/schemas/StaffUser'
+      required:
+      - access
+      - refresh
+      - user
+    StaffLogout:
+      type: object
+      properties:
+        refresh:
+          type: string
+      required:
+      - refresh
+    StaffPayment:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+        method:
+          type: string
+        amount:
+          type: integer
+        currency:
+          type: string
+        gateway_order_id:
+          type: string
+          nullable: true
+        transaction_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - amount
+      - created_at
+      - currency
+      - gateway_order_id
+      - id
+      - method
+      - status
+      - transaction_id
+    StaffPerson:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+      required:
+      - id
+      - name
+      - phone
+    StaffScheduleAppointment:
+      type: object
+      properties:
+        id:
+          type: integer
+        appointment_number:
+          type: string
+        status:
+          type: string
+          description: pending, awaiting_payment, finding_doctor, confirmed, completed
+            or cancelled
+        patient_name:
+          type: string
+      required:
+      - appointment_number
+      - id
+      - patient_name
+      - status
+    StaffScheduleTime:
+      type: object
+      properties:
+        starts_at:
+          type: string
+          format: date-time
+        time_display:
+          type: string
+        is_past:
+          type: boolean
+        slot_open:
+          type: boolean
+          description: Doctor opened an availability slot at this time
+        slot_id:
+          type: integer
+          nullable: true
+        appointment:
+          allOf:
+          - $ref: '#/components/schemas/StaffScheduleAppointment'
+          nullable: true
+      required:
+      - appointment
+      - is_past
+      - slot_id
+      - slot_open
+      - starts_at
+      - time_display
+    StaffSpecialityRef:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required:
+      - id
+      - name
+    StaffSummary:
+      type: object
+      properties:
+        today_date:
+          type: string
+          format: date
+        needs_doctor:
+          type: integer
+        overdue:
+          type: integer
+        today_count:
+          type: integer
+        awaiting_payment:
+          type: integer
+        completion_pending:
+          type: integer
+        upcoming_confirmed:
+          type: integer
+      required:
+      - awaiting_payment
+      - completion_pending
+      - needs_doctor
+      - overdue
+      - today_count
+      - today_date
+      - upcoming_confirmed
+    StaffTimeline:
+      type: object
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        information_confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        doctor_assigned_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        completion_confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        completion_confirmed_by:
+          type: string
+          nullable: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - cancelled_at
+      - completed_at
+      - completion_confirmed_at
+      - completion_confirmed_by
+      - created_at
+      - doctor_assigned_at
+      - information_confirmed_at
+      - paid_at
+    StaffUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        full_name:
+          type: string
+          readOnly: true
+        email:
+          type: string
+        is_superuser:
+          type: boolean
+      required:
+      - email
+      - full_name
+      - id
+      - is_superuser
+      - username
     SupportContacts:
       type: object
       properties:
