@@ -115,6 +115,27 @@ class Consultation(models.Model):
         return 'INR' if self.speciality_id else self.pricing.currency
 
 
+class ConsultationReview(models.Model):
+    """One patient rating per completed consultation; feedback is optional."""
+
+    consultation = models.OneToOneField(Consultation, related_name='review', on_delete=models.CASCADE)
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='consultation_reviews', on_delete=models.CASCADE)
+    doctor = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='received_reviews', on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(help_text='1 to 5 stars')
+    feedback = models.TextField(blank=True, max_length=1000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(condition=models.Q(rating__gte=1, rating__lte=5), name='consultation_review_rating_1_to_5'),
+        ]
+
+    def __str__(self):
+        return f'{self.rating}/5 for consultation #{self.consultation_id}'
+
+
 class ConsultationDocument(models.Model):
     consultation = models.ForeignKey(Consultation, related_name='documents', on_delete=models.CASCADE)
     file = models.FileField(storage=private_document_storage, upload_to='consultations/%Y/%m/')

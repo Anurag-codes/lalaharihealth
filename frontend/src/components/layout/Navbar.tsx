@@ -50,11 +50,11 @@ export function Navbar() {
         <div className="hidden items-center gap-4 xl:flex">
           <TextSizeControl />
           <a
-            href="tel:+911800000000"
+            href="tel:+919289668244"
             className="flex items-center gap-2 text-sm font-semibold text-ink/70 hover:text-primary-darker"
           >
             <Phone className="h-4 w-4 text-primary" />
-            1800-000-000
+            +91 9289668244
           </a>
           {onDoctorsPage ? (
             <a href="#apply" className={getButtonClasses("primary", "sm")}>
@@ -100,11 +100,11 @@ export function Navbar() {
             </Link>
             <div className="mt-2 flex flex-col gap-3 px-3">
               <a
-                href="tel:+911800000000"
+                href="tel:+919289668244"
                 className="flex items-center gap-2 text-sm font-semibold text-ink/70"
               >
                 <Phone className="h-4 w-4 text-primary" />
-                1800-000-000
+                +91 9289668244
               </a>
               {onDoctorsPage ? (
                 <a

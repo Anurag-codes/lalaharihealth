@@ -307,6 +307,13 @@ at `/admin/appointments/freeconsultationoffer/`. See
 Disabling/expiring the offer hides new promotion availability; submitted free
 bookings remain free and staff must confirm the original offer doctor/time.
 
+**Patient consultation ratings:** run `python manage.py migrate` for
+`consultations.0007_consultation_review`, then restart `lalaharihealth-api`.
+Ratings are read-only in Django admin under Consultation reviews. See
+[app completion and rating flow](APP_CONSULTATION_COMPLETION_AND_RATING.md).
+The website call number is fixed in the frontend; the mobile apps' support number
+comes from `SUPPORT_PHONE_NUMBER` in the backend environment.
+
 For the staff-console-only addition no migration is needed; for the free offer apply the migration above.
 Rebuild/restart the frontend and backend:
 `sudo systemctl restart lalaharihealth-api lalaharihealth-web` after `npm ci && npm run build`.

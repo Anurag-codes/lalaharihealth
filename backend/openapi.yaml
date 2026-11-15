@@ -3253,6 +3253,188 @@ paths:
                 Error:
                   value:
                     detail: Not found.
+  /api/v1/consultations/{consultation_id}/review/:
+    get:
+      operationId: consultations_review_retrieve
+      description: Call on the consultation/case screen after the call. Show the star
+        form while `can_review` is true; `review` is your saved rating (pre-fill it
+        to edit). The booking account and the family member who received the consultation
+        can see it; only the first account to rate can rate or edit.
+      summary: Rating status for a consultation
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Patient consultation rating
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewStatus'
+              examples:
+                NotRatedYet:
+                  value:
+                    consultation_id: 41
+                    can_review: true
+                    reason: ''
+                    review: null
+                  summary: Not rated yet
+                Rated:
+                  value:
+                    consultation_id: 41
+                    can_review: true
+                    reason: ''
+                    review:
+                      rating: 5
+                      feedback: Doctor listened patiently and explained clearly.
+                      created_at: '2026-11-15T11:05:00+05:30'
+                      updated_at: '2026-11-15T11:05:00+05:30'
+                NotCompletedYet:
+                  value:
+                    consultation_id: 41
+                    can_review: false
+                    reason: You can rate after the doctor marks the consultation completed.
+                    review: null
+                  summary: Not completed yet
+          description: ''
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
+    put:
+      operationId: consultations_review_update
+      description: Send `rating` 1-5 and optional `feedback`. Allowed once the doctor
+        has marked the consultation completed. Sending again edits your rating; one
+        rating per consultation. Returns the same shape as GET.
+      summary: Rate a completed consultation (create or edit)
+      parameters:
+      - in: path
+        name: consultation_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Patient consultation rating
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewWrite'
+            examples:
+              RateWithFeedback:
+                value:
+                  rating: 5
+                  feedback: Doctor listened patiently and explained clearly.
+                summary: Rate with feedback
+              RateOnly:
+                value:
+                  rating: 4
+                summary: Rate only
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReviewWrite'
+            examples:
+              RateWithFeedback:
+                value:
+                  rating: 5
+                  feedback: Doctor listened patiently and explained clearly.
+                summary: Rate with feedback
+              RateOnly:
+                value:
+                  rating: 4
+                summary: Rate only
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReviewWrite'
+            examples:
+              RateWithFeedback:
+                value:
+                  rating: 5
+                  feedback: Doctor listened patiently and explained clearly.
+                summary: Rate with feedback
+              RateOnly:
+                value:
+                  rating: 4
+                summary: Rate only
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewStatus'
+              examples:
+                Saved:
+                  value:
+                    consultation_id: 41
+                    can_review: true
+                    reason: ''
+                    review:
+                      rating: 5
+                      feedback: Doctor listened patiently and explained clearly.
+                      created_at: '2026-11-15T11:05:00+05:30'
+                      updated_at: '2026-11-15T11:05:00+05:30'
+          description: ''
+        '400':
+          description: Validation error. Body maps each invalid field to a list of
+            messages, or has `detail`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    field_name:
+                    - This field is required.
+        '401':
+          description: Missing, invalid or expired access token. Refresh the token
+            and retry, or log in again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Authentication credentials were not provided.
+        '404':
+          description: Not found, or it does not belong to you.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                Error:
+                  value:
+                    detail: Not found.
   /api/v1/consultations/conditions/:
     get:
       operationId: consultations_conditions_list
@@ -12945,6 +13127,60 @@ components:
         * `grandfather` - Grandfather
         * `grandmother` - Grandmother
         * `other` - Other
+    Review:
+      type: object
+      properties:
+        rating:
+          type: integer
+        feedback:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - feedback
+      - rating
+      - updated_at
+    ReviewStatus:
+      type: object
+      properties:
+        consultation_id:
+          type: integer
+        can_review:
+          type: boolean
+          description: 'true: show the rating form (create, or edit your own rating)'
+        reason:
+          type: string
+          description: Why can_review is false; empty when true
+        review:
+          allOf:
+          - $ref: '#/components/schemas/Review'
+          nullable: true
+          description: Your rating, or null if you have not rated
+      required:
+      - can_review
+      - consultation_id
+      - reason
+      - review
+    ReviewWrite:
+      type: object
+      properties:
+        rating:
+          type: integer
+          maximum: 5
+          minimum: 1
+          description: 1 to 5 stars
+        feedback:
+          type: string
+          default: ''
+          description: Optional, up to 1000 characters
+          maxLength: 1000
+      required:
+      - rating
     RoleEnum:
       enum:
       - patient

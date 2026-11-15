@@ -156,7 +156,10 @@ export function BookConsultation() {
               {status === "error" && (
                 <div className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
                   <AlertCircle className="h-4 w-4 shrink-0" />
-                  Something went wrong. Please call us instead at 1800-000-000.
+                  <span>
+                    Something went wrong. Please call us instead at{" "}
+                    <a href="tel:+919289668244" className="font-semibold underline underline-offset-2">+91 9289668244</a>.
+                  </span>
                 </div>
               )}
               <p className="text-center text-xs text-ink/40">

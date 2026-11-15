@@ -91,7 +91,7 @@ export function HomeOfferPopup() {
 						</div>
 
 						<a
-							href="tel:+911800000000"
+							href="tel:+919289668244"
 							className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full border-2 border-primary px-6 py-4 text-center text-base font-bold text-primary-darker hover:bg-primary-light sm:text-lg"
 						>
 							<Phone className="h-5 w-5" />

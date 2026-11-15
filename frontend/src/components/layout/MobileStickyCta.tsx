@@ -57,7 +57,7 @@ function DoctorStickyActions() {
       )}
 
       <nav aria-label="Register options" className={`${BAR_CLASSES} flex items-stretch gap-2`}>
-        <a href="tel:+911800000000" className={`${ICON_ACTION_CLASSES} text-primary-darker`}>
+        <a href="tel:+919289668244" className={`${ICON_ACTION_CLASSES} text-primary-darker`}>
           <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-primary">
             <Phone className="h-5 w-5" />
           </span>
@@ -92,7 +92,7 @@ export function MobileStickyCta() {
   return (
     <div className={`${BAR_CLASSES} flex items-center gap-3`}>
       <a
-        href="tel:+911800000000"
+        href="tel:+919289668244"
         aria-label="Call us"
         className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-primary text-primary-darker"
       >

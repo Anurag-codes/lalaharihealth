@@ -85,8 +85,10 @@ export function Footer() {
           <div>
             <h4 className="font-heading text-sm font-semibold text-ink">Talk to Us</h4>
             <ul className="mt-4 space-y-3 text-sm text-ink/60">
-              <li className="flex items-center gap-2">
-                <Phone className="h-4 w-4 shrink-0 text-primary" /> 1800-000-000
+              <li>
+                <a href="tel:+919289668244" className="flex items-center gap-2 hover:text-primary-darker hover:underline">
+                  <Phone className="h-4 w-4 shrink-0 text-primary" /> +91 9289668244
+                </a>
               </li>
               <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 shrink-0 text-primary" /> care@lalaharihealth.com

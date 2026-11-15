@@ -35,7 +35,7 @@ export function HomeContactActions() {
       </div>
 
       <a
-        href="tel:+911800000000"
+        href="tel:+919289668244"
         className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-4 text-base font-bold text-white shadow-lg shadow-primary/25 hover:bg-primary-dark"
       >
         <Phone className="h-5 w-5" />

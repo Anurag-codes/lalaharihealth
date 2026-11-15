@@ -19,7 +19,7 @@ export function DoctorRegisterActions({
   return (
     <div className={`space-y-3 ${className}`}>
       <a
-        href="tel:+911800000000"
+        href="tel:+919289668244"
         className={`${OPTION_CLASSES} bg-primary text-white shadow-lg shadow-primary/25 hover:bg-primary-dark`}
       >
         <Phone className="h-5 w-5 shrink-0" />
